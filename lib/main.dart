@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'screens/splash_screen.dart';  // import splash
+import 'screens/login_screen.dart';  // import login
 
 void main() {
   runApp(const SirkularApp());
@@ -15,14 +17,11 @@ class SirkularApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.green,
       ),
-      home: const Scaffold(
-        body: Center(
-          child: Text(
-            "Hello Sirkular 👋",
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
-        ),
-      ),
+      initialRoute: '/', // rute awal
+      routes: {
+        '/': (context) => const SplashScreen(),
+        '/login': (context) => const LoginScreen(),
+      },
     );
   }
 }
