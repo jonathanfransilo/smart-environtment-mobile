@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -11,6 +12,16 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _loading = false;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -76,6 +87,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   color: Colors.grey.shade50,
                 ),
                 child: TextField(
+                  controller: _emailController,
                   decoration: InputDecoration(
                     labelText: "Email / No. Handphone",
                     hintText: "Masukan No. Handphone",
@@ -122,6 +134,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 child: TextField(
                   obscureText: _obscurePassword,
+                  controller: _passwordController,
                   decoration: InputDecoration(
                     labelText: "Password",
                     hintText: "Masukan Password",
@@ -198,9 +211,35 @@ class _LoginScreenState extends State<LoginScreen> {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: () {
-                    // TODO: aksi login
-                  },
+                  onPressed: _loading
+                      ? null
+                      : () async {
+                          final email = _emailController.text.trim();
+                          final password = _passwordController.text;
+                          if (email.isEmpty || password.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Email dan password wajib diisi')),
+                            );
+                            return;
+                          }
+                          setState(() => _loading = true);
+                          final auth = AuthService();
+                          final (ok, message) = await auth.login(
+                            email: email,
+                            password: password,
+                          );
+                          setState(() => _loading = false);
+                          if (ok) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Login berhasil')), 
+                            );
+                            // TODO: Navigate to home/dashboard when available
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(message ?? 'Login gagal')),
+                            );
+                          }
+                        },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Color.fromARGB(255, 21, 145, 137),
                     shape: RoundedRectangleBorder(
@@ -211,14 +250,24 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        "Masuk Akun",
-                        style: GoogleFonts.poppins(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
+                      if (_loading)
+                        const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      else
+                        Text(
+                          "Masuk Akun",
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
                         ),
-                      ),
                       const SizedBox(width: 8),
                       Container(
                         width: 20,
