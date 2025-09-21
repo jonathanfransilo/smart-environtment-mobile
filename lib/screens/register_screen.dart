@@ -1,27 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../services/auth_service.dart';
 
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscurePassword = true;
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  bool _loading = false;
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
+  bool _obscureConfirmPassword = true;
 
   @override
   Widget build(BuildContext context) {
@@ -68,7 +58,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 30),
 
               Text(
-                "Login Akun",
+                "Registrasi Akun",
                 style: GoogleFonts.poppins(
                   fontSize: 24,
                   fontWeight: FontWeight.w600,
@@ -78,6 +68,37 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 50),
 
+              // Input Nama
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.grey.shade50,
+                ),
+                child: TextField(
+                  decoration: InputDecoration(
+                    labelText: "Nama Lengkap",
+                    hintText: "Masukan Nama Lengkap",
+                    labelStyle: GoogleFonts.poppins(
+                      color: Colors.grey.shade600,
+                      fontSize: 14,
+                    ),
+                    hintStyle: GoogleFonts.poppins(
+                      color: Colors.grey.shade400,
+                      fontSize: 14,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
               // Input Email / HP
               Container(
                 decoration: BoxDecoration(
@@ -85,10 +106,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   color: Colors.grey.shade50,
                 ),
                 child: TextField(
-                  controller: _emailController,
                   decoration: InputDecoration(
                     labelText: "Email / No. Handphone",
-                    hintText: "Masukan No. Handphone",
+                    hintText: "Masukan Email / No. Handphone",
                     labelStyle: GoogleFonts.poppins(
                       color: Colors.grey.shade600,
                       fontSize: 14,
@@ -118,7 +138,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 child: TextField(
                   obscureText: _obscurePassword,
-                  controller: _passwordController,
                   decoration: InputDecoration(
                     labelText: "Password",
                     hintText: "Masukan Password",
@@ -152,58 +171,59 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
 
-              const SizedBox(height: 15),
+              const SizedBox(height: 20),
 
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () {},
-                  child: Text(
-                    "Lupa Password?",
-                    style: GoogleFonts.poppins(
+              // Input Konfirmasi Password
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.grey.shade50,
+                ),
+                child: TextField(
+                  obscureText: _obscureConfirmPassword,
+                  decoration: InputDecoration(
+                    labelText: "Konfirmasi Password",
+                    hintText: "Masukan Ulang Password",
+                    labelStyle: GoogleFonts.poppins(
+                      color: Colors.grey.shade600,
                       fontSize: 14,
-                      color: Colors.black87,
-                      fontWeight: FontWeight.w500,
+                    ),
+                    hintStyle: GoogleFonts.poppins(
+                      color: Colors.grey.shade400,
+                      fontSize: 14,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscureConfirmPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                        color: Colors.grey.shade600,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _obscureConfirmPassword = !_obscureConfirmPassword;
+                        });
+                      },
                     ),
                   ),
                 ),
               ),
 
-              const SizedBox(height: 30),
+              const SizedBox(height: 40),
 
+              // Tombol Registrasi
               SizedBox(
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: _loading
-                      ? null
-                      : () async {
-                          final email = _emailController.text.trim();
-                          final password = _passwordController.text;
-                          if (email.isEmpty || password.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Email dan password wajib diisi')),
-                            );
-                            return;
-                          }
-                          setState(() => _loading = true);
-                          final auth = AuthService();
-                          final (ok, message) = await auth.login(
-                            email: email,
-                            password: password,
-                          );
-                          setState(() => _loading = false);
-                          if (ok) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Login berhasil')), 
-                            );
-                            // TODO: Navigate to home/dashboard when available
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(message ?? 'Login gagal')),
-                            );
-                          }
-                        },
+                  onPressed: () {
+                    // Aksi registrasi
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color.fromARGB(255, 21, 145, 137),
                     shape: RoundedRectangleBorder(
@@ -214,24 +234,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      if (_loading)
-                        const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      else
-                        Text(
-                          "Masuk Akun",
-                          style: GoogleFonts.poppins(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
+                      Text(
+                        "Registrasi Akun",
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
                         ),
+                      ),
                       const SizedBox(width: 8),
                       Container(
                         width: 20,
@@ -253,11 +263,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 40),
 
+              // Link ke login
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    "Belum punya akun? ",
+                    "Sudah punya akun? ",
                     style: GoogleFonts.poppins(
                       fontSize: 14,
                       color: Colors.grey.shade700,
@@ -265,10 +276,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   GestureDetector(
                     onTap: () {
-                      Navigator.pushNamed(context, '/register');
+                      Navigator.pushNamed(context, '/login');
                     },
                     child: Text(
-                      "Registrasi Akun",
+                      "Masuk Akun",
                       style: GoogleFonts.poppins(
                         fontSize: 14,
                         color: const Color.fromARGB(255, 21, 145, 137),
