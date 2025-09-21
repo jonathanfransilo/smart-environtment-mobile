@@ -44,6 +44,42 @@ class AuthService {
     }
   }
 
+  Future<(bool success, String? message)> register({
+    required String name,
+    required String email,
+    required String password,
+    required String passwordConfirmation,
+  }) async {
+    try {
+      final res = await _dio.post(
+        ApiConfig.register,
+        data: {
+          'name': name,
+          'email': email,
+          'password': password,
+          'password_confirmation': passwordConfirmation,
+        },
+      );
+
+      final data = res.data as Map<String, dynamic>;
+      if (data['success'] == true) {
+        return (true, null);
+      } else {
+        final msg = data['errors']?['message']?.toString() ?? 'Registrasi gagal';
+        return (false, msg);
+      }
+    } on DioException catch (e) {
+      String msg = 'Terjadi kesalahan jaringan';
+      if (e.response?.data is Map) {
+        final body = e.response!.data as Map;
+        msg = body['errors']?['message']?.toString() ?? msg;
+      }
+      return (false, msg);
+    } catch (e) {
+      return (false, 'Error: $e');
+    }
+  }
+
   Future<Map<String, dynamic>?> me() async {
     try {
       final res = await _dio.get(ApiConfig.me);

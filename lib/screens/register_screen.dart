@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../services/auth_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -12,6 +13,47 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _loading = false;
+
+  final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+
+  final _auth = AuthService();
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _loading = true);
+    final (ok, msg) = await _auth.register(
+      name: _nameController.text.trim(),
+      email: _emailController.text.trim(),
+      password: _passwordController.text,
+      passwordConfirmation: _confirmPasswordController.text,
+    );
+    if (!mounted) return;
+    setState(() => _loading = false);
+    if (ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Registrasi berhasil. Silakan login.')),
+      );
+      Navigator.pushReplacementNamed(context, '/login');
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg ?? 'Registrasi gagal')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,149 +110,187 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
               const SizedBox(height: 50),
 
-              // Input Nama
-              Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  color: Colors.grey.shade50,
-                ),
-                child: TextField(
-                  decoration: InputDecoration(
-                    labelText: "Nama Lengkap",
-                    hintText: "Masukan Nama Lengkap",
-                    labelStyle: GoogleFonts.poppins(
-                      color: Colors.grey.shade600,
-                      fontSize: 14,
-                    ),
-                    hintStyle: GoogleFonts.poppins(
-                      color: Colors.grey.shade400,
-                      fontSize: 14,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    filled: true,
-                    fillColor: Colors.grey.shade50,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // Input Email / HP
-              Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  color: Colors.grey.shade50,
-                ),
-                child: TextField(
-                  decoration: InputDecoration(
-                    labelText: "Email / No. Handphone",
-                    hintText: "Masukan Email / No. Handphone",
-                    labelStyle: GoogleFonts.poppins(
-                      color: Colors.grey.shade600,
-                      fontSize: 14,
-                    ),
-                    hintStyle: GoogleFonts.poppins(
-                      color: Colors.grey.shade400,
-                      fontSize: 14,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    filled: true,
-                    fillColor: Colors.grey.shade50,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // Input Password
-              Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  color: Colors.grey.shade50,
-                ),
-                child: TextField(
-                  obscureText: _obscurePassword,
-                  decoration: InputDecoration(
-                    labelText: "Password",
-                    hintText: "Masukan Password",
-                    labelStyle: GoogleFonts.poppins(
-                      color: Colors.grey.shade600,
-                      fontSize: 14,
-                    ),
-                    hintStyle: GoogleFonts.poppins(
-                      color: Colors.grey.shade400,
-                      fontSize: 14,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    filled: true,
-                    fillColor: Colors.grey.shade50,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                        color: Colors.grey.shade600,
+              // Form
+              Form(
+                key: _formKey,
+                child: Column(
+                  children: [
+                    // Input Nama
+                    Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        color: Colors.grey.shade50,
                       ),
-                      onPressed: () {
-                        setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        });
-                      },
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // Input Konfirmasi Password
-              Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  color: Colors.grey.shade50,
-                ),
-                child: TextField(
-                  obscureText: _obscureConfirmPassword,
-                  decoration: InputDecoration(
-                    labelText: "Konfirmasi Password",
-                    hintText: "Masukan Ulang Password",
-                    labelStyle: GoogleFonts.poppins(
-                      color: Colors.grey.shade600,
-                      fontSize: 14,
-                    ),
-                    hintStyle: GoogleFonts.poppins(
-                      color: Colors.grey.shade400,
-                      fontSize: 14,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    filled: true,
-                    fillColor: Colors.grey.shade50,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscureConfirmPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                        color: Colors.grey.shade600,
+                      child: TextFormField(
+                        controller: _nameController,
+                        textInputAction: TextInputAction.next,
+                        decoration: InputDecoration(
+                          labelText: "Nama Lengkap",
+                          hintText: "Masukan Nama Lengkap",
+                          labelStyle: GoogleFonts.poppins(
+                            color: Colors.grey.shade600,
+                            fontSize: 14,
+                          ),
+                          hintStyle: GoogleFonts.poppins(
+                            color: Colors.grey.shade400,
+                            fontSize: 14,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                        ),
+                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Nama wajib diisi' : null,
                       ),
-                      onPressed: () {
-                        setState(() {
-                          _obscureConfirmPassword = !_obscureConfirmPassword;
-                        });
-                      },
                     ),
-                  ),
+
+                    const SizedBox(height: 20),
+
+                    // Input Email
+                    Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        color: Colors.grey.shade50,
+                      ),
+                      child: TextFormField(
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.next,
+                        decoration: InputDecoration(
+                          labelText: "Email",
+                          hintText: "Masukan Email",
+                          labelStyle: GoogleFonts.poppins(
+                            color: Colors.grey.shade600,
+                            fontSize: 14,
+                          ),
+                          hintStyle: GoogleFonts.poppins(
+                            color: Colors.grey.shade400,
+                            fontSize: 14,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                        ),
+                        validator: (v) {
+                          final value = v?.trim() ?? '';
+                          if (value.isEmpty) return 'Email wajib diisi';
+                          final emailRegex = RegExp(r'^\S+@\S+\.\S+$');
+                          if (!emailRegex.hasMatch(value)) return 'Email tidak valid';
+                          return null;
+                        },
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // Input Password
+                    Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        color: Colors.grey.shade50,
+                      ),
+                      child: TextFormField(
+                        controller: _passwordController,
+                        obscureText: _obscurePassword,
+                        textInputAction: TextInputAction.next,
+                        decoration: InputDecoration(
+                          labelText: "Password",
+                          hintText: "Masukan Password",
+                          labelStyle: GoogleFonts.poppins(
+                            color: Colors.grey.shade600,
+                            fontSize: 14,
+                          ),
+                          hintStyle: GoogleFonts.poppins(
+                            color: Colors.grey.shade400,
+                            fontSize: 14,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                              color: Colors.grey.shade600,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _obscurePassword = !_obscurePassword;
+                              });
+                            },
+                          ),
+                        ),
+                        validator: (v) {
+                          final value = v ?? '';
+                          if (value.isEmpty) return 'Password wajib diisi';
+                          if (value.length < 6) return 'Minimal 6 karakter';
+                          return null;
+                        },
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // Input Konfirmasi Password
+                    Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        color: Colors.grey.shade50,
+                      ),
+                      child: TextFormField(
+                        controller: _confirmPasswordController,
+                        obscureText: _obscureConfirmPassword,
+                        textInputAction: TextInputAction.done,
+                        decoration: InputDecoration(
+                          labelText: "Konfirmasi Password",
+                          hintText: "Masukan Ulang Password",
+                          labelStyle: GoogleFonts.poppins(
+                            color: Colors.grey.shade600,
+                            fontSize: 14,
+                          ),
+                          hintStyle: GoogleFonts.poppins(
+                            color: Colors.grey.shade400,
+                            fontSize: 14,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscureConfirmPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                              color: Colors.grey.shade600,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _obscureConfirmPassword = !_obscureConfirmPassword;
+                              });
+                            },
+                          ),
+                        ),
+                        validator: (v) {
+                          final value = v ?? '';
+                          if (value.isEmpty) return 'Konfirmasi password wajib diisi';
+                          if (value != _passwordController.text) return 'Konfirmasi password tidak sama';
+                          return null;
+                        },
+                        onFieldSubmitted: (_) => _submit(),
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
@@ -221,9 +301,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: () {
-                    // Aksi registrasi
-                  },
+                  onPressed: _loading ? null : _submit,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color.fromARGB(255, 21, 145, 137),
                     shape: RoundedRectangleBorder(
@@ -234,14 +312,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        "Registrasi Akun",
-                        style: GoogleFonts.poppins(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
+                      if (_loading)
+                        const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      else
+                        Text(
+                          "Registrasi Akun",
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
                         ),
-                      ),
                       const SizedBox(width: 8),
                       Container(
                         width: 20,
