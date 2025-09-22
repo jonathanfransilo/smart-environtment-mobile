@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'dart:io' show Platform;
 
 class ApiConfig {
   // Resolve base URL with priority: dart-define > platform default
@@ -9,7 +10,10 @@ class ApiConfig {
       final host = Uri.base.host.isEmpty ? 'localhost' : Uri.base.host;
       return 'http://$host:8000/api/v1';
     }
-    return 'http://10.0.2.2:8000/api/v1';
+    if (Platform.isAndroid) {
+      return 'http://10.0.2.2:8000/api/v1';
+    }
+    return 'http://localhost:8000/api/v1';
   }
 
   // Auth endpoints

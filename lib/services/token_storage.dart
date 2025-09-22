@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class TokenStorage {
   static const _key = 'auth_token';
-  static const _storage = FlutterSecureStorage();
+  static final _storage = FlutterSecureStorage();
 
   static Future<void> saveToken(String token) async {
     if (kIsWeb) {

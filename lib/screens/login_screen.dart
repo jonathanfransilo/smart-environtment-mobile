@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -18,23 +17,31 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController passwordController = TextEditingController();
 
   Future<void> _login() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedEmail = prefs.getString("email");
-    final savedPassword = prefs.getString("password");
+    final email = emailController.text.trim();
+    final password = passwordController.text;
 
-    if (savedEmail == null || savedPassword == null) {
+    if (email.isEmpty || password.isEmpty) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Silakan registrasi akun terlebih dahulu")),
+        const SnackBar(content: Text('Email/Password wajib diisi')),
       );
       return;
     }
 
-    if (emailController.text == savedEmail &&
-        passwordController.text == savedPassword) {
+    final auth = AuthService();
+    final (success, message) = await auth.login(
+      email: email,
+      password: password,
+      deviceName: 'windows',
+    );
+
+    if (!mounted) return;
+
+    if (success) {
       Navigator.pushReplacementNamed(context, '/home');
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Email/No HP atau Password salah")),
+        SnackBar(content: Text(message ?? 'Email/No HP atau Password salah')),
       );
     }
   }
