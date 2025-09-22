@@ -17,25 +17,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController nameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
-  final TextEditingController confirmPasswordController = TextEditingController();
+  final TextEditingController confirmPasswordController =
+      TextEditingController();
+
+  void _showSnackBar(String message, bool success) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(success ? Icons.check_circle : Icons.cancel, color: Colors.white),
+            const SizedBox(width: 8),
+            Text(message),
+          ],
+        ),
+        backgroundColor: success ? Colors.green : Colors.red,
+      ),
+    );
+  }
 
   Future<void> _register() async {
     if (passwordController.text != confirmPasswordController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Password dan konfirmasi tidak sama")),
-      );
+      _showSnackBar("Password dan konfirmasi tidak sama", false);
       return;
     }
 
     final prefs = await SharedPreferences.getInstance();
+    await prefs.setString("name", nameController.text);
     await prefs.setString("email", emailController.text);
     await prefs.setString("password", passwordController.text);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Registrasi berhasil! Silakan login.")),
-    );
+    _showSnackBar("Registrasi berhasil! Silakan login.", true);
 
-    Navigator.pushReplacementNamed(context, '/login');
+    Future.delayed(const Duration(seconds: 1), () {
+      Navigator.pushReplacementNamed(context, '/login');
+    });
   }
 
   @override
@@ -49,8 +64,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               const SizedBox(height: 60),
-
-              // Logo
               Container(
                 width: 80,
                 height: 80,
@@ -79,9 +92,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 30),
-
               Text(
                 "Registrasi Akun",
                 style: GoogleFonts.poppins(
@@ -90,10 +101,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   color: Colors.black87,
                 ),
               ),
-
               const SizedBox(height: 50),
-
-              // Nama
               TextField(
                 controller: nameController,
                 decoration: InputDecoration(
@@ -105,13 +113,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   filled: true,
                   fillColor: Colors.grey.shade50,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 20, vertical: 16),
                 ),
               ),
-
               const SizedBox(height: 20),
-
-              // Email / HP
               TextField(
                 controller: emailController,
                 decoration: InputDecoration(
@@ -123,13 +129,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   filled: true,
                   fillColor: Colors.grey.shade50,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 20, vertical: 16),
                 ),
               ),
-
               const SizedBox(height: 20),
-
-              // Password
               TextField(
                 controller: passwordController,
                 obscureText: _obscurePassword,
@@ -142,10 +146,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   filled: true,
                   fillColor: Colors.grey.shade50,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 20, vertical: 16),
                   suffixIcon: IconButton(
                     icon: Icon(
-                      _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                      _obscurePassword
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
                       color: Colors.grey.shade600,
                     ),
                     onPressed: () {
@@ -156,10 +163,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 20),
-
-              // Konfirmasi Password
               TextField(
                 controller: confirmPasswordController,
                 obscureText: _obscureConfirmPassword,
@@ -172,10 +176,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   filled: true,
                   fillColor: Colors.grey.shade50,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 20, vertical: 16),
                   suffixIcon: IconButton(
                     icon: Icon(
-                      _obscureConfirmPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                      _obscureConfirmPassword
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
                       color: Colors.grey.shade600,
                     ),
                     onPressed: () {
@@ -186,9 +193,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 40),
-
               SizedBox(
                 width: double.infinity,
                 height: 52,
@@ -211,9 +216,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 40),
-
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [

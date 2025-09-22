@@ -16,25 +16,43 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
 
+  void _showSnackBar(String message, bool success) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(success ? Icons.check_circle : Icons.cancel, color: Colors.white),
+            const SizedBox(width: 8),
+            Text(message),
+          ],
+        ),
+        backgroundColor: success ? Colors.green : Colors.red,
+      ),
+    );
+  }
+
   Future<void> _login() async {
     final prefs = await SharedPreferences.getInstance();
     final savedEmail = prefs.getString("email");
     final savedPassword = prefs.getString("password");
+    final savedName = prefs.getString("name");
 
     if (savedEmail == null || savedPassword == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Silakan registrasi akun terlebih dahulu")),
-      );
+      _showSnackBar("Silakan registrasi akun terlebih dahulu", false);
       return;
     }
 
     if (emailController.text == savedEmail &&
         passwordController.text == savedPassword) {
-      Navigator.pushReplacementNamed(context, '/home');
+      await prefs.setBool("isLoggedIn", true);
+
+      _showSnackBar("Login berhasil! Selamat datang $savedName", true);
+
+      Future.delayed(const Duration(seconds: 1), () {
+        Navigator.pushReplacementNamed(context, '/home');
+      });
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Email/No HP atau Password salah")),
-      );
+      _showSnackBar("Email/No HP atau Password salah", false);
     }
   }
 
@@ -49,8 +67,6 @@ class _LoginScreenState extends State<LoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               const SizedBox(height: 60),
-
-              // Logo
               Container(
                 width: 80,
                 height: 80,
@@ -79,9 +95,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 30),
-
               Text(
                 "Login Akun",
                 style: GoogleFonts.poppins(
@@ -90,10 +104,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   color: Colors.black87,
                 ),
               ),
-
               const SizedBox(height: 50),
-
-              // Input Email / HP
               TextField(
                 controller: emailController,
                 decoration: InputDecoration(
@@ -113,13 +124,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   filled: true,
                   fillColor: Colors.grey.shade50,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                 ),
               ),
-
               const SizedBox(height: 20),
-
-              // Input Password
               TextField(
                 controller: passwordController,
                 obscureText: _obscurePassword,
@@ -140,10 +149,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   filled: true,
                   fillColor: Colors.grey.shade50,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                   suffixIcon: IconButton(
                     icon: Icon(
-                      _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                      _obscurePassword
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
                       color: Colors.grey.shade600,
                     ),
                     onPressed: () {
@@ -154,9 +166,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 30),
-
               SizedBox(
                 width: double.infinity,
                 height: 52,
@@ -179,9 +189,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 40),
-
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
