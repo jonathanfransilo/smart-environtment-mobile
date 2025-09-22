@@ -19,6 +19,7 @@ class SirkularApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.green,
       ),
+      // ✅ Selalu mulai dari SplashScreen
       initialRoute: '/',
       routes: {
         '/': (context) => const SplashScreen(),
