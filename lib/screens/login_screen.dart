@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/auth_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -186,12 +185,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             email: email,
                             password: password,
                           );
+                          if (!mounted) return;
                           setState(() => _loading = false);
                           if (ok) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Login berhasil')), 
-                            );
-                            // TODO: Navigate to home/dashboard when available
+                            Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
                           } else {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text(message ?? 'Login gagal')),
