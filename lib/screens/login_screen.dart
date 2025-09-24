@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -11,6 +12,16 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _loading = false;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -23,8 +34,6 @@ class _LoginScreenState extends State<LoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               const SizedBox(height: 60),
-              
-              // Logo di atas
               Container(
                 width: 80,
                 height: 80,
@@ -37,8 +46,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     'assets/icons/logscreen.png',
                     width: 60,
                     height: 60,
-                    // Jika SVG tidak muncul, tambahkan fallback
-                    placeholderBuilder: (BuildContext context) => Container(
+                    placeholderBuilder: (context) => Container(
                       width: 60,
                       height: 60,
                       decoration: const BoxDecoration(
@@ -54,10 +62,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 30),
-
-              // Judul
               Text(
                 "Login Akun",
                 style: GoogleFonts.poppins(
@@ -66,7 +71,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   color: Colors.black87,
                 ),
               ),
-
               const SizedBox(height: 50),
 
               // Input Email / HP
@@ -76,6 +80,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   color: Colors.grey.shade50,
                 ),
                 child: TextField(
+                  controller: _emailController,
                   decoration: InputDecoration(
                     labelText: "Email / No. Handphone",
                     hintText: "Masukan No. Handphone",
@@ -91,27 +96,12 @@ class _LoginScreenState extends State<LoginScreen> {
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
                     ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(
-                        color: Color.fromARGB(255, 21, 145, 137),
-                        width: 2,
-                      ),
-                    ),
                     filled: true,
                     fillColor: Colors.grey.shade50,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 16,
-                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                   ),
                 ),
               ),
-
               const SizedBox(height: 20),
 
               // Input Password
@@ -122,6 +112,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 child: TextField(
                   obscureText: _obscurePassword,
+                  controller: _passwordController,
                   decoration: InputDecoration(
                     labelText: "Password",
                     hintText: "Masukan Password",
@@ -137,28 +128,12 @@ class _LoginScreenState extends State<LoginScreen> {
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
                     ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(
-                        color: Color.fromARGB(255, 21, 145, 137),
-                        width: 2,
-                      ),
-                    ),
                     filled: true,
                     fillColor: Colors.grey.shade50,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 16,
-                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
+                        _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
                         color: Colors.grey.shade600,
                       ),
                       onPressed: () {
@@ -173,18 +148,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 15),
 
-              // Lupa Password
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
-                  onPressed: () {
-                    // TODO: lupa password
-                  },
+                  onPressed: () {},
                   child: Text(
                     "Lupa Password?",
                     style: GoogleFonts.poppins(
                       fontSize: 14,
-                      color: Colors.grey[600],
+                      color: Colors.black87,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -192,17 +164,39 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
 
               const SizedBox(height: 30),
-
-              // Tombol Login
               SizedBox(
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: () {
-                    // TODO: aksi login
-                  },
+                  onPressed: _loading
+                      ? null
+                      : () async {
+                          final email = _emailController.text.trim();
+                          final password = _passwordController.text;
+                          if (email.isEmpty || password.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Email dan password wajib diisi')),
+                            );
+                            return;
+                          }
+                          setState(() => _loading = true);
+                          final auth = AuthService();
+                          final (ok, message) = await auth.login(
+                            email: email,
+                            password: password,
+                          );
+                          if (!mounted) return;
+                          setState(() => _loading = false);
+                          if (ok) {
+                            Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(message ?? 'Login gagal')),
+                            );
+                          }
+                        },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Color.fromARGB(255, 21, 145, 137),
+                    backgroundColor: const Color.fromARGB(255, 21, 145, 137),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(26),
                     ),
@@ -211,14 +205,24 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        "Masuk Akun",
-                        style: GoogleFonts.poppins(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
+                      if (_loading)
+                        const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      else
+                        Text(
+                          "Masuk Akun",
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
                         ),
-                      ),
                       const SizedBox(width: 8),
                       Container(
                         width: 20,
@@ -237,10 +241,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 40),
-
-              // Link Register
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -253,21 +254,19 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   GestureDetector(
                     onTap: () {
-                      // TODO: arahkan ke register
+                      Navigator.pushNamed(context, '/register');
                     },
                     child: Text(
                       "Registrasi Akun",
                       style: GoogleFonts.poppins(
                         fontSize: 14,
-                        color: Color.fromARGB(255, 21, 145, 137),
+                        color: const Color.fromARGB(255, 21, 145, 137),
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
                 ],
               ),
-
-              const SizedBox(height: 40),
             ],
           ),
         ),

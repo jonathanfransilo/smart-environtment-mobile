@@ -129,7 +129,7 @@ class _SplashScreenState extends State<SplashScreen>
                   "Lorem ipsum dolor sit amet",
                   style: GoogleFonts.poppins(
                     fontSize: 13,
-                    color: Colors.black87,
+                    color: const Color.fromARGB(255, 0, 0, 0),
                   ),
                   textAlign: TextAlign.center,
                 ),
