@@ -2,6 +2,40 @@ import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// 🔹 Dummy pages
+class StatusScreen extends StatelessWidget {
+  const StatusScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(child: Text("Halaman Status", style: TextStyle(fontSize: 18))),
+    );
+  }
+}
+
+class RiwayatScreen extends StatelessWidget {
+  const RiwayatScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(child: Text("Halaman Riwayat", style: TextStyle(fontSize: 18))),
+    );
+  }
+}
+
+class ProfilScreen extends StatelessWidget {
+  const ProfilScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(child: Text("Halaman Profil", style: TextStyle(fontSize: 18))),
+    );
+  }
+}
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -12,6 +46,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = true;
   String _username = "";
+  int _selectedIndex = 0;
 
   @override
   void initState() {
@@ -34,56 +69,295 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// 🔹 Ambil nama user dari SharedPreferences
   Future<void> _loadUser() async {
     final prefs = await SharedPreferences.getInstance();
     final savedName = prefs.getString("name") ?? "User";
 
-    // Simulasi loading
-    await Future.delayed(const Duration(seconds: 3));
+    await Future.delayed(const Duration(seconds: 2));
 
     setState(() {
       _username = savedName;
       _isLoading = false;
     });
 
-    // Opsional: tampilkan sapaan singkat saat masuk
     _showSnackBar("Halo $_username, selamat datang kembali!", true);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _isLoading ? _buildShimmer() : _buildContent(),
+      appBar: _selectedIndex == 0
+          ? AppBar(
+              elevation: 0,
+              backgroundColor: Colors.white,
+              title: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Halo $_username,",
+                      style: const TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black)),
+                  const Text("Selamat Datang",
+                      style: TextStyle(fontSize: 14, color: Colors.black54)),
+                ],
+              ),
+              actions: [
+                IconButton(
+                  onPressed: () {
+                    _showSnackBar("Fitur Notifikasi belum tersedia", true);
+                  },
+                  icon: const Icon(Icons.notifications, color: Colors.black),
+                ),
+              ],
+            )
+          : null,
+      body: _buildBody(),
       bottomNavigationBar: _buildBottomNav(),
     );
   }
 
-  /// 🔹 Shimmer (skeleton loading)
+  Widget _buildBody() {
+    if (_selectedIndex == 0) {
+      return _isLoading ? _buildShimmer() : _buildHomeContent();
+    } else if (_selectedIndex == 1) {
+      return const StatusScreen();
+    } else if (_selectedIndex == 2) {
+      return const RiwayatScreen();
+    } else {
+      return const ProfilScreen();
+    }
+  }
+
+  /// 🔹 Halaman Beranda (asli)
+  Widget _buildHomeContent() {
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 🔹 Rekening Sampah
+            Container(
+              decoration: BoxDecoration(
+                image: const DecorationImage(
+                  image: AssetImage("assets/images/bg1.png"),
+                  fit: BoxFit.cover,
+                ),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Image.asset("assets/images/wallet.png", height: 40,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("Tagihan Sampah",
+                            style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black)),
+                        Text("Rp. 100.000",
+                            style: TextStyle(
+                                fontSize: 14,
+                                color: Color.fromARGB(255, 21, 145, 137))),
+                      ],
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {},
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color.fromARGB(255, 21, 145, 137),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20)),
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    ),
+                    child: const Text("Bayar",
+                        style: TextStyle(color: Colors.white, fontSize: 14)),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 40),
+
+            // 🔹 Daftar Layanan
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: const [
+                Text("Daftar Layanan",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                Text("Lainnya",
+                    style: TextStyle(fontSize: 14, color: Colors.black)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _menuItem(
+                  "assets/images/keranjang.png",
+                  "Layanan\nSampah",
+                  onTap: () {
+                    Navigator.pushNamed(context, '/layanan-sampah');
+                  },
+                ),
+                _menuItem(
+                  "assets/images/rekening.png",
+                  "Rekening",
+                  onTap: () {
+                    _showSnackBar("Fitur Rekening belum tersedia", false);
+                  },
+                ),
+                _menuItem(
+                  "assets/images/artikel.png",
+                  "Artikel",
+                  onTap: () {
+                    _showSnackBar("Fitur Artikel belum tersedia", false);
+                  },
+                ),
+                _menuItem(
+                  "assets/images/pelanggaran.png",
+                  "Pengaduan",
+                  onTap: () {
+                    _showSnackBar("Fitur Pengaduan belum tersedia", false);
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 40),
+
+            // 🔹 Serahkan Sampah
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                image: const DecorationImage(
+                  image: AssetImage("assets/images/bg2.png"),
+                  fit: BoxFit.cover,
+                  alignment: Alignment.topCenter,
+                ),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 170),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text("Serahkan Sampah disini",
+                                  style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black)),
+                              SizedBox(height: 4),
+                              Text("Agar Driver bisa menjemput sampahmu",
+                                  style: TextStyle(
+                                      fontSize: 14, color: Colors.black)),
+                            ],
+                          ),
+                        ),
+                        ElevatedButton(
+                          onPressed: () {},
+                          style: ElevatedButton.styleFrom(
+                            shape: const CircleBorder(),
+                            padding: const EdgeInsets.all(12),
+                            backgroundColor: Colors.green,
+                          ),
+                          child: const Icon(Icons.arrow_forward,
+                              color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 40),
+
+            // 🔹 Aktivitas Terakhir
+            const Text("Aktivitas Terakhir",
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(child: _activityCard("Serah Sampah")),
+                Expanded(child: _activityCard("Penghargaan")),
+                Expanded(child: _activityCard("Rekening")),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 🔹 Shimmer Loading
   Widget _buildShimmer() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header shimmer
           _shimmerBox(height: 20, width: 150),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
+          _shimmerBox(height: 16, width: 100),
+          const SizedBox(height: 20),
+
+          // Rekening shimmer
           _shimmerBox(height: 80, width: double.infinity),
-          const SizedBox(height: 16),
+          const SizedBox(height: 30),
+
+          // Menu shimmer
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: List.generate(4, (index) => _shimmerBox(height: 60, width: 60)),
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: List.generate(
+              4,
+              (index) => Column(
+                children: [
+                  _shimmerBox(height: 50, width: 50, radius: 16),
+                  const SizedBox(height: 6),
+                  _shimmerBox(height: 12, width: 40),
+                ],
+              ),
+            ),
           ),
-          const SizedBox(height: 16),
-          _shimmerBox(height: 120, width: double.infinity),
-          const SizedBox(height: 16),
+          const SizedBox(height: 30),
+
+          // Banner shimmer
+          _shimmerBox(height: 180, width: double.infinity, radius: 16),
+          const SizedBox(height: 30),
+
+          // Aktivitas shimmer
           Row(
             children: List.generate(
               3,
               (index) => Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: _shimmerBox(height: 80, width: double.infinity),
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  child: _shimmerBox(height: 80, width: double.infinity, radius: 12),
                 ),
               ),
             ),
@@ -93,7 +367,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _shimmerBox({required double height, required double width}) {
+  Widget _shimmerBox({
+    required double height,
+    required double width,
+    double radius = 8,
+  }) {
     return Shimmer.fromColors(
       baseColor: Colors.grey.shade300,
       highlightColor: Colors.grey.shade100,
@@ -102,101 +380,77 @@ class _HomeScreenState extends State<HomeScreen> {
         width: width,
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(radius),
         ),
       ),
     );
   }
 
-  /// 🔹 Konten asli (setelah loading)
-  Widget _buildContent() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text("Halo $_username, Selamat Datang 👋",
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
-          Container(
-            height: 80,
-            decoration: BoxDecoration(
-              color: Colors.green.shade100,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Center(child: Text("Rekening Sampah - Rp 100.000")),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: const [
-              Icon(Icons.delete, size: 40, color: Colors.green),
-              Icon(Icons.account_balance_wallet, size: 40, color: Colors.blue),
-              Icon(Icons.emoji_events, size: 40, color: Colors.orange),
-              Icon(Icons.article, size: 40, color: Colors.purple),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Container(
-            height: 120,
-            decoration: BoxDecoration(
-              color: Colors.lightGreen.shade200,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Center(child: Text("Banner Promosi")),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  height: 80,
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.teal.shade100,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Center(child: Text("Card 1")),
-                ),
-              ),
-              Expanded(
-                child: Container(
-                  height: 80,
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.teal.shade100,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Center(child: Text("Card 2")),
-                ),
-              ),
-              Expanded(
-                child: Container(
-                  height: 80,
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.teal.shade100,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Center(child: Text("Card 3")),
-                ),
+  static Widget _menuItem(String asset, String title, {VoidCallback? onTap}) {
+    return Column(
+      children: [
+        Ink(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 5,
+                offset: const Offset(0, 3),
               ),
             ],
           ),
-        ],
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Image.asset(asset, height: 40,
+                filterQuality: FilterQuality.high,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+      ],
+    );
+  }
+
+  Widget _activityCard(String title) {
+    return Container(
+      height: 80,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        color: Colors.green.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.green.shade200),
+      ),
+      child: Center(
+        child: Text(title,
+            style: const TextStyle(
+                fontWeight: FontWeight.w500, color: Colors.black87)),
       ),
     );
   }
 
-  /// 🔹 Bottom Navigation
   Widget _buildBottomNav() {
     return BottomNavigationBar(
+      currentIndex: _selectedIndex,
+      onTap: (index) {
+        setState(() {
+          _selectedIndex = index;
+        });
+      },
       type: BottomNavigationBarType.fixed,
-      selectedItemColor: Colors.green,
+      selectedItemColor: Colors.black,
+      unselectedItemColor: Colors.grey,
       items: const [
         BottomNavigationBarItem(icon: Icon(Icons.home), label: "Beranda"),
         BottomNavigationBarItem(icon: Icon(Icons.check_circle), label: "Status"),
-        BottomNavigationBarItem(icon: Icon(Icons.qr_code), label: "Scan"),
         BottomNavigationBarItem(icon: Icon(Icons.history), label: "Riwayat"),
         BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profil"),
       ],

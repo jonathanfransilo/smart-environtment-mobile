@@ -3,6 +3,7 @@ import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/layanan_sampah_screen.dart'; 
 
 void main() {
   runApp(const SirkularApp());
@@ -19,14 +20,16 @@ class SirkularApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.green,
       ),
-      // ✅ Selalu mulai dari SplashScreen
       initialRoute: '/',
       routes: {
         '/': (context) => const SplashScreen(),
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
         '/home': (context) => const HomeScreen(),
+        '/layanan-sampah': (context) => const LayananSampahScreen()
       },
     );
   }
 }
+
+

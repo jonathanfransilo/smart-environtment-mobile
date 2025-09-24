@@ -18,6 +18,11 @@ dependencies:
   another_flushbar: ^1.12.30
   dio: ^5.7.0
   flutter_secure_storage: ^9.2.2
+  geocoding: ^2.1.0
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.0
+  geolocator: ^13.0.1
+
 
 dev_dependencies:
   flutter_test:
