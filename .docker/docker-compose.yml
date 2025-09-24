@@ -1,0 +1,8 @@
+services:
+  web:
+    # build: . 
+    image: ghcr.io/citiasia-inc/smart-environment-mobile:latest
+    container_name: "smart-environment-mobile" 
+    ports:
+      - "4042:80"
+    restart: always
