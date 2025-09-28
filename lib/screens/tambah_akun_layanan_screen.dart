@@ -19,6 +19,7 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
   final TextEditingController _teleponController = TextEditingController();
   final TextEditingController _detailAlamatController = TextEditingController();
   final TextEditingController _kelurahanController = TextEditingController();
+  final TextEditingController _kecamatanController = TextEditingController();
 
   double _latitude = -6.2;
   double _longitude = 106.8;
@@ -26,28 +27,64 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
 
   final MapController _mapController = MapController();
 
-  final List<String> _kelurahanList = [
-    "Kelurahan Menteng",
-    "Kelurahan Cikini",
-    "Kelurahan Gondangdia",
-    "Kelurahan Cempaka Putih",
-    "Kelurahan Sunter Agung",
-    "Kelurahan Pluit",
-    "Kelurahan Kuningan Timur",
-    "Kelurahan Pejaten Timur",
+  final List<String> _kecamatanList = [
+    "Gambir",
+    "Tanah Abang",
+    "Menteng",
+    "Cempaka Putih",
+    "Tanjung Priok",
+    "Penjaringan",
+    "Setiabudi",
+    "Pasar Minggu",
   ];
+
+  final Map<String, LatLng> _kecamatanCoordinates = {
+    "Gambir": LatLng(-6.1754, 106.8272),
+    "Tanah Abang": LatLng(-6.1860, 106.8113),
+    "Menteng": LatLng(-6.1901, 106.8326),
+    "Cempaka Putih": LatLng(-6.1770, 106.8650),
+    "Tanjung Priok": LatLng(-6.1286, 106.8807),
+    "Penjaringan": LatLng(-6.1180, 106.7894),
+    "Setiabudi": LatLng(-6.2196, 106.8325),
+    "Pasar Minggu": LatLng(-6.2845, 106.8331),
+  };
+
+  /// ✅ Mapping kecamatan → daftar kelurahan
+  final Map<String, List<String>> _kecamatanKelurahanMap = {
+    "Menteng": ["Kelurahan Menteng", "Kelurahan Cikini", "Kelurahan Gondangdia"],
+    "Cempaka Putih": [
+      "Kelurahan Cempaka Putih Barat",
+      "Kelurahan Cempaka Putih Timur"
+    ],
+    "Tanjung Priok": ["Kelurahan Sunter Agung", "Kelurahan Papanggo"],
+    "Penjaringan": ["Kelurahan Pluit", "Kelurahan Penjaringan"],
+    "Setiabudi": ["Kelurahan Kuningan Timur", "Kelurahan Karet"],
+    "Pasar Minggu": ["Kelurahan Pejaten Timur", "Kelurahan Jati Padang"],
+    "Gambir": ["Kelurahan Gambir", "Kelurahan Petojo Selatan"],
+    "Tanah Abang": ["Kelurahan Kebon Melati", "Kelurahan Bendungan Hilir"],
+  };
 
   final Map<String, LatLng> _kelurahanCoordinates = {
     "Kelurahan Menteng": LatLng(-6.1901, 106.8326),
     "Kelurahan Cikini": LatLng(-6.1972, 106.8416),
     "Kelurahan Gondangdia": LatLng(-6.1898, 106.8364),
-    "Kelurahan Cempaka Putih": LatLng(-6.1770, 106.8650),
+    "Kelurahan Cempaka Putih Barat": LatLng(-6.1770, 106.8650),
+    "Kelurahan Cempaka Putih Timur": LatLng(-6.1775, 106.8700),
     "Kelurahan Sunter Agung": LatLng(-6.1420, 106.8655),
+    "Kelurahan Papanggo": LatLng(-6.1280, 106.8800),
     "Kelurahan Pluit": LatLng(-6.1180, 106.7894),
+    "Kelurahan Penjaringan": LatLng(-6.1200, 106.8000),
     "Kelurahan Kuningan Timur": LatLng(-6.2220, 106.8330),
+    "Kelurahan Karet": LatLng(-6.2100, 106.8200),
     "Kelurahan Pejaten Timur": LatLng(-6.2845, 106.8331),
+    "Kelurahan Jati Padang": LatLng(-6.2900, 106.8200),
+    "Kelurahan Gambir": LatLng(-6.1754, 106.8272),
+    "Kelurahan Petojo Selatan": LatLng(-6.1760, 106.8200),
+    "Kelurahan Kebon Melati": LatLng(-6.1900, 106.8100),
+    "Kelurahan Bendungan Hilir": LatLng(-6.2000, 106.8150),
   };
 
+  String? _selectedKecamatan;
   String? _selectedKelurahan;
   bool _isLoading = true;
 
@@ -156,6 +193,8 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
         "id": DateTime.now().millisecondsSinceEpoch.toString(),
         "nama": _namaController.text,
         "telepon": _teleponController.text,
+        "provinsi": "DKI Jakarta",
+        "kecamatan": _selectedKecamatan ?? _kecamatanController.text,
         "kelurahan": _selectedKelurahan ?? _kelurahanController.text,
         "alamat lengkap": _detailAlamatController.text,
         "latitude": _latitude,
@@ -171,6 +210,7 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
     _teleponController.dispose();
     _detailAlamatController.dispose();
     _kelurahanController.dispose();
+    _kecamatanController.dispose();
     super.dispose();
   }
 
@@ -194,7 +234,7 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
       appBar: AppBar(
         title: Text("Tambahkan Akun Layanan",
             style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFF4CAF50),
         foregroundColor: Colors.black,
         elevation: 1,
       ),
@@ -267,30 +307,84 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
                     value == null || value.isEmpty ? "Nama wajib diisi" : null,
               ),
               const SizedBox(height: 16),
-              Text("Nomor Telepon",
+
+              /// ✅ Provinsi otomatis
+              Text("Provinsi",
                   style: GoogleFonts.poppins(fontWeight: FontWeight.w500)),
               const SizedBox(height: 8),
               TextFormField(
-                controller: _teleponController,
-                keyboardType: TextInputType.phone,
+                initialValue: "DKI Jakarta",
+                readOnly: true,
                 decoration: const InputDecoration(
-                  hintText: "Masukkan nomor telepon yang valid",
                   border: OutlineInputBorder(),
                 ),
-                validator: (value) => value == null || value.isEmpty
-                    ? "Nomor telepon wajib diisi"
-                    : null,
               ),
               const SizedBox(height: 16),
-              Text("Kelurahan",
+
+              /// ✅ Kecamatan autocomplete
+              Text("Kecamatan",
                   style: GoogleFonts.poppins(fontWeight: FontWeight.w500)),
               const SizedBox(height: 8),
               Autocomplete<String>(
                 optionsBuilder: (TextEditingValue textEditingValue) {
                   if (textEditingValue.text.isEmpty) {
-                    return _kelurahanList;
+                    return _kecamatanList;
                   }
-                  return _kelurahanList.where((String option) {
+                  return _kecamatanList.where((String option) {
+                    return option
+                        .toLowerCase()
+                        .contains(textEditingValue.text.toLowerCase());
+                  });
+                },
+                onSelected: (String selection) {
+                  setState(() {
+                    _selectedKecamatan = selection;
+                    _kecamatanController.text = selection;
+                    _selectedKelurahan = null;
+                    _kelurahanController.clear();
+                    if (_kecamatanCoordinates.containsKey(selection)) {
+                      final pos = _kecamatanCoordinates[selection]!;
+                      _latitude = pos.latitude;
+                      _longitude = pos.longitude;
+                      _mapController.move(
+                          LatLng(_latitude, _longitude), _currentZoom);
+                    }
+                  });
+                },
+                fieldViewBuilder:
+                    (context, controller, focusNode, onEditingComplete) {
+                  return TextFormField(
+                    controller: controller,
+                    focusNode: focusNode,
+                    decoration: const InputDecoration(
+                      hintText: "Pilih atau ketik kecamatan",
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) =>
+                        value == null || value.isEmpty ? "Kecamatan wajib diisi" : null,
+                    onChanged: (val) {
+                      _kecamatanController.text = val;
+                    },
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+
+              /// ✅ Kelurahan autocomplete (filtered by kecamatan)
+              Text("Kelurahan",
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w500)),
+              const SizedBox(height: 8),
+              Autocomplete<String>(
+                optionsBuilder: (TextEditingValue textEditingValue) {
+                  if (_selectedKecamatan == null) {
+                    return const Iterable<String>.empty();
+                  }
+                  final kelurahanList =
+                      _kecamatanKelurahanMap[_selectedKecamatan] ?? [];
+                  if (textEditingValue.text.isEmpty) {
+                    return kelurahanList;
+                  }
+                  return kelurahanList.where((String option) {
                     return option
                         .toLowerCase()
                         .contains(textEditingValue.text.toLowerCase());
@@ -315,12 +409,11 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
                     controller: controller,
                     focusNode: focusNode,
                     decoration: const InputDecoration(
-                      hintText: "Pilih atau ketik kelurahan",
+                      hintText: "Pilih kelurahan (isi kecamatan dulu)",
                       border: OutlineInputBorder(),
                     ),
-                    validator: (value) => value == null || value.isEmpty
-                        ? "Kelurahan wajib diisi"
-                        : null,
+                    validator: (value) =>
+                        value == null || value.isEmpty ? "Kelurahan wajib diisi" : null,
                     onChanged: (val) {
                       _kelurahanController.text = val;
                     },
@@ -328,6 +421,8 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
                 },
               ),
               const SizedBox(height: 16),
+
+              /// ✅ Preview Lokasi Map
               Text("Preview Lokasi",
                   style: GoogleFonts.poppins(fontWeight: FontWeight.w500)),
               const SizedBox(height: 8),
@@ -373,7 +468,6 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
                           ),
                         ],
                       ),
-                      // Tombol Zoom + Perbesar Map
                       Positioned(
                         bottom: 10,
                         right: 10,
@@ -421,6 +515,7 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
                 ),
               ),
               const SizedBox(height: 16),
+
               Text("Detail Alamat",
                   style: GoogleFonts.poppins(fontWeight: FontWeight.w500)),
               const SizedBox(height: 8),
