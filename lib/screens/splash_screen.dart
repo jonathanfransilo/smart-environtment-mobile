@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -11,21 +10,36 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
+    with TickerProviderStateMixin {
+  late AnimationController _waveController;
+  late AnimationController _logoController;
+  late Animation<double> _scaleAnimation;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
+
+    // Controller animasi background wave
+    _waveController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 4),
-    )..repeat(); // animasi berulang
+    )..repeat();
+
+    // Controller animasi pulse logo
+    _logoController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+
+    _scaleAnimation = Tween<double>(begin: 0.9, end: 1.1).animate(
+      CurvedAnimation(parent: _logoController, curve: Curves.easeInOut),
+    );
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _waveController.dispose();
+    _logoController.dispose();
     super.dispose();
   }
 
@@ -37,10 +51,10 @@ class _SplashScreenState extends State<SplashScreen>
         children: [
           // ===== Wave Background =====
           AnimatedBuilder(
-            animation: _controller,
+            animation: _waveController,
             builder: (context, child) {
               return ClipPath(
-                clipper: WaveClipper1(_controller.value),
+                clipper: WaveClipper1(_waveController.value),
                 child: Container(
                   height: MediaQuery.of(context).size.height * 0.55,
                   color: const Color(0xFF2A8D7C),
@@ -49,10 +63,10 @@ class _SplashScreenState extends State<SplashScreen>
             },
           ),
           AnimatedBuilder(
-            animation: _controller,
+            animation: _waveController,
             builder: (context, child) {
               return ClipPath(
-                clipper: WaveClipper2(_controller.value),
+                clipper: WaveClipper2(_waveController.value),
                 child: Container(
                   height: MediaQuery.of(context).size.height * 0.50,
                   color: const Color(0xFF36B8A6).withOpacity(0.7),
@@ -61,10 +75,10 @@ class _SplashScreenState extends State<SplashScreen>
             },
           ),
           AnimatedBuilder(
-            animation: _controller,
+            animation: _waveController,
             builder: (context, child) {
               return ClipPath(
-                clipper: WaveClipper3(_controller.value),
+                clipper: WaveClipper3(_waveController.value),
                 child: Container(
                   height: MediaQuery.of(context).size.height * 0.45,
                   color: const Color(0xFF4ECDC4).withOpacity(0.5),
@@ -79,31 +93,20 @@ class _SplashScreenState extends State<SplashScreen>
               children: [
                 const Spacer(flex: 2),
 
-                // Logo
-                Container(
-                  width: 60,
-                  height: 60,
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: SvgPicture.asset(
-                      'assets/icons/logscreen.png',
-                      width: 60,
-                      height: 60,
-                      placeholderBuilder: (BuildContext context) => Container(
-                        width: 60,
-                        height: 60,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF4CAF50),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.eco,
-                          color: Colors.white,
-                          size: 30,
-                        ),
+                // Logo PNG dengan animasi pulse
+                ScaleTransition(
+                  scale: _scaleAnimation,
+                  child: Container(
+                    width: 90,
+                    height: 90,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                    child: ClipOval(
+                      child: Image.asset(
+                        'assets/images/sirkular.png',
+                        fit: BoxFit.cover,
                       ),
                     ),
                   ),
@@ -126,10 +129,10 @@ class _SplashScreenState extends State<SplashScreen>
 
                 // Subjudul
                 Text(
-                  "Lorem ipsum dolor sit amet",
+                  "Waste Management App",
                   style: GoogleFonts.poppins(
                     fontSize: 13,
-                    color: const Color.fromARGB(255, 0, 0, 0),
+                    color: Colors.black87,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -152,7 +155,7 @@ class _SplashScreenState extends State<SplashScreen>
                       elevation: 0,
                     ),
                     child: Row(
-                      mainAxisSize: MainAxisSize.min, // biar ngepas konten
+                      mainAxisSize: MainAxisSize.min,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(

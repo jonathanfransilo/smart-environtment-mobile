@@ -25,10 +25,32 @@ class _HomeScreenState extends State<HomeScreen> {
   // unread notification counter
   int _unreadNotifCount = 0;
 
+  // TIPS CARD: Page Controller dan state halaman saat ini
+  final PageController _tipsController = PageController(viewportFraction: 0.85);
+  int _currentPage = 0;
+
   @override
   void initState() {
     super.initState();
     _initAll();
+
+    // Inisialisasi listener untuk PageController Tips
+    _tipsController.addListener(() {
+      if (_tipsController.page != null) {
+        int next = _tipsController.page!.round();
+        if (_currentPage != next) {
+          setState(() {
+            _currentPage = next;
+          });
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _tipsController.dispose(); // Wajib dispose controller
+    super.dispose();
   }
 
   Future<void> _initAll() async {
@@ -51,9 +73,6 @@ class _HomeScreenState extends State<HomeScreen> {
       _username = savedName;
       _isLoading = false;
     });
-
-    // optional welcome snackbar (hanya visual)
-    _showSnackBar("Halo $_username, selamat datang kembali!", true);
   }
 
   // Refresh nama user
@@ -68,24 +87,21 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Load jumlah notifikasi (untuk badge)
   Future<void> _loadUnreadNotif() async {
-  try {
-    final list = await NotificationService.getNotifications();
-    if (!mounted) return;
-    setState(() {
-      _unreadNotifCount = list.where((n) => n['isRead'] == false).length;
-    });
-  } catch (e) {
-    if (!mounted) return;
-    setState(() {
-      _unreadNotifCount = 0;
-    });
+    try {
+      final list = await NotificationService.getNotifications();
+      if (!mounted) return;
+      setState(() {
+        _unreadNotifCount = list.where((n) => n['isRead'] == false).length;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _unreadNotifCount = 0;
+      });
+    }
   }
-}
-
 
   /// Load akun layanan dari SharedPreferences.
-  /// Jika ada penambahan akun setelah initial load -> tambahkan notifikasi.
-  /// Mengembalikan true jika ditemukan penambahan akun (berguna bila caller mau reload badge).
   Future<bool> _loadAkunLayanan({bool selectLastIfNotFound = true}) async {
     final prefs = await SharedPreferences.getInstance();
     final prevCount = _akunList.length;
@@ -109,8 +125,8 @@ class _HomeScreenState extends State<HomeScreen> {
         _selectedAkun = null;
       } else {
         if (_selectedAkun != null) {
-          final idx = akunList.indexWhere((a) =>
-              a['id']?.toString() == _selectedAkun!['id']?.toString());
+          final idx = akunList.indexWhere(
+              (a) => a['id']?.toString() == _selectedAkun!['id']?.toString());
           if (idx != -1) {
             _selectedAkun = akunList[idx];
           } else {
@@ -145,13 +161,14 @@ class _HomeScreenState extends State<HomeScreen> {
             Expanded(child: Text(message, style: GoogleFonts.poppins())),
           ],
         ),
-        backgroundColor: success ? Colors.green : Colors.red,
+        backgroundColor: success
+            ? const Color.fromARGB(255, 21, 145, 137)
+            : Colors.red,
       ),
     );
   }
 
   /// Tampilkan bottom sheet untuk memilih akun.
-  /// Jika belum ada akun -> langsung navigasi ke halaman tambah akun.
   void _showAkunSelector() async {
     if (_akunList.isEmpty) {
       // langsung ke halaman tambah akun
@@ -217,17 +234,22 @@ class _HomeScreenState extends State<HomeScreen> {
                             _selectedAkun!['id']?.toString();
                     return ListTile(
                       leading: CircleAvatar(
-                        backgroundColor: Colors.green.withOpacity(0.12),
-                        child: const Icon(Icons.home, color: Colors.green),
+                        backgroundColor:
+                            const Color.fromARGB(255, 21, 145, 137)
+                                .withOpacity(0.12), // Sesuaikan warna
+                        child: const Icon(Icons.home,
+                            color: Color.fromARGB(255, 21, 145, 137)),
                       ),
                       title: Text(akun["nama"] ?? "Akun Layanan",
                           style: GoogleFonts.poppins(
-                              fontWeight:
-                                  isSelected ? FontWeight.w700 : FontWeight.w600)),
+                              fontWeight: isSelected
+                                  ? FontWeight.w700
+                                  : FontWeight.w600)),
                       subtitle: Text(akun["alamat lengkap"] ?? "-",
                           style: GoogleFonts.poppins(fontSize: 13)),
                       trailing: isSelected
-                          ? const Icon(Icons.check_circle, color: Colors.green)
+                          ? const Icon(Icons.check_circle,
+                              color: Color.fromARGB(255, 21, 145, 137))
                           : null,
                       onTap: () {
                         setState(() {
@@ -263,7 +285,7 @@ class _HomeScreenState extends State<HomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "Halo $_username,",
+              "Halo ${_isLoading ? 'User' : _username},", // tampilkan "User" jika loading
               style: GoogleFonts.poppins(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -306,12 +328,16 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: Colors.red,
                       shape: BoxShape.circle,
                     ),
-                    child: Text(
-                      '$_unreadNotifCount',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
+                    constraints: const BoxConstraints(
+                        minWidth: 16, minHeight: 16), // agar lebih rapi
+                    child: Center(
+                      child: Text(
+                        _unreadNotifCount > 9 ? '9+' : '$_unreadNotifCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
@@ -376,7 +402,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ],
                       ),
-                      child: Image.asset("assets/images/wallet.png", height: 40),
+                      child:
+                          Image.asset("assets/images/wallet.png", height: 40),
                     ),
                     const SizedBox(width: 12),
 
@@ -403,12 +430,13 @@ class _HomeScreenState extends State<HomeScreen> {
                                   Text("Tambahkan akun dulu",
                                       style: GoogleFonts.poppins(
                                           fontSize: 13,
-                                          color:
-                                              const Color.fromARGB(255, 21, 145, 137))),
+                                          color: const Color.fromARGB(
+                                              255, 21, 145, 137))),
                                 ],
                               )
                             : Column(
-                                key: ValueKey('akun_${_selectedAkun!['id'] ?? 'sel'}'),
+                                key: ValueKey(
+                                    'akun_${_selectedAkun!['id'] ?? 'sel'}'),
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(_selectedAkun!["nama"] ?? "Akun Layanan",
@@ -417,11 +445,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                           fontWeight: FontWeight.bold,
                                           color: Colors.black)),
                                   const SizedBox(height: 4),
-                                  Text(_selectedAkun!["alamat lengkap"] ?? "-",
+                                  Text(
+                                      _selectedAkun!["alamat lengkap"] ?? "-",
                                       style: GoogleFonts.poppins(
                                           fontSize: 13,
-                                          color:
-                                              const Color.fromARGB(255, 21, 145, 137))),
+                                          color: const Color.fromARGB(
+                                              255, 21, 145, 137))),
                                 ],
                               ),
                       ),
@@ -442,7 +471,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 "Pembayaran untuk akun ${_selectedAkun!["nama"]} berhasil.");
                             await _loadUnreadNotif();
                             _showSnackBar(
-                                "Pembayaran untuk akun ${_selectedAkun!["nama"]}",
+                                "Pembayaran untuk akun ${_selectedAkun!["nama"]} berhasil!",
                                 true);
                           }
                         },
@@ -473,8 +502,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                 )
                               : Text("Bayar",
                                   key: const ValueKey('payBtn'),
-                                  style:
-                                      GoogleFonts.poppins(color: Colors.white)),
+                                  style: GoogleFonts.poppins(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w600)), // tambahkan bold
                         ),
                       ),
                     ),
@@ -550,7 +580,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
             const SizedBox(height: 40),
 
-            // ===== Serahkan Sampah =====
+            // ===== Serahkan Sampah (Pickup) =====
             Container(
               width: double.infinity,
               decoration: BoxDecoration(
@@ -593,14 +623,15 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                         ElevatedButton(
-                          onPressed: () {},
+                          onPressed: () {
+                             _showSnackBar("Fitur Serahkan Sampah belum tersedia", false);
+                          },
                           style: ElevatedButton.styleFrom(
                             shape: const CircleBorder(),
                             padding: const EdgeInsets.all(12),
                             backgroundColor: Colors.green,
                           ),
-                          child:
-                              const Icon(Icons.arrow_forward, color: Colors.white),
+                          child: const Icon(Icons.arrow_forward, color: Colors.white),
                         ),
                       ],
                     ),
@@ -611,19 +642,76 @@ class _HomeScreenState extends State<HomeScreen> {
 
             const SizedBox(height: 40),
 
-            // ===== Aktivitas Terakhir =====
-            Text("Aktivitas Terakhir",
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                )),
+            // ===================================================
+            // ===== TIPS RAMAH LINGKUNGAN (BARU) =====
+            // ===================================================
+            Text(
+              "Tips Ramah Lingkungan",
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // --- PageView Tips ---
+            SizedBox(
+              height: 180, // Ketinggian ditambah sedikit agar card lebih lega
+              child: PageView(
+                controller: _tipsController,
+                children: [
+                  _tipsCard(
+                    icon: Icons.recycling,
+                    title: "Pisahkan Sampah",
+                    subtitle:
+                        "Pisahkan sampah organik & anorganik agar mudah didaur ulang.",
+                    index: 0,
+                    backgroundColor: const Color.fromARGB(255, 21, 145, 137), // Hijau utama
+                  ),
+                  _tipsCard(
+                    icon: Icons.lightbulb_outline,
+                    title: "Hemat Energi",
+                    subtitle: "Matikan lampu & cabut charger saat tidak digunakan.",
+                    index: 1,
+                    backgroundColor: Colors.blue.shade600, // Biru untuk energi
+                  ),
+                  _tipsCard(
+                    icon: Icons.water_drop_outlined,
+                    title: "Hemat Air",
+                    subtitle: "Gunakan air seperlunya, perbaiki keran bocor segera.",
+                    index: 2,
+                    backgroundColor: Colors.orange.shade700, // Oranye untuk air
+                  ),
+                  _tipsCard(
+                    icon: Icons.shopping_bag_outlined,
+                    title: "Kurangi Plastik",
+                    subtitle: "Bawa tas belanja sendiri untuk mengurangi sampah plastik.",
+                    index: 3,
+                    backgroundColor: Colors.purple.shade600, // Ungu/Pink untuk plastik
+                  ),
+                ],
+              ),
+            ),
+
+            // --- Indikator Halaman ---
             const SizedBox(height: 12),
             Row(
-              children: [
-                Expanded(child: _activityCard("Serah Sampah")),
-                Expanded(child: _activityCard("Penghargaan")),
-                Expanded(child: _activityCard("Rekening")),
-              ],
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(
+                4, // Jumlah tips = 4
+                (index) => AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  height: 8,
+                  width: _currentPage == index ? 24 : 8, // Lebar memanjang jika aktif
+                  decoration: BoxDecoration(
+                    color: _currentPage == index
+                        ? const Color.fromARGB(255, 21, 145, 137) // Warna aktif
+                        : Colors.grey.shade300, // Warna tidak aktif
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
             ),
 
             const SizedBox(height: 24),
@@ -633,7 +721,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Shimmer loading (sederhana)
+  // Shimmer loading
   Widget _buildShimmer() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -644,7 +732,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 10),
           _shimmerBox(height: 16, width: 100),
           const SizedBox(height: 20),
-          _shimmerBox(height: 80, width: double.infinity),
+          _shimmerBox(height: 80, width: double.infinity, radius: 16),
           const SizedBox(height: 30),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -662,18 +750,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 30),
           _shimmerBox(height: 180, width: double.infinity, radius: 16),
           const SizedBox(height: 30),
-          Row(
-            children: List.generate(
-              3,
-              (index) => Expanded(
-                child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  child:
-                      _shimmerBox(height: 80, width: double.infinity, radius: 12),
-                ),
-              ),
-            ),
-          ),
+          _shimmerBox(height: 160, width: double.infinity, radius: 16),
         ],
       ),
     );
@@ -741,23 +818,69 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _activityCard(String title) {
-    return Container(
-      height: 80,
-      margin: const EdgeInsets.symmetric(horizontal: 4),
+  // NEW: Tips Card Penuh Warna (Ide A)
+  Widget _tipsCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required int index,
+    required Color backgroundColor, // Parameter baru
+  }) {
+    // Hitung skala berdasarkan halaman saat ini (untuk efek 3D di PageView)
+    final scale = (_currentPage == index) ? 1.0 : 0.95;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      // Margin vertikal ditambah agar efek bayangan tidak terpotong
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8), 
+      transform: Matrix4.identity()..scale(scale), // Terapkan skala
+      alignment: Alignment.center,
+      width: 260,
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.green.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.green.shade200),
-      ),
-      child: Center(
-        child: Text(
-          title,
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.w500,
-            color: Colors.black87,
+        color: backgroundColor, // Menggunakan warna latar penuh
+        borderRadius: BorderRadius.circular(16),
+        // Bayangan lebih kuat dan sesuai warna
+        boxShadow: [
+          BoxShadow(
+            color: backgroundColor.withOpacity(0.4), 
+            blurRadius: 15,
+            offset: const Offset(0, 8),
           ),
-        ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Icon Box HILANG, diganti Icon putih besar langsung
+          Icon(icon, color: Colors.white, size: 36),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    color: Colors.white, // Teks warna putih
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: Colors.white70, // Teks subtitle lebih redup
+                  ),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

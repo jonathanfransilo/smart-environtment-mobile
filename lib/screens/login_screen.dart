@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/auth_service.dart';
 
@@ -34,35 +33,28 @@ class _LoginScreenState extends State<LoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               const SizedBox(height: 60),
+
+              // Logo PNG
               Container(
-                width: 80,
-                height: 80,
+                width: 100,
+                height: 100,
                 decoration: const BoxDecoration(
                   color: Colors.white,
                   shape: BoxShape.circle,
                 ),
                 child: Center(
-                  child: SvgPicture.asset(
-                    'assets/icons/logscreen.png',
-                    width: 60,
-                    height: 60,
-                    placeholderBuilder: (context) => Container(
-                      width: 60,
-                      height: 60,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF4CAF50),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.eco,
-                        color: Colors.white,
-                        size: 30,
-                      ),
-                    ),
+                  child: Image.asset(
+                    'assets/images/sirkular.png',
+                    width: 80,
+                    height: 80,
+                    fit: BoxFit.contain,
                   ),
                 ),
               ),
+
               const SizedBox(height: 30),
+
+              // Judul
               Text(
                 "Login Akun",
                 style: GoogleFonts.poppins(
@@ -71,6 +63,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   color: Colors.black87,
                 ),
               ),
+
               const SizedBox(height: 50),
 
               // Input Email / HP
@@ -98,10 +91,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     filled: true,
                     fillColor: Colors.grey.shade50,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 16),
                   ),
                 ),
               ),
+
               const SizedBox(height: 20),
 
               // Input Password
@@ -130,10 +125,13 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     filled: true,
                     fillColor: Colors.grey.shade50,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 16),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                        _obscurePassword
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
                         color: Colors.grey.shade600,
                       ),
                       onPressed: () {
@@ -148,6 +146,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 15),
 
+              // Lupa Password
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
@@ -164,6 +163,8 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
 
               const SizedBox(height: 30),
+
+              // Tombol Login
               SizedBox(
                 width: double.infinity,
                 height: 52,
@@ -175,7 +176,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           final password = _passwordController.text;
                           if (email.isEmpty || password.isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Email dan password wajib diisi')),
+                              const SnackBar(
+                                  content: Text(
+                                      'Email dan password wajib diisi')),
                             );
                             return;
                           }
@@ -188,10 +191,13 @@ class _LoginScreenState extends State<LoginScreen> {
                           if (!mounted) return;
                           setState(() => _loading = false);
                           if (ok) {
-                            Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+                            Navigator.of(context).pushNamedAndRemoveUntil(
+                                '/home', (route) => false);
                           } else {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(message ?? 'Login gagal')),
+                              SnackBar(
+                                  content:
+                                      Text(message ?? 'Login gagal')),
                             );
                           }
                         },
@@ -211,7 +217,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         )
                       else
@@ -241,7 +248,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
+
               const SizedBox(height: 40),
+
+              // Registrasi
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [

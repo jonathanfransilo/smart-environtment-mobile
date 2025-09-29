@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/auth_service.dart';
 
@@ -66,34 +65,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               const SizedBox(height: 60),
+
+              // LOGO PNG
               Container(
-                width: 80,
-                height: 80,
+                width: 100,
+                height: 100,
                 decoration: const BoxDecoration(
                   color: Colors.white,
                   shape: BoxShape.circle,
                 ),
-                child: Center(
-                  child: SvgPicture.asset(
-                    'assets/icons/logscreen.png',
-                    width: 60,
-                    height: 60,
-                    placeholderBuilder: (context) => Container(
-                      width: 60,
-                      height: 60,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF4CAF50),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.eco,
-                        color: Colors.white,
-                        size: 30,
-                      ),
-                    ),
+                child: ClipOval(
+                  child: Image.asset(
+                    'assets/images/sirkular.png',
+                    fit: BoxFit.cover,
                   ),
                 ),
               ),
+
               const SizedBox(height: 30),
               Text(
                 "Registrasi Akun",
@@ -290,6 +278,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
 
               const SizedBox(height: 40),
+
+              // Tombol Registrasi
               SizedBox(
                 width: double.infinity,
                 height: 52,
@@ -341,7 +331,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
               ),
+
               const SizedBox(height: 40),
+
+              // Link ke Login
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
