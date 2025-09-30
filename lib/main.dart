@@ -5,6 +5,7 @@ import 'screens/register_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/layanan_sampah_screen.dart'; 
 import 'screens/profile_screen.dart';
+import 'screens/forgot_password_screen.dart';
 
 void main() {
   runApp(const SirkularApp());
@@ -29,10 +30,15 @@ class SirkularApp extends StatelessWidget {
         '/home': (context) => const HomeScreen(),
         '/layanan-sampah': (context) => const LayananSampahScreen(),
         '/profile': (context) => const ProfileScreen(),
-        
+        '/forgot-password': (context) => const ForgotPasswordScreen(),
+      },
+      onUnknownRoute: (settings) {
+        return MaterialPageRoute(
+          builder: (_) => const Scaffold(
+            body: Center(child: Text("404 - Halaman tidak ditemukan")),
+          ),
+        );
       },
     );
   }
 }
-
-

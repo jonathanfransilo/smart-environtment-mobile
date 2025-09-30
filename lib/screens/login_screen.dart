@@ -22,6 +22,33 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  Future<void> _login() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Email dan password wajib diisi')),
+      );
+      return;
+    }
+
+    setState(() => _loading = true);
+    final auth = AuthService();
+    final (ok, message) = await auth.login(email: email, password: password);
+
+    if (!mounted) return;
+    setState(() => _loading = false);
+
+    if (ok) {
+      Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message ?? 'Login gagal')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -91,8 +118,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     filled: true,
                     fillColor: Colors.grey.shade50,
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 16),
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                   ),
                 ),
               ),
@@ -125,8 +152,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     filled: true,
                     fillColor: Colors.grey.shade50,
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 16),
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscurePassword
@@ -150,7 +177,9 @@ class _LoginScreenState extends State<LoginScreen> {
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.pushNamed(context, "/forgot-password");
+                  },
                   child: Text(
                     "Lupa Password?",
                     style: GoogleFonts.poppins(
@@ -169,38 +198,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: _loading
-                      ? null
-                      : () async {
-                          final email = _emailController.text.trim();
-                          final password = _passwordController.text;
-                          if (email.isEmpty || password.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                  content: Text(
-                                      'Email dan password wajib diisi')),
-                            );
-                            return;
-                          }
-                          setState(() => _loading = true);
-                          final auth = AuthService();
-                          final (ok, message) = await auth.login(
-                            email: email,
-                            password: password,
-                          );
-                          if (!mounted) return;
-                          setState(() => _loading = false);
-                          if (ok) {
-                            Navigator.of(context).pushNamedAndRemoveUntil(
-                                '/home', (route) => false);
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                  content:
-                                      Text(message ?? 'Login gagal')),
-                            );
-                          }
-                        },
+                  onPressed: _loading ? null : _login,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color.fromARGB(255, 21, 145, 137),
                     shape: RoundedRectangleBorder(
