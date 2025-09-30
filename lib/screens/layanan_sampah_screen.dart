@@ -4,7 +4,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
-import 'tambah_akun_layanan_screen.dart';
+import 'tambah_akun_layanan_screen.dart'; // Pastikan file ini ada di project Anda
 
 /// 🔹 Halaman utama daftar akun layanan
 class LayananSampahScreen extends StatefulWidget {
@@ -304,6 +304,10 @@ class _LayananSampahScreenState extends State<LayananSampahScreen> {
   }
 }
 
+// -----------------------------------------------------------------------------
+// DETAIL AKUN LAYANAN SCREEN (Diperbaiki di bagian _showStatusDialog)
+// -----------------------------------------------------------------------------
+
 /// 🔹 Halaman detail akun layanan
 class DetailAkunLayananScreen extends StatelessWidget {
   final Map<String, dynamic> akun;
@@ -365,11 +369,8 @@ class DetailAkunLayananScreen extends StatelessWidget {
     );
   }
 
-  /// 🔹 Popup Status
+  /// 🔹 Popup Status (TELAH DIPERBAIKI SESUAI PERMINTAAN)
   void _showStatusDialog(BuildContext context) {
-    final now = DateTime.now();
-    final sudahDiambil = now.hour >= 12; // dummy logika jam
-
     showDialog(
       context: context,
       builder: (ctx) {
@@ -386,21 +387,20 @@ class DetailAkunLayananScreen extends StatelessWidget {
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: sudahDiambil
-                        ? Colors.green.withOpacity(0.1)
-                        : Colors.orange.withOpacity(0.1),
+                    // Warna untuk status "Belum Diambil" (Oranye)
+                    color: Colors.orange.withOpacity(0.1),
                   ),
-                  child: Icon(
-                    sudahDiambil ? Icons.check_circle : Icons.hourglass_empty,
+                  child: const Icon(
+                    // Ikon untuk status "Belum Diambil" (Jam Pasir/Menunggu)
+                    Icons.hourglass_empty, 
                     size: 60,
-                    color: sudahDiambil ? Colors.green : Colors.orange,
+                    color: Colors.orange,
                   ),
                 ),
                 const SizedBox(height: 20),
                 Text(
-                  sudahDiambil
-                      ? "Sampah sudah diambil Kolektor"
-                      : "Sampah belum diambil Kolektor",
+                  // Teks status yang diminta
+                  "Sampah belum diambil Kolektor",
                   textAlign: TextAlign.center,
                   style: GoogleFonts.poppins(
                     fontSize: 14,
@@ -416,8 +416,9 @@ class DetailAkunLayananScreen extends StatelessWidget {
                       Navigator.pop(ctx);
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor:
-                          sudahDiambil ? Colors.green : Colors.orange,
+                      // Warna tombol disesuaikan dengan status "Belum Diambil" (Oranye)
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
