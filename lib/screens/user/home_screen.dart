@@ -538,25 +538,23 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 _menuItem(
                   "assets/images/rekening.png",
-                  "Riwayat Layanan\nSampah",
+                  "Riwayat Pembayaran",
                   onTap: () {
-                    _showSnackBar("Fitur Riwayat Layanan belum tersedia", false);
+                    _showSnackBar("Fitur Riwayat Pembayaran belum tersedia", false);
                   },
                 ),
                 _menuItem(
-                  "assets/images/artikel.png",
-                  "Artikel",
-                  onTap: () {
-                    _showSnackBar("Fitur Artikel belum tersedia", false);
-                  },
-                ),
+                    "assets/images/artikel.png",
+                    "Artikel",
+                    onTap: () {
+                      Navigator.pushNamed(context, '/artikel');
+                    },
+                  ),
                 _menuItem(
                   "assets/images/pelanggaran.png",
-                  "Pengaduan",
-                  onTap: () async {
-                    await NotificationService.addNotification("Pengaduan dikirim.");
-                    await _loadUnreadNotif();
-                    _showSnackBar("Fitur Pengaduan belum tersedia", false);
+                  "Pelaporan",
+                  onTap: () {
+                    Navigator.pushNamed(context, '/pelaporan');
                   },
                 ),
               ],
@@ -564,60 +562,225 @@ class _HomeScreenState extends State<HomeScreen> {
 
             const SizedBox(height: 40),
 
-            // ===== Serahkan Sampah (Pickup) =====
-            Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                image: const DecorationImage(
-                  image: AssetImage("assets/images/bg2.png"),
-                  fit: BoxFit.cover,
-                  alignment: Alignment.topCenter,
-                ),
-                borderRadius: BorderRadius.circular(16),
+            // ===================================================
+            // ===== Artikel Terbaru (TAPPABLE & BERWARNA) =====
+            // ===================================================
+            Text(
+              "Artikel Terbaru",
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
               ),
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            ),
+            const SizedBox(height: 12),
+
+            // --- PageView Tips ---
+            SizedBox(
+              height: 180,
+              child: PageView(
+                controller: _tipsController,
                 children: [
-                  const SizedBox(height: 170),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text("Serahkan Sampah disini",
-                                  style: GoogleFonts.poppins(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.black)),
-                              const SizedBox(height: 4),
-                              Text("Agar Driver bisa menjemput sampahmu",
-                                  style: GoogleFonts.poppins(
-                                      fontSize: 14, color: Colors.black)),
+                  // Card dengan background gambar dari Google Drive
+                      InkWell(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const TipsDetailScreen(
+                                tipTitle: "Perpanjangan Tanggung Jawab Produsen dan Implementasi di Indonesia",
+                                tipContent:
+                                    "Extended Producer Responsibility (EPR) menekankan bahwa produsen bertanggung jawab atas seluruh siklus hidup produk mereka, termasuk tahap akhir (pembuangan dan daur ulang).",
+                              ),
+                            ),
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          height: 180,
+                          width: 260,
+                          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            image: const DecorationImage(
+                              image: NetworkImage(
+                                  "https://drive.google.com/uc?export=view&id=1qjMCUnULqvjAzzMtpd2v2jctliNJWi9G"),
+                              fit: BoxFit.cover,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.3),
+                                blurRadius: 10,
+                                offset: const Offset(0, 5),
+                              ),
                             ],
                           ),
-                        ),
-                        ElevatedButton(
-                          onPressed: () {
-                             _showSnackBar("Fitur Serahkan Sampah belum tersedia", false);
-                          },
-                          style: ElevatedButton.styleFrom(
-                            shape: const CircleBorder(),
-                            padding: const EdgeInsets.all(12),
-                            backgroundColor: Colors.green,
+                          alignment: Alignment.bottomLeft,
+                          padding: const EdgeInsets.all(12),
+                          child: Container(
+                            color: Colors.black45,
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            child: Text(
+                              "Perpanjangan Tanggung Jawab Produsen dan Implementasi di Indonesia",
+                              style: GoogleFonts.poppins(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
                           ),
-                          child: const Icon(Icons.arrow_forward, color: Colors.white),
                         ),
-                      ],
+                      ),
+                      
+                  // Card dengan background gambar dari Google Drive
+                      InkWell(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const TipsDetailScreen(
+                                tipTitle: "5 Hal yang Perlu Anda Ketahui Tentang Extended Producer Responsibility (EPR)",
+                                tipContent:
+                                    "Extended Producer Responsibility (EPR) menekankan bahwa produsen bertanggung jawab atas seluruh siklus hidup produk mereka, termasuk tahap akhir (pembuangan dan daur ulang).",
+                              ),
+                            ),
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          height: 180,
+                          width: 260,
+                          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            image: const DecorationImage(
+                              image: NetworkImage(
+                                  "https://drive.google.com/uc?export=view&id=1rcruFRS7rrGgQP5whXAonFPEQfz27mMq"),
+                              fit: BoxFit.cover,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.3),
+                                blurRadius: 10,
+                                offset: const Offset(0, 5),
+                              ),
+                            ],
+                          ),
+                          alignment: Alignment.bottomLeft,
+                          padding: const EdgeInsets.all(12),
+                          child: Container(
+                            color: Colors.black45,
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            child: Text(
+                              "5 Hal yang Perlu Anda Ketahui Tentang Extended Producer Responsibility (EPR)",
+                              style: GoogleFonts.poppins(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                  // Card dengan background gambar dari Google Drive
+                      InkWell(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const TipsDetailScreen(
+                                tipTitle: "Tips Mengurangi Sampah Plastik di Kehidupan Sehari-hari",
+                                tipContent:
+                                    "Kurangi penggunaan plastik sekali pakai dengan membawa tas belanja, botol minum, dan wadah makanan sendiri. Ini adalah langkah kecil dengan dampak besar.",
+                              ),
+                            ),
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          height: 180,
+                          width: 260,
+                          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            image: const DecorationImage(
+                              image: NetworkImage(
+                                  "https://drive.google.com/uc?export=view&id=1ZawfY_Ktp5ZVeQb4T1mVQ9qONZXVaKDO"),
+                              fit: BoxFit.cover,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.3),
+                                blurRadius: 10,
+                                offset: const Offset(0, 5),
+                              ),
+                            ],
+                          ),
+                          alignment: Alignment.bottomLeft,
+                          padding: const EdgeInsets.all(12),
+                          child: Container(
+                            color: Colors.black45,
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            child: Text(
+                              "Tips Mengurangi Sampah Plastik di Kehidupan Sehari-hari",
+                              style: GoogleFonts.poppins(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                  // Card dengan background gambar dari Google Drive
+                  InkWell(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const TipsDetailScreen(
+                            tipTitle: "Manfaat Daur Ulang bagi Lingkungan dan Ekonomi",
+                            tipContent:
+                                "Daur ulang membantu mengurangi jumlah limbah yang masuk ke tempat pembuangan sampah, menghemat sumber daya alam, dan mengurangi emisi gas rumah kaca. Selain itu, daur ulang juga dapat menciptakan lapangan kerja dan mendukung ekonomi lokal.",
+                          ),
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      height: 180,
+                      width: 260,
+                      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        image: const DecorationImage(
+                          image: NetworkImage(
+                              "https://drive.google.com/uc?export=view&id=1DIdr3ulKtU5oagWsA4pufnTzhZ1S_9ge"),
+                          fit: BoxFit.cover,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: 10,
+                            offset: const Offset(0, 5),
+                          ),
+                        ],
+                      ),
+                      alignment: Alignment.bottomLeft,
+                      padding: const EdgeInsets.all(12),
+                      child: Container(
+                        color: Colors.black45,
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        child: Text(
+                          "Manfaat Daur Ulang bagi Lingkungan dan Ekonomi",
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ],
