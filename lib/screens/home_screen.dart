@@ -360,25 +360,44 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ===== Tagihan Sampah Card =====
-            InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: () async {
-                if (_akunList.isEmpty) {
-                  await _openLayananSampahAndRefresh();
-                } else {
-                  _showAkunSelector();
-                }
-              },
-              child: Container(
-                decoration: BoxDecoration(
-                  image: const DecorationImage(
-                    image: AssetImage("assets/images/bg1.png"),
-                    fit: BoxFit.cover,
+            // ===== Tagihan Sampah Card dengan animasi =====
+            TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.0, end: 1.0),
+              duration: const Duration(milliseconds: 600),
+              curve: Curves.easeOutCubic,
+              builder: (context, value, child) {
+                return Transform.translate(
+                  offset: Offset(0, 20 * (1 - value)),
+                  child: Opacity(
+                    opacity: value,
+                    child: child,
                   ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                padding: const EdgeInsets.all(16),
+                );
+              },
+              child: Material(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(18),
+                elevation: 4,
+                shadowColor: Colors.black.withAlpha(51),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(18),
+                  onTap: () async {
+                    if (_akunList.isEmpty) {
+                      await _openLayananSampahAndRefresh();
+                    } else {
+                      _showAkunSelector();
+                    }
+                  },
+                  splashColor: const Color.fromARGB(255, 21, 145, 137).withAlpha(51),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      image: const DecorationImage(
+                        image: AssetImage("assets/images/bg1.png"),
+                        fit: BoxFit.cover,
+                      ),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    padding: const EdgeInsets.all(18),
                 child: Row(
                   children: [
                     // icon box
@@ -501,6 +520,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ],
                 ),
+                  ),
+                ),
               ),
             ),
 
@@ -525,9 +546,9 @@ class _HomeScreenState extends State<HomeScreen> {
               crossAxisCount: 4,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 16,
-              crossAxisSpacing: 12,
-              childAspectRatio: 0.8,
+              mainAxisSpacing: 20,
+              crossAxisSpacing: 16,
+              childAspectRatio: 0.85,
               children: [
                 _menuItem(
                   "assets/images/keranjang.png",
@@ -564,18 +585,38 @@ class _HomeScreenState extends State<HomeScreen> {
 
             const SizedBox(height: 40),
 
-            // ===== Serahkan Sampah (Pickup) =====
-            Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                image: const DecorationImage(
-                  image: AssetImage("assets/images/bg2.png"),
-                  fit: BoxFit.cover,
-                  alignment: Alignment.topCenter,
+            // ===== Serahkan Sampah (Pickup) dengan animasi =====
+            TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.0, end: 1.0),
+              duration: const Duration(milliseconds: 800),
+              curve: Curves.easeOutCubic,
+              builder: (context, value, child) {
+                return Transform.translate(
+                  offset: Offset(0, 30 * (1 - value)),
+                  child: Opacity(
+                    opacity: value,
+                    child: child,
+                  ),
+                );
+              },
+              child: Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  image: const DecorationImage(
+                    image: AssetImage("assets/images/bg2.png"),
+                    fit: BoxFit.cover,
+                    alignment: Alignment.topCenter,
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(26),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
                 ),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -621,6 +662,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ],
+              ),
               ),
             ),
 
@@ -721,22 +763,33 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
-            // --- Indikator Halaman ---
-            const SizedBox(height: 12),
+            // --- Indikator Halaman dengan animasi smooth ---
+            const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(
                 4,
                 (index) => AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
                   margin: const EdgeInsets.symmetric(horizontal: 4),
-                  height: 8,
-                  width: _currentPage == index ? 24 : 8,
+                  height: _currentPage == index ? 10 : 8,
+                  width: _currentPage == index ? 28 : 8,
                   decoration: BoxDecoration(
                     color: _currentPage == index
                         ? const Color.fromARGB(255, 21, 145, 137)
                         : Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(6),
+                    boxShadow: _currentPage == index
+                        ? [
+                            BoxShadow(
+                              color: const Color.fromARGB(255, 21, 145, 137)
+                                  .withAlpha(102),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ]
+                        : [],
                   ),
                 ),
               ),
@@ -803,114 +856,161 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // helper menu item
-  static Widget _menuItem(String asset, String title, {VoidCallback? onTap}) {
-    return Column(
-      children: [
-        Ink(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withAlpha(13),
-                blurRadius: 5,
-                offset: const Offset(0, 3),
+  // helper menu item dengan animasi
+  Widget _menuItem(String asset, String title, {VoidCallback? onTap}) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOutBack,
+      builder: (context, value, child) {
+        return Transform.scale(
+          scale: value,
+          child: Column(
+            children: [
+              Ink(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(13),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: onTap,
+                  splashColor: const Color.fromARGB(255, 21, 145, 137).withAlpha(51),
+                  highlightColor: const Color.fromARGB(255, 21, 145, 137).withAlpha(25),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.all(14),
+                    child: Image.asset(
+                      asset,
+                      height: 38,
+                      filterQuality: FilterQuality.high,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Flexible(
+                child: Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    height: 1.2,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
           ),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child:
-                  Image.asset(asset, height: 40, filterQuality: FilterQuality.high),
-            ),
-          ),
-        ),
-        const SizedBox(height: 6),
-        Flexible(
-          child: Text(
-            title,
-            textAlign: TextAlign.center,
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 
-  // UPDATED: Tips Card Penuh Warna dengan InkWell (tappable)
+  // UPDATED: Tips Card dengan animasi smooth dan efek hover
   Widget _tipsCard({
     required IconData icon,
     required String title,
     required String subtitle,
     required int index,
     required Color backgroundColor, 
-    VoidCallback? onTap, // Parameter onTap
+    VoidCallback? onTap,
   }) {
-    final scale = (_currentPage == index) ? 1.0 : 0.95;
+    final isActive = (_currentPage == index);
+    final scale = isActive ? 1.0 : 0.92;
+    final opacity = isActive ? 1.0 : 0.7;
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8), 
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOutCubic,
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 12), 
       transform: Matrix4.identity()..scale(scale),
       alignment: Alignment.center,
       width: 260,
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: backgroundColor.withAlpha(102), 
-            blurRadius: 15,
-            offset: const Offset(0, 8),
+            color: backgroundColor.withAlpha(isActive ? 128 : 77), 
+            blurRadius: isActive ? 20 : 12,
+            offset: Offset(0, isActive ? 10 : 6),
           ),
         ],
       ),
-      // MENGGUNAKAN INKWELL DI SINI UNTUK EFEK TAPPABLE
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Icon(icon, color: Colors.white, size: 36),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      title,
-                      style: GoogleFonts.poppins(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                        color: Colors.white,
-                      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          splashColor: Colors.white.withAlpha(77),
+          highlightColor: Colors.white.withAlpha(51),
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 300),
+            opacity: opacity,
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0.8, end: isActive ? 1.0 : 0.9),
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeOut,
+                    builder: (context, value, child) {
+                      return Transform.scale(
+                        scale: value,
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withAlpha(51),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(icon, color: Colors.white, size: 32),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          title,
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                            color: Colors.white,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          subtitle,
+                          style: GoogleFonts.poppins(
+                            fontSize: 11.5,
+                            color: Colors.white.withAlpha(217),
+                            height: 1.3,
+                          ),
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        color: Colors.white70,
-                      ),
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
