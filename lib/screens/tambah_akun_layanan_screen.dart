@@ -1,10 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:geocoding/geocoding.dart';
-import 'package:flutter/services.dart'; 
+import 'package:flutter/services.dart';
+
+import '../models/app_settings.dart';
+import '../models/area_option.dart';
+import '../models/service_account.dart';
+import '../services/area_service.dart';
+import '../services/config_service.dart';
+import '../services/service_account_service.dart';
 
 class TambahAkunLayananScreen extends StatefulWidget {
   const TambahAkunLayananScreen({super.key});
@@ -17,10 +26,28 @@ class TambahAkunLayananScreen extends StatefulWidget {
 class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _namaController = TextEditingController();
-  final TextEditingController _teleponController = TextEditingController(); 
+  final TextEditingController _teleponController = TextEditingController();
   final TextEditingController _detailAlamatController = TextEditingController();
   final TextEditingController _kelurahanController = TextEditingController();
   final TextEditingController _kecamatanController = TextEditingController();
+  final TextEditingController _provinsiController = TextEditingController();
+  final TextEditingController _kotaController = TextEditingController();
+
+  final AreaService _areaService = AreaService();
+  final ServiceAccountService _serviceAccountService = ServiceAccountService();
+  final ConfigService _configService = ConfigService();
+  final Dio _geocodeClient = Dio(
+    BaseOptions(
+      baseUrl: 'https://nominatim.openstreetmap.org',
+      headers: {
+        'User-Agent':
+            'smart-environment-mobile/1.0 (https://github.com/citiasia-inc/smart-environment-mobile)',
+        'Accept': 'application/json',
+      },
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 10),
+    ),
+  );
 
   double _latitude = -6.2;
   double _longitude = 106.8;
@@ -28,66 +55,17 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
 
   final MapController _mapController = MapController();
 
-  // Data Dummy Kecamatan & Kelurahan
-  final List<String> _kecamatanList = [
-    "Gambir",
-    "Tanah Abang",
-    "Menteng",
-    "Cempaka Putih",
-    "Tanjung Priok",
-    "Penjaringan",
-    "Setiabudi",
-    "Pasar Minggu",
-  ];
+  List<AreaOption> _kecamatanOptions = [];
+  List<AreaOption> _kelurahanOptions = [];
+  AreaOption? _selectedKecamatanOption;
+  AreaOption? _selectedKelurahanOption;
 
-  final Map<String, LatLng> _kecamatanCoordinates = {
-    "Gambir": LatLng(-6.1754, 106.8272),
-    "Tanah Abang": LatLng(-6.1860, 106.8113),
-    "Menteng": LatLng(-6.1901, 106.8326),
-    "Cempaka Putih": LatLng(-6.1770, 106.8650),
-    "Tanjung Priok": LatLng(-6.1286, 106.8807),
-    "Penjaringan": LatLng(-6.1180, 106.7894),
-    "Setiabudi": LatLng(-6.2196, 106.8325),
-    "Pasar Minggu": LatLng(-6.2845, 106.8331),
-  };
-
-  final Map<String, List<String>> _kecamatanKelurahanMap = {
-    "Menteng": ["Kelurahan Menteng", "Kelurahan Cikini", "Kelurahan Gondangdia"],
-    "Cempaka Putih": [
-      "Kelurahan Cempaka Putih Barat",
-      "Kelurahan Cempaka Putih Timur"
-    ],
-    "Tanjung Priok": ["Kelurahan Sunter Agung", "Kelurahan Papanggo"],
-    "Penjaringan": ["Kelurahan Pluit", "Kelurahan Penjaringan"],
-    "Setiabudi": ["Kelurahan Kuningan Timur", "Kelurahan Karet"],
-    "Pasar Minggu": ["Kelurahan Pejaten Timur", "Kelurahan Jati Padang"],
-    "Gambir": ["Kelurahan Gambir", "Kelurahan Petojo Selatan"],
-    "Tanah Abang": ["Kelurahan Kebon Melati", "Kelurahan Bendungan Hilir"],
-  };
-
-  final Map<String, LatLng> _kelurahanCoordinates = {
-    "Kelurahan Menteng": LatLng(-6.1901, 106.8326),
-    "Kelurahan Cikini": LatLng(-6.1972, 106.8416),
-    "Kelurahan Gondangdia": LatLng(-6.1898, 106.8364),
-    "Kelurahan Cempaka Putih Barat": LatLng(-6.1770, 106.8650),
-    "Kelurahan Cempaka Putih Timur": LatLng(-6.1775, 106.8700),
-    "Kelurahan Sunter Agung": LatLng(-6.1420, 106.8655),
-    "Kelurahan Papanggo": LatLng(-6.1280, 106.8800),
-    "Kelurahan Pluit": LatLng(-6.1180, 106.7894),
-    "Kelurahan Penjaringan": LatLng(-6.1200, 106.8000),
-    "Kelurahan Kuningan Timur": LatLng(-6.2220, 106.8330),
-    "Kelurahan Karet": LatLng(-6.2100, 106.8200),
-    "Kelurahan Pejaten Timur": LatLng(-6.2845, 106.8331),
-    "Kelurahan Jati Padang": LatLng(-6.2900, 106.8200),
-    "Kelurahan Gambir": LatLng(-6.1754, 106.8272),
-    "Kelurahan Petojo Selatan": LatLng(-6.1760, 106.8200),
-    "Kelurahan Kebon Melati": LatLng(-6.1900, 106.8100),
-    "Kelurahan Bendungan Hilir": LatLng(-6.2000, 106.8150),
-  };
-
-  String? _selectedKecamatan;
-  String? _selectedKelurahan;
   bool _isLoading = true;
+  bool _isKelurahanLoading = false;
+  bool _isSubmitting = false;
+
+  String? _provinceName;
+  String? _cityName;
 
   final double _minZoom = 3.0;
   final double _maxZoom = 19.0;
@@ -95,41 +73,250 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(seconds: 1), () { // ⏱️ Mengurangi waktu shimmer
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    });
+    _initializeForm();
   }
 
-  Future<void> _getAddressFromCoordinates(double lat, double lng) async {
-    // 💡 Implementasi reverse geocoding untuk mendapatkan alamat jika diperlukan
-    debugPrint("Koordinat dipilih: $lat, $lng");
-  }
-
-  Future<void> _searchAddress(String address) async {
+  Future<void> _initializeForm() async {
     try {
-      if (address.isEmpty) return;
-      List<Location> locations = await locationFromAddress(address);
-      if (locations.isNotEmpty) {
-        final loc = locations.first;
-        setState(() {
-          _latitude = loc.latitude;
-          _longitude = loc.longitude;
-        });
-        _mapController.move(LatLng(_latitude, _longitude), _currentZoom);
-      }
-    } catch (e) {
-      debugPrint("Gagal mencari alamat: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Alamat tidak ditemukan")),
-      );
+      final AppSettingsData? settings = await _configService.fetchAppSettings();
+      final kecamatan = await _areaService.fetchKecamatan();
+
+      if (!mounted) return;
+
+      setState(() {
+        _provinceName = settings?.province?.name;
+        _cityName = settings?.city?.name;
+        _provinsiController.text = _provinceName ?? '';
+        _kotaController.text = _cityName ?? '';
+        _kecamatanOptions = kecamatan;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+      _showSnackBar('Gagal memuat data awal: ${_errorMessage(error)}');
     }
   }
 
-  void _showSuccessBottomSheet(BuildContext context, Map<String, dynamic> data) {
+  String _errorMessage(Object error) {
+    if (error is DioException) {
+      final data = error.response?.data;
+      if (data is Map &&
+          data['errors'] is Map &&
+          data['errors']['message'] != null) {
+        return data['errors']['message'].toString();
+      }
+      return error.message ?? 'Terjadi kesalahan jaringan';
+    }
+    return error.toString();
+  }
+
+  void _showSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  AreaOption? _findOptionByName(List<AreaOption> options, String name) {
+    final query = name.toLowerCase();
+    for (final option in options) {
+      if (option.name.toLowerCase() == query) {
+        return option;
+      }
+    }
+    return null;
+  }
+
+  Future<void> _handleKecamatanSelection(String value) async {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return;
+
+    final option = _findOptionByName(_kecamatanOptions, trimmed);
+    if (option == null) {
+      _showSnackBar('Kecamatan "$trimmed" tidak ditemukan');
+      return;
+    }
+
+    if (_selectedKecamatanOption?.id == option.id) {
+      _kecamatanController.text = option.name;
+      return;
+    }
+
+    setState(() {
+      _selectedKecamatanOption = option;
+      _kecamatanController.text = option.name;
+      _kelurahanController.clear();
+      _selectedKelurahanOption = null;
+      _kelurahanOptions = [];
+    });
+
+    await _searchAddress(
+      '${option.name}, ${_cityName ?? ''}, ${_provinceName ?? ''}',
+    );
+    await _loadKelurahanOptions(option);
+  }
+
+  Future<void> _loadKelurahanOptions(AreaOption kecamatan) async {
+    setState(() {
+      _isKelurahanLoading = true;
+    });
+
+    try {
+      final kelurahan =
+          await _areaService.fetchKelurahan(parentId: kecamatan.id);
+      if (!mounted) return;
+
+      setState(() {
+        _kelurahanOptions = kelurahan;
+      });
+
+      if (kelurahan.isEmpty) {
+        _showSnackBar('Kelurahan untuk ${kecamatan.name} tidak ditemukan');
+      }
+    } catch (error) {
+      if (!mounted) return;
+      _showSnackBar('Gagal memuat kelurahan: ${_errorMessage(error)}');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isKelurahanLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleKelurahanSelection(String value) async {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return;
+
+    final option = _findOptionByName(_kelurahanOptions, trimmed);
+    if (option == null) {
+      _showSnackBar('Kelurahan "$trimmed" tidak ditemukan');
+      return;
+    }
+
+    setState(() {
+      _selectedKelurahanOption = option;
+      _kelurahanController.text = option.name;
+    });
+
+    await _searchAddress(
+      '${option.name}, ${_selectedKecamatanOption?.name ?? ''}, ${_cityName ?? ''}, ${_provinceName ?? ''}',
+    );
+  }
+
+  Future<void> _getAddressFromCoordinates(double lat, double lng) async {
+    debugPrint('Koordinat dipilih: $lat, $lng');
+  }
+
+  Future<void> _searchAddress(String address) async {
+    if (address.trim().isEmpty) {
+      return;
+    }
+
+    final LatLng? coordinates = await _resolveCoordinates(address);
+
+    if (!mounted) return;
+
+    if (coordinates == null) {
+      _showSnackBar('Alamat tidak ditemukan');
+      return;
+    }
+
+    setState(() {
+      _latitude = coordinates.latitude;
+      _longitude = coordinates.longitude;
+    });
+    _mapController.move(LatLng(_latitude, _longitude), _currentZoom);
+  }
+
+  Future<LatLng?> _resolveCoordinates(String address) async {
+    try {
+      if (kIsWeb) {
+        final response = await _geocodeClient.get<List<dynamic>>(
+          '/search',
+          queryParameters: {
+            'format': 'json',
+            'limit': 1,
+            'q': address,
+          },
+        );
+
+        final data = response.data;
+        if (data == null || data.isEmpty) {
+          return null;
+        }
+
+        final first = data.first;
+        if (first is Map<String, dynamic>) {
+          final lat = double.tryParse(first['lat']?.toString() ?? '');
+          final lon = double.tryParse(first['lon']?.toString() ?? '');
+          if (lat != null && lon != null) {
+            return LatLng(lat, lon);
+          }
+        }
+        return null;
+      } else {
+        final locations = await locationFromAddress(address);
+        if (locations.isEmpty) {
+          return null;
+        }
+        final loc = locations.first;
+        return LatLng(loc.latitude, loc.longitude);
+      }
+    } catch (error, stackTrace) {
+      debugPrint('Gagal menemukan koordinat untuk "$address": $error');
+      debugPrint('$stackTrace');
+      return null;
+    }
+  }
+
+  Future<void> _simpanData() async {
+    if (_selectedKecamatanOption == null ||
+        _selectedKelurahanOption == null) {
+      _showSnackBar(
+        'Harap pilih Kecamatan dan Kelurahan yang valid.',
+      );
+      return;
+    }
+
+    if (_formKey.currentState?.validate() != true) {
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      final account = await _serviceAccountService.createAccount(
+        name: _namaController.text,
+        contactPhone: _teleponController.text,
+        address: _detailAlamatController.text,
+        areaId: _selectedKelurahanOption!.id,
+        latitude: _latitude,
+        longitude: _longitude,
+      );
+
+      if (!mounted) return;
+
+      _showSuccessBottomSheet(context, account);
+    } catch (error) {
+      if (!mounted) return;
+      _showSnackBar('Gagal menyimpan akun: ${_errorMessage(error)}');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
+  }
+
+  void _showSuccessBottomSheet(BuildContext context, ServiceAccount account) {
     showModalBottomSheet(
       context: context,
       isDismissible: false,
@@ -137,7 +324,7 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (context) {
+      builder: (ctx) {
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
           child: Column(
@@ -154,32 +341,53 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
               ),
               const SizedBox(height: 20),
               Text(
-                "Akun layanan berhasil dibuat!",
+                'Akun layanan berhasil dibuat!',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
-                    fontSize: 18, fontWeight: FontWeight.w600), // 🎨 Style diperbarui
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                account.name,
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                account.address,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  color: Colors.grey[700],
+                ),
               ),
               const SizedBox(height: 30),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.lightBlue, // 🎨 Warna tombol diubah ke hijau
+                    backgroundColor: const Color(0xFF4CAF50),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12), // 🎨 Radius disesuaikan
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                   onPressed: () {
-                    Navigator.pop(context);
-                    // Mengirim data kembali ke LayananSampahScreen
-                    Navigator.pop(context, data);
+                    Navigator.pop(ctx);
+                    Navigator.pop(context, account);
                   },
                   child: Text(
-                    "OK",
+                    'OK',
                     style: GoogleFonts.poppins(
-                        fontWeight: FontWeight.w600, fontSize: 16),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
+                    ),
                   ),
                 ),
               ),
@@ -188,44 +396,6 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
         );
       },
     );
-  }
-
-  void _simpanData() {
-    // 💡 Tambahkan validasi untuk memastikan kelurahan dan kecamatan terpilih
-    if (_selectedKecamatan == null || _selectedKelurahan == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Harap pilih Kecamatan dan Kelurahan yang valid."),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-      return;
-    }
-
-    if (_formKey.currentState!.validate()) {
-      final data = {
-        "id": DateTime.now().millisecondsSinceEpoch.toString(),
-        "nama": _namaController.text,
-        "telepon": _teleponController.text, // 🟢 Menyimpan data telepon
-        "provinsi": "DKI Jakarta",
-        "kecamatan": _selectedKecamatan,
-        "kelurahan": _selectedKelurahan,
-        "alamat lengkap": _detailAlamatController.text,
-        "latitude": _latitude,
-        "longitude": _longitude,
-      };
-      _showSuccessBottomSheet(context, data);
-    }
-  }
-
-  @override
-  void dispose() {
-    _namaController.dispose();
-    _teleponController.dispose(); // 🟢 Dispose controller telepon
-    _detailAlamatController.dispose();
-    _kelurahanController.dispose();
-    _kecamatanController.dispose();
-    super.dispose();
   }
 
   void _zoomIn() {
@@ -243,18 +413,32 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
   }
 
   @override
+  void dispose() {
+    _namaController.dispose();
+    _teleponController.dispose();
+    _detailAlamatController.dispose();
+    _kelurahanController.dispose();
+    _kecamatanController.dispose();
+    _provinsiController.dispose();
+    _kotaController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white, // 🎨 Background putih
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: Text(
-          "Tambahkan Akun Layanan",
+          'Tambahkan Akun Layanan',
           style: GoogleFonts.poppins(
-              fontWeight: FontWeight.w600, color: Colors.white), // 🎨 Teks putih
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
         ),
-        backgroundColor: const Color(0xFF4CAF50), // 🎨 AppBar hijau
+        backgroundColor: const Color(0xFF4CAF50),
         foregroundColor: Colors.white,
-        elevation: 0, // 🎨 Hilangkan shadow
+        elevation: 0,
       ),
       body: _isLoading ? _buildShimmer() : _buildForm(),
       bottomNavigationBar: !_isLoading
@@ -263,29 +447,51 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _simpanData,
+                  onPressed: _isSubmitting ? null : _simpanData,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4CAF50), // 🎨 Tombol Simpan Hijau
+                    backgroundColor: const Color(0xFF4CAF50),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: Text("Simpan",
-                      style: GoogleFonts.poppins(
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                          fontSize: 16)),
+                  child: _isSubmitting
+                      ? Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              height: 18,
+                              width: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              'Menyimpan...',
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ],
+                        )
+                      : Text(
+                          'Simpan',
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                            fontSize: 16,
+                          ),
+                        ),
                 ),
               ),
             )
           : null,
     );
   }
-
-  // ------------------------------------
-  // Helper Widget
-  // ------------------------------------
 
   Widget _buildShimmer() {
     return ListView.builder(
@@ -319,136 +525,143 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. Nama Lengkap
-              _buildLabel("Nama Lengkap"),
+              _buildLabel('Nama Lengkap'),
               _buildTextFormField(
                 controller: _namaController,
-                hintText: "Masukkan nama lengkap",
-                validatorMessage: "Nama wajib diisi",
+                hintText: 'Masukkan nama lengkap',
+                validatorMessage: 'Nama wajib diisi',
               ),
               const SizedBox(height: 16),
-              
-              // 2. Nomor Telepon (🟢 Tambahan)
-              _buildLabel("Nomor Telepon"),
+              _buildLabel('Nomor Telepon'),
               _buildTextFormField(
                 controller: _teleponController,
-                hintText: "Contoh: 0812xxxxxxxx",
+                hintText: 'Contoh: 0812xxxxxxxx',
                 keyboardType: TextInputType.phone,
-                validatorMessage: "Nomor telepon wajib diisi",
+                validatorMessage: 'Nomor telepon wajib diisi',
                 inputFormatters: [
                   FilteringTextInputFormatter.digitsOnly,
                 ],
               ),
               const SizedBox(height: 16),
-
-              // 3. Provinsi (Otomatis)
-              _buildLabel("Provinsi"),
-              _buildReadOnlyTextFormField(value: "DKI Jakarta"),
+              _buildLabel('Kota/Kabupaten'),
+              _buildReadOnlyTextFormField(
+                controller: _kotaController,
+                hintText: 'Masukkan kota/kabupaten',
+                readOnly: (_cityName ?? '').isNotEmpty,
+              ),
               const SizedBox(height: 16),
-
-              // 4. Kecamatan (Autocomplete)
-              _buildLabel("Kecamatan"),
+              _buildLabel('Kecamatan'),
               Autocomplete<String>(
                 optionsBuilder: (TextEditingValue textEditingValue) {
-                  if (textEditingValue.text.isEmpty) {
-                    return _kecamatanList;
+                  final query = textEditingValue.text.toLowerCase();
+                  final names =
+                      _kecamatanOptions.map((option) => option.name).toList();
+                  if (query.isEmpty) {
+                    return names;
                   }
-                  return _kecamatanList.where((String option) {
-                    return option
-                        .toLowerCase()
-                        .contains(textEditingValue.text.toLowerCase());
-                  });
+                  return names.where(
+                    (name) => name.toLowerCase().contains(query),
+                  );
                 },
-                onSelected: (String selection) {
-                  setState(() {
-                    _selectedKecamatan = selection;
-                    _kecamatanController.text = selection;
-                    _selectedKelurahan = null;
-                    _kelurahanController.clear();
-                    if (_kecamatanCoordinates.containsKey(selection)) {
-                      final pos = _kecamatanCoordinates[selection]!;
-                      _latitude = pos.latitude;
-                      _longitude = pos.longitude;
-                      _mapController.move(
-                          LatLng(_latitude, _longitude), _currentZoom);
-                    }
-                  });
-                },
-                fieldViewBuilder:
-                    (context, controller, focusNode, onEditingComplete) {
-                  _kecamatanController.text = controller.text;
+                onSelected: _handleKecamatanSelection,
+                fieldViewBuilder: (
+                  context,
+                  textController,
+                  focusNode,
+                  onEditingComplete,
+                ) {
+                  if (textController.text != _kecamatanController.text) {
+                    textController.value = _kecamatanController.value;
+                  }
                   return TextFormField(
-                    controller: controller,
+                    controller: textController,
                     focusNode: focusNode,
-                    decoration: _inputDecoration(
-                        hintText: "Pilih atau ketik kecamatan"),
-                    validator: (value) => value == null || value.isEmpty
-                        ? "Kecamatan wajib diisi"
-                        : null,
+                    decoration:
+                        _inputDecoration(hintText: 'Pilih atau ketik kecamatan'),
+                    validator: (value) =>
+                        value == null || value.isEmpty
+                            ? 'Kecamatan wajib diisi'
+                            : null,
+                    onEditingComplete: () {
+                      onEditingComplete();
+                      _handleKecamatanSelection(textController.text);
+                    },
+                    onChanged: (value) {
+                      _kecamatanController.text = value;
+                    },
                   );
                 },
               ),
               const SizedBox(height: 16),
-
-              // 5. Kelurahan (Autocomplete Filtered)
-              _buildLabel("Kelurahan"),
-              Autocomplete<String>(
-                optionsBuilder: (TextEditingValue textEditingValue) {
-                  if (_selectedKecamatan == null) {
-                    return const Iterable<String>.empty();
-                  }
-                  final kelurahanList =
-                      _kecamatanKelurahanMap[_selectedKecamatan] ?? [];
-                  if (textEditingValue.text.isEmpty) {
-                    return kelurahanList;
-                  }
-                  return kelurahanList.where((String option) {
-                    return option
-                        .toLowerCase()
-                        .contains(textEditingValue.text.toLowerCase());
-                  });
-                },
-                onSelected: (String selection) {
-                  setState(() {
-                    _selectedKelurahan = selection;
-                    _kelurahanController.text = selection;
-                    if (_kelurahanCoordinates.containsKey(selection)) {
-                      final pos = _kelurahanCoordinates[selection]!;
-                      _latitude = pos.latitude;
-                      _longitude = pos.longitude;
-                      _mapController.move(
-                          LatLng(_latitude, _longitude), _currentZoom);
-                    }
-                  });
-                },
-                fieldViewBuilder:
-                    (context, controller, focusNode, onEditingComplete) {
-                  _kelurahanController.text = controller.text;
-                  return TextFormField(
-                    controller: controller,
-                    focusNode: focusNode,
-                    decoration: _inputDecoration(
-                        hintText: "Pilih kelurahan (isi kecamatan dulu)"),
-                    validator: (value) => value == null || value.isEmpty
-                        ? "Kelurahan wajib diisi"
-                        : null,
-                    enabled: _selectedKecamatan != null, // 💡 Nonaktifkan jika kecamatan belum dipilih
-                  );
-                },
+              _buildLabel('Kelurahan'),
+              Column(
+                children: [
+                  Autocomplete<String>(
+                    optionsBuilder: (TextEditingValue textEditingValue) {
+                      if (_selectedKecamatanOption == null) {
+                        return const Iterable<String>.empty();
+                      }
+                      final query = textEditingValue.text.toLowerCase();
+                      final names = _kelurahanOptions
+                          .map((option) => option.name)
+                          .toList();
+                      if (query.isEmpty) {
+                        return names;
+                      }
+                      return names.where(
+                        (name) => name.toLowerCase().contains(query),
+                      );
+                    },
+                    onSelected: _handleKelurahanSelection,
+                    fieldViewBuilder: (
+                      context,
+                      textController,
+                      focusNode,
+                      onEditingComplete,
+                    ) {
+                      if (textController.text != _kelurahanController.text) {
+                        textController.value = _kelurahanController.value;
+                      }
+                      return TextFormField(
+                        controller: textController,
+                        focusNode: focusNode,
+                        enabled: _selectedKecamatanOption != null &&
+                            !_isKelurahanLoading,
+                        decoration: _inputDecoration(
+                          hintText: _selectedKecamatanOption == null
+                              ? 'Pilih kecamatan terlebih dahulu'
+                              : 'Pilih kelurahan',
+                        ),
+                        validator: (value) =>
+                            value == null || value.isEmpty
+                                ? 'Kelurahan wajib diisi'
+                                : null,
+                        onEditingComplete: () {
+                          onEditingComplete();
+                          _handleKelurahanSelection(textController.text);
+                        },
+                        onChanged: (value) {
+                          _kelurahanController.text = value;
+                        },
+                      );
+                    },
+                  ),
+                  if (_isKelurahanLoading)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8),
+                      child: LinearProgressIndicator(minHeight: 2),
+                    ),
+                ],
               ),
               const SizedBox(height: 16),
-
-              // 6. Preview Lokasi Map
-              _buildLabel("Preview Lokasi (Titik Merah = Lokasi Dipilih)"),
+              _buildLabel('Preview Lokasi (Titik Merah = Lokasi Dipilih)'),
               const SizedBox(height: 8),
               _buildMapPreview(),
               const SizedBox(height: 16),
-
-              // 7. Detail Alamat
-              _buildLabel("Detail Alamat"),
+              _buildLabel('Detail Alamat'),
               _buildTextFormField(
                 controller: _detailAlamatController,
-                hintText: "Contoh: nama bangunan, nomor unit",
+                hintText: 'Contoh: nama bangunan, nomor unit',
                 onFieldSubmitted: _searchAddress,
               ),
               const SizedBox(height: 80),
@@ -465,7 +678,10 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
       child: Text(
         text,
         style: GoogleFonts.poppins(
-            fontWeight: FontWeight.w500, fontSize: 14, color: Colors.black87),
+          fontWeight: FontWeight.w500,
+          fontSize: 14,
+          color: Colors.black87,
+        ),
       ),
     );
   }
@@ -477,7 +693,7 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
       contentPadding:
           const EdgeInsets.symmetric(vertical: 14.0, horizontal: 12.0),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10), // 🎨 Radius disesuaikan
+        borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: Colors.grey),
       ),
       enabledBorder: OutlineInputBorder(
@@ -486,7 +702,7 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: Color(0xFF4CAF50), width: 2), // 🎨 Warna fokus hijau
+        borderSide: const BorderSide(color: Color(0xFF4CAF50), width: 2),
       ),
     );
   }
@@ -510,22 +726,28 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
         }
         return null;
       },
-      onFieldSubmitted: onFieldSubmitted,
+      onFieldSubmitted: (value) {
+        if (onFieldSubmitted != null) {
+          onFieldSubmitted(value);
+        }
+      },
     );
   }
 
-  Widget _buildReadOnlyTextFormField({required String value}) {
+  Widget _buildReadOnlyTextFormField({
+    required TextEditingController controller,
+    String? hintText,
+    bool readOnly = true,
+  }) {
     return TextFormField(
-      initialValue: value,
-      readOnly: true,
+      controller: controller,
+      readOnly: readOnly,
       style: GoogleFonts.poppins(color: Colors.black87),
-      decoration: _inputDecoration(hintText: value).copyWith(
-        fillColor: Colors.grey.shade100,
-        filled: true,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide.none,
-        ),
+      decoration: _inputDecoration(
+        hintText: hintText ?? controller.text,
+      ).copyWith(
+        fillColor: readOnly ? Colors.grey.shade100 : null,
+        filled: readOnly,
       ),
     );
   }
@@ -548,12 +770,16 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
                     _longitude = point.longitude;
                   });
                   _getAddressFromCoordinates(point.latitude, point.longitude);
-                  _mapController.move(LatLng(_latitude, _longitude), _currentZoom);
+                  _mapController.move(
+                    LatLng(_latitude, _longitude),
+                    _currentZoom,
+                  );
                 },
               ),
               children: [
                 TileLayer(
-                  urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                  urlTemplate:
+                      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
                   subdomains: const ['a', 'b', 'c'],
                   userAgentPackageName: 'com.mycompany.myapp',
                 ),
@@ -563,8 +789,11 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
                       point: LatLng(_latitude, _longitude),
                       width: 40,
                       height: 40,
-                      child: const Icon(Icons.location_on,
-                          color: Colors.red, size: 40),
+                      child: const Icon(
+                        Icons.location_on,
+                        color: Colors.red,
+                        size: 40,
+                      ),
                     ),
                   ],
                 ),
@@ -573,44 +802,56 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
             Positioned(
               bottom: 10,
               right: 10,
-              child: Container( // 🎨 Container untuk menggabungkan zoom buttons
+              child: Container(
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.85),
+                  color: Colors.white.withAlpha(217),
                   borderRadius: BorderRadius.circular(10),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withAlpha(26),
                       blurRadius: 4,
-                    )
-                  ]
+                    ),
+                  ],
                 ),
                 child: Column(
                   children: [
-                    _buildZoomButton(Icons.add, _zoomIn, "zoomIn"),
-                    const Divider(height: 1, thickness: 1, color: Colors.grey),
-                    _buildZoomButton(Icons.remove, _zoomOut, "zoomOut"),
-                    const Divider(height: 1, thickness: 1, color: Colors.grey),
-                    _buildZoomButton(Icons.fullscreen, () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => FullscreenMapPage(
-                            latitude: _latitude,
-                            longitude: _longitude,
-                            zoom: _currentZoom,
+                    _buildZoomButton(Icons.add, _zoomIn, 'zoomIn'),
+                    const Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: Colors.grey,
+                    ),
+                    _buildZoomButton(Icons.remove, _zoomOut, 'zoomOut'),
+                    const Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: Colors.grey,
+                    ),
+                    _buildZoomButton(
+                      Icons.fullscreen,
+                      () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => FullscreenMapPage(
+                              latitude: _latitude,
+                              longitude: _longitude,
+                              zoom: _currentZoom,
+                            ),
                           ),
-                        ),
-                      ).then((result) {
-                        // 💡 Jika kembali dari fullscreen map, perbarui posisi
-                        if (result != null && result is LatLng) {
-                          setState(() {
-                            _latitude = result.latitude;
-                            _longitude = result.longitude;
-                          });
-                          _mapController.move(result, _currentZoom);
-                        }
-                      });
-                    }, "fullscreenMap", isLast: true),
+                        ).then((result) {
+                          if (result != null && result is LatLng) {
+                            setState(() {
+                              _latitude = result.latitude;
+                              _longitude = result.longitude;
+                            });
+                            _mapController.move(result, _currentZoom);
+                          }
+                        });
+                      },
+                      'fullscreenMap',
+                      isLast: true,
+                    ),
                   ],
                 ),
               ),
@@ -621,12 +862,17 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
     );
   }
 
-  Widget _buildZoomButton(IconData icon, VoidCallback onPressed, String tag, {bool isLast = false}) {
+  Widget _buildZoomButton(
+    IconData icon,
+    VoidCallback onPressed,
+    String tag, {
+    bool isLast = false,
+  }) {
     return Container(
       margin: isLast ? EdgeInsets.zero : const EdgeInsets.only(bottom: 0),
       child: FloatingActionButton.small(
         heroTag: tag,
-        backgroundColor: Colors.transparent, // 🎨 Transparan karena sudah ada container
+        backgroundColor: Colors.transparent,
         elevation: 0,
         onPressed: onPressed,
         child: Icon(icon, color: Colors.black),

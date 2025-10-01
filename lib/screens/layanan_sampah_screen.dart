@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
 import 'tambah_akun_layanan_screen.dart'; // Pastikan file ini ada di project Anda
+
+import '../models/service_account.dart';
+import '../services/service_account_service.dart';
 
 /// 🔹 Halaman utama daftar akun layanan
 class LayananSampahScreen extends StatefulWidget {
@@ -15,8 +16,10 @@ class LayananSampahScreen extends StatefulWidget {
 }
 
 class _LayananSampahScreenState extends State<LayananSampahScreen> {
+  final ServiceAccountService _serviceAccountService = ServiceAccountService();
   bool _isLoading = true;
-  List<Map<String, dynamic>> akunLayanan = [];
+  List<ServiceAccount> _accounts = [];
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -30,23 +33,33 @@ class _LayananSampahScreenState extends State<LayananSampahScreen> {
     await _loadAkunLayanan();
   }
 
-  /// 🔹 Muat data akun dari SharedPreferences
+  /// 🔹 Muat data akun dari API
   Future<void> _loadAkunLayanan() async {
-    final prefs = await SharedPreferences.getInstance();
-    final data = prefs.getStringList('akun_layanan') ?? [];
-
     setState(() {
-      akunLayanan =
-          data.map((e) => Map<String, dynamic>.from(jsonDecode(e))).toList();
-      _isLoading = false;
+      _isLoading = true;
+      _errorMessage = null;
     });
-  }
 
-  /// 🔹 Simpan akun ke SharedPreferences
-  Future<void> _saveAkunLayanan() async {
-    final prefs = await SharedPreferences.getInstance();
-    final data = akunLayanan.map((e) => jsonEncode(e)).toList();
-    await prefs.setStringList('akun_layanan', data);
+    try {
+      final items = await _serviceAccountService.fetchAccounts();
+      if (!mounted) return;
+      setState(() {
+        _accounts = items;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Gagal memuat akun layanan';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error is Exception ? error.toString() : '$error'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
   }
 
   void _showTambahAkunOptions() {
@@ -67,7 +80,7 @@ class _LayananSampahScreenState extends State<LayananSampahScreen> {
                 onTap: () {
                   Navigator.pop(context);
 
-                  if (akunLayanan.isEmpty) {
+                  if (_accounts.isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text("Harap membuat akun terlebih dahulu"),
@@ -97,12 +110,13 @@ class _LayananSampahScreenState extends State<LayananSampahScreen> {
                     ),
                   );
 
-                  if (result != null && result is Map<String, dynamic>) {
+                  if (!mounted) return;
+                  if (result != null && result is ServiceAccount) {
                     setState(() {
-                      result["hari_pengangkutan"] = "Senin & Kamis"; // dummy
-                      akunLayanan.add(result);
+                      _accounts.insert(0, result);
                     });
-                    await _saveAkunLayanan();
+                  } else {
+                    await _loadAkunLayanan();
                   }
                 },
               ),
@@ -128,7 +142,7 @@ class _LayananSampahScreenState extends State<LayananSampahScreen> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
+              color: Colors.black.withAlpha(20),
               blurRadius: 8,
               offset: const Offset(0, 3),
             ),
@@ -209,7 +223,21 @@ class _LayananSampahScreenState extends State<LayananSampahScreen> {
 
   /// 🔹 Konten utama
   Widget _buildContent() {
-    final bool adaAkun = akunLayanan.isNotEmpty;
+    if (_errorMessage != null) {
+      return Center(
+        child: Text(
+          _errorMessage!,
+          textAlign: TextAlign.center,
+          style: GoogleFonts.poppins(
+            fontSize: 15,
+            color: Colors.grey[700],
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      );
+    }
+
+    final bool adaAkun = _accounts.isNotEmpty;
 
     if (!adaAkun) {
       return Center(
@@ -225,20 +253,36 @@ class _LayananSampahScreenState extends State<LayananSampahScreen> {
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: akunLayanan.length,
-      itemBuilder: (context, index) {
-        final akun = akunLayanan[index];
+    return RefreshIndicator(
+      onRefresh: _loadAkunLayanan,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        physics: const AlwaysScrollableScrollPhysics(),
+        itemCount: _accounts.length,
+        itemBuilder: (context, index) {
+        final akun = _accounts[index];
         return GestureDetector(
-          onTap: () {
-            Navigator.push(
+          onTap: () async {
+            final deleted = await Navigator.push<bool>(
               context,
               MaterialPageRoute(
-                builder: (context) =>
-                    DetailAkunLayananScreen(akun: akun, onDelete: _loadAkunLayanan),
+                builder: (context) => DetailAkunLayananScreen(
+                  akun: akun,
+                ),
               ),
             );
+
+            if (!context.mounted) return;
+
+            if (deleted == true) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Akun berhasil dihapus'),
+                  backgroundColor: Color(0xFF4CAF50),
+                ),
+              );
+              await _loadAkunLayanan();
+            }
           },
           child: Container(
             margin: const EdgeInsets.only(bottom: 16),
@@ -248,7 +292,7 @@ class _LayananSampahScreenState extends State<LayananSampahScreen> {
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withAlpha(13),
                   blurRadius: 8,
                   offset: const Offset(0, 4),
                 ),
@@ -258,7 +302,7 @@ class _LayananSampahScreenState extends State<LayananSampahScreen> {
               children: [
                 CircleAvatar(
                   radius: 26,
-                  backgroundColor: const Color(0xFF4CAF50).withOpacity(0.15),
+                  backgroundColor: const Color(0xFF4CAF50).withAlpha(38),
                   child: const Icon(Icons.home, color: Color(0xFF4CAF50)),
                 ),
                 const SizedBox(width: 16),
@@ -267,7 +311,7 @@ class _LayananSampahScreenState extends State<LayananSampahScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        akun["id"] ?? "ID",
+                        akun.id,
                         style: GoogleFonts.poppins(
                           color: Colors.grey[600],
                           fontSize: 12,
@@ -275,7 +319,7 @@ class _LayananSampahScreenState extends State<LayananSampahScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        akun["nama"] ?? "-",
+                        akun.name,
                         style: GoogleFonts.poppins(
                           color: Colors.black,
                           fontSize: 16,
@@ -284,7 +328,7 @@ class _LayananSampahScreenState extends State<LayananSampahScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        akun["alamat lengkap"] ?? "-",
+                        akun.address,
                         style: GoogleFonts.poppins(
                           color: Colors.grey[700],
                           fontSize: 13,
@@ -300,6 +344,7 @@ class _LayananSampahScreenState extends State<LayananSampahScreen> {
           ),
         );
       },
+      ),
     );
   }
 }
@@ -310,35 +355,30 @@ class _LayananSampahScreenState extends State<LayananSampahScreen> {
 
 /// 🔹 Halaman detail akun layanan
 class DetailAkunLayananScreen extends StatelessWidget {
-  final Map<String, dynamic> akun;
-  final VoidCallback onDelete;
+  final ServiceAccount akun;
+  static final ServiceAccountService _serviceAccountService =
+      ServiceAccountService();
 
   const DetailAkunLayananScreen({
     super.key,
     required this.akun,
-    required this.onDelete,
   });
 
   Future<void> _hapusAkun(BuildContext context) async {
-    final prefs = await SharedPreferences.getInstance();
-    final data = prefs.getStringList('akun_layanan') ?? [];
+    try {
+      await _serviceAccountService.deleteAccount(akun.id);
+      if (!context.mounted) return;
 
-    data.removeWhere((item) {
-      final map = Map<String, dynamic>.from(jsonDecode(item));
-      return map["id"] == akun["id"];
-    });
-
-    await prefs.setStringList('akun_layanan', data);
-
-    Navigator.pop(context);
-    onDelete();
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Akun berhasil dihapus"),
-        backgroundColor: Color(0xFF4CAF50),
-      ),
-    );
+      Navigator.pop(context, true);
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal menghapus akun: $error'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
   }
 
   void _konfirmasiHapus(BuildContext context) {
@@ -354,9 +394,9 @@ class DetailAkunLayananScreen extends StatelessWidget {
               child: const Text("Batal"),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.pop(ctx);
-                _hapusAkun(context);
+                await _hapusAkun(context);
               },
               child: const Text(
                 "Hapus",
@@ -388,7 +428,7 @@ class DetailAkunLayananScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     // Warna untuk status "Belum Diambil" (Oranye)
-                    color: Colors.orange.withOpacity(0.1),
+                    color: Colors.orange.withAlpha(26),
                   ),
                   child: const Icon(
                     // Ikon untuk status "Belum Diambil" (Jam Pasir/Menunggu)
@@ -465,7 +505,7 @@ class DetailAkunLayananScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withAlpha(13),
                     blurRadius: 8,
                     offset: const Offset(0, 4),
                   ),
@@ -475,7 +515,7 @@ class DetailAkunLayananScreen extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: 30,
-                    backgroundColor: const Color(0xFF4CAF50).withOpacity(0.15),
+                    backgroundColor: const Color(0xFF4CAF50).withAlpha(38),
                     child: const Icon(Icons.home,
                         size: 32, color: Color(0xFF4CAF50)),
                   ),
@@ -485,7 +525,7 @@ class DetailAkunLayananScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          akun["nama"] ?? "-",
+                            akun.name,
                           style: GoogleFonts.poppins(
                             fontSize: 18,
                             fontWeight: FontWeight.w600,
@@ -494,7 +534,7 @@ class DetailAkunLayananScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          akun["alamat lengkap"] ?? "-",
+                            akun.address,
                           style: GoogleFonts.poppins(
                             fontSize: 14,
                             color: Colors.grey[700],
@@ -509,10 +549,12 @@ class DetailAkunLayananScreen extends StatelessWidget {
             const SizedBox(height: 24),
 
             /// Info List
-            _infoCard(Icons.badge, "ID Akun", akun["id"] ?? "-"),
-            _infoCard(Icons.person, "Nama", akun["nama"] ?? "-"),
-            _infoCard(Icons.location_on, "Alamat Lengkap",
-                akun["alamat lengkap"] ?? "-"),
+      _infoCard(Icons.badge, "ID Akun", akun.id),
+      _infoCard(Icons.person, "Nama", akun.name),
+      _infoCard(Icons.phone, "Kontak", akun.contactPhone ?? '-'),
+      _infoCard(Icons.location_on, "Alamat Lengkap", akun.address),
+      _infoCard(Icons.map, "Kecamatan", akun.kecamatanName ?? '-'),
+      _infoCard(Icons.home_work, "Kelurahan", akun.kelurahanName ?? '-'),
 
             const SizedBox(height: 24),
 
@@ -538,7 +580,7 @@ class DetailAkunLayananScreen extends StatelessWidget {
                       color: Color(0xFF4CAF50), size: 20),
                   const SizedBox(width: 10),
                   Text(
-                    akun["hari_pengangkutan"] ?? "Senin & Kamis",
+                    akun.hariPengangkutan ?? "Senin & Kamis",
                     style: GoogleFonts.poppins(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
@@ -601,7 +643,7 @@ class DetailAkunLayananScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withAlpha(10),
             blurRadius: 6,
             offset: const Offset(0, 3),
           ),

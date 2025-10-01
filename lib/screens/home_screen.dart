@@ -231,7 +231,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       leading: CircleAvatar(
                         backgroundColor:
                             const Color.fromARGB(255, 21, 145, 137)
-                                .withOpacity(0.12), // Sesuaikan warna
+                                .withAlpha(31), // Sesuaikan warna
                         child: const Icon(Icons.home,
                             color: Color.fromARGB(255, 21, 145, 137)),
                       ),
@@ -389,7 +389,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
+                            color: Colors.black.withAlpha(10),
                             blurRadius: 6,
                             offset: const Offset(0, 3),
                           ),
@@ -813,7 +813,7 @@ class _HomeScreenState extends State<HomeScreen> {
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withAlpha(13),
                 blurRadius: 5,
                 offset: const Offset(0, 3),
               ),
@@ -868,7 +868,7 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: backgroundColor.withOpacity(0.4), 
+            color: backgroundColor.withAlpha(102), 
             blurRadius: 15,
             offset: const Offset(0, 8),
           ),

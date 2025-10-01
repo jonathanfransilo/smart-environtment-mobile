@@ -69,7 +69,7 @@ class _SplashScreenState extends State<SplashScreen>
                 clipper: WaveClipper2(_waveController.value),
                 child: Container(
                   height: MediaQuery.of(context).size.height * 0.50,
-                  color: const Color(0xFF36B8A6).withOpacity(0.7),
+                  color: const Color(0xFF36B8A6).withAlpha(179),
                 ),
               );
             },
@@ -81,7 +81,7 @@ class _SplashScreenState extends State<SplashScreen>
                 clipper: WaveClipper3(_waveController.value),
                 child: Container(
                   height: MediaQuery.of(context).size.height * 0.45,
-                  color: const Color(0xFF4ECDC4).withOpacity(0.5),
+                  color: const Color(0xFF4ECDC4).withAlpha(128),
                 ),
               );
             },
