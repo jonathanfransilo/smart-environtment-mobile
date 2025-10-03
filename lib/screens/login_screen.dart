@@ -35,6 +35,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _loading = true);
     final auth = AuthService();
+    // gunakan tuple (ok, message) dari AuthService
     final (ok, message) = await auth.login(email: email, password: password);
 
     if (!mounted) return;
@@ -101,9 +102,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 child: TextField(
                   controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
                   decoration: InputDecoration(
                     labelText: "Email / No. Handphone",
-                    hintText: "Masukan No. Handphone",
+                    hintText: "Masukan Email atau No. HP",
                     labelStyle: GoogleFonts.poppins(
                       color: Colors.grey.shade600,
                       fontSize: 14,
@@ -118,8 +120,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     filled: true,
                     fillColor: Colors.grey.shade50,
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 16,
+                    ),
                   ),
                 ),
               ),
@@ -152,8 +156,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     filled: true,
                     fillColor: Colors.grey.shade50,
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 16,
+                    ),
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscurePassword
@@ -215,8 +221,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(Colors.white),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
                           ),
                         )
                       else

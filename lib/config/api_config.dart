@@ -8,12 +8,12 @@ class ApiConfig {
     if (defined.isNotEmpty) return defined;
     if (kIsWeb) {
       final host = Uri.base.host.isEmpty ? 'localhost' : Uri.base.host;
-      return 'http://$host:8000/api/v1';
+      return 'https://smart-environment-web.citiasiainc.id/api/v1';
     }
     if (Platform.isAndroid) {
-      return 'http://10.0.2.2:8000/api/v1';
+      return 'https://smart-environment-web.citiasiainc.id/api/v1';
     }
-    return 'http://localhost:8000/api/v1';
+    return 'https://smart-environment-web.citiasiainc.id/api/v1';
   }
 
   // Auth endpoints
