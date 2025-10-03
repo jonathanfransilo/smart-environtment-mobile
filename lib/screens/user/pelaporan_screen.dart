@@ -133,7 +133,7 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
     }).toList();
   }
 
-  // >>> FUNGSI _selectDate DIUBAH UNTUK MENAMBAHKAN TIME PICKER KEMBALI <<<
+  // >>> FUNGSI _selectDate DILAKUKAN PERBAIKAN LOGIKA INITIAL TIME DAN FORMATTING <<<
   Future<void> _selectDate(BuildContext context) async {
     // 1. Pilih Tanggal (Date Picker)
     final DateTime? datePicked = await showDatePicker(
@@ -148,10 +148,18 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
     
     // Jika tanggal dipilih, lanjutkan ke Time Picker
     if (datePicked != null) {
+      // Tentukan waktu awal untuk Time Picker.
+      // Jika _selectedDate sudah pernah diisi, gunakan jam dari data sebelumnya untuk UX yang lebih baik.
+      // Jika belum (misalnya baru pertama kali), gunakan jam saat ini (TimeOfDay.now()).
+      final TimeOfDay initialTime = _selectedDate != null
+          ? TimeOfDay.fromDateTime(_selectedDate!)
+          : TimeOfDay.now();
+
       // 2. Pilih Jam (Time Picker)
       final TimeOfDay? timePicked = await showTimePicker(
         context: context,
-        initialTime: TimeOfDay.fromDateTime(_selectedDate ?? DateTime.now()),
+        // Menggunakan initialTime yang telah ditentukan secara eksplisit.
+        initialTime: initialTime, 
         helpText: 'Pilih Jam Pelanggaran',
         cancelText: 'BATAL',
         confirmText: 'PILIH',
@@ -169,10 +177,12 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
         );
         
         // 4. Update State dan Controller
+        // Panggil setState untuk memastikan UI (TextFormField) diperbarui.
         setState(() {
           _selectedDate = finalDateTime;
-          // Format diubah untuk menyertakan hari dan jam (cth: Senin, 01 Jan 2024 - 15:30)
-          _waktuController.text = DateFormat('EEEE, dd MMM yyyy - HH:mm', 'id_ID').format(finalDateTime); 
+          // Format menggunakan ID locale yang eksplisit (cth: Senin, 01 Jan 2024 - 15:30)
+          final String formattedTime = DateFormat('EEEE, dd MMM yyyy - HH:mm', 'id_ID').format(finalDateTime);
+          _waktuController.text = formattedTime; 
         });
       }
     }
