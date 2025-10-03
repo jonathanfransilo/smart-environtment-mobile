@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../services/auth_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -115,10 +116,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   // 🔹 Tombol logout
                   ElevatedButton.icon(
                     onPressed: () async {
-                      final prefs = await SharedPreferences.getInstance();
-                      await prefs.clear();
+                      // Gunakan AuthService untuk logout yang proper
+                      final auth = AuthService();
+                      await auth.logout();
+                      
                       if (context.mounted) {
-                        Navigator.pushReplacementNamed(context, "/login");
+                        Navigator.pushNamedAndRemoveUntil(
+                          context,
+                          "/login",
+                          (route) => false,
+                        );
                       }
                     },
                     icon: const Icon(Icons.logout, color: Colors.white),

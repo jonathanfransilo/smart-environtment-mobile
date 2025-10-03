@@ -2,11 +2,12 @@ import 'package:dio/dio.dart';
 import '../config/api_config.dart';
 import 'api_client.dart';
 import 'token_storage.dart';
+import 'user_storage.dart';
 
 class AuthService {
   final Dio _dio = ApiClient.instance.dio;
 
-  Future<(bool success, String? message)> login({
+  Future<(bool success, String? message, Map<String, dynamic>? user)> login({
     required String email,
     required String password,
     String deviceName = 'mobile',
@@ -24,13 +25,26 @@ class AuthService {
       final data = res.data as Map<String, dynamic>;
       if (data['success'] == true) {
         final token = data['data']?['token'] as String?;
+        final user = data['data']?['user'] as Map<String, dynamic>?;
+        
         if (token != null) {
           await TokenStorage.saveToken(token);
         }
-        return (true, null);
+        
+        // Simpan data user termasuk role
+        if (user != null) {
+          await UserStorage.saveUser(
+            id: user['id'] as int,
+            name: user['name'] as String,
+            email: user['email'] as String,
+            roles: (user['roles'] as List<dynamic>?)?.map((e) => e.toString()).toList(),
+          );
+        }
+        
+        return (true, null, user);
       } else {
         final msg = data['errors']?['message']?.toString() ?? 'Login gagal';
-        return (false, msg);
+        return (false, msg, null);
       }
     } on DioException catch (e) {
       String msg = 'Terjadi kesalahan jaringan';
@@ -38,9 +52,9 @@ class AuthService {
         final body = e.response!.data as Map;
         msg = body['errors']?['message']?.toString() ?? msg;
       }
-      return (false, msg);
+      return (false, msg, null);
     } catch (e) {
-      return (false, 'Error: $e');
+      return (false, 'Error: $e', null);
     }
   }
 
@@ -98,5 +112,6 @@ class AuthService {
       await _dio.post(ApiConfig.logout);
     } catch (_) {}
     await TokenStorage.clearToken();
+    await UserStorage.clearUser();
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/auth_service.dart';
+import '../services/user_storage.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -35,14 +36,21 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _loading = true);
     final auth = AuthService();
-    // gunakan tuple (ok, message) dari AuthService
-    final (ok, message) = await auth.login(email: email, password: password);
+    // gunakan tuple (ok, message, user) dari AuthService
+    final (ok, message, user) = await auth.login(email: email, password: password);
 
     if (!mounted) return;
     setState(() => _loading = false);
 
     if (ok) {
-      Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+      // Redirect berdasarkan role
+      final isCollector = await UserStorage.isCollector();
+      
+      if (isCollector) {
+        Navigator.of(context).pushNamedAndRemoveUntil('/home-kolektor', (route) => false);
+      } else {
+        Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message ?? 'Login gagal')),

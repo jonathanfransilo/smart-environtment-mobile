@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../services/token_storage.dart';
+import '../services/user_storage.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -14,6 +16,7 @@ class _SplashScreenState extends State<SplashScreen>
   late AnimationController _waveController;
   late AnimationController _logoController;
   late Animation<double> _scaleAnimation;
+  bool _isChecking = true;
 
   @override
   void initState() {
@@ -34,6 +37,33 @@ class _SplashScreenState extends State<SplashScreen>
     _scaleAnimation = Tween<double>(begin: 0.9, end: 1.1).animate(
       CurvedAnimation(parent: _logoController, curve: Curves.easeInOut),
     );
+
+    // Check auto-login
+    _checkAutoLogin();
+  }
+
+  Future<void> _checkAutoLogin() async {
+    await Future.delayed(const Duration(seconds: 2)); // Minimal splash time
+    
+    final token = await TokenStorage.getToken();
+    
+    if (!mounted) return;
+
+    if (token != null && token.isNotEmpty) {
+      // User sudah login, check role untuk redirect
+      final isCollector = await UserStorage.isCollector();
+      
+      if (isCollector) {
+        Navigator.of(context).pushReplacementNamed('/home-kolektor');
+      } else {
+        Navigator.of(context).pushReplacementNamed('/home');
+      }
+    } else {
+      // Belum login, tampilkan tombol
+      setState(() {
+        _isChecking = false;
+      });
+    }
   }
 
   @override
@@ -139,51 +169,58 @@ class _SplashScreenState extends State<SplashScreen>
 
                 const Spacer(flex: 1),
 
-                // Tombol Mulai Sekarang
-                SizedBox(
-                  width: 230,
-                  height: 52,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pushReplacementNamed(context, '/login');
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color.fromARGB(255, 21, 145, 137),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(26),
-                      ),
-                      elevation: 0,
+                // Tombol Mulai Sekarang atau Loading
+                if (_isChecking)
+                  const CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Color.fromARGB(255, 21, 145, 137),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          "Mulai Sekarang",
-                          style: GoogleFonts.poppins(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
+                  )
+                else
+                  SizedBox(
+                    width: 230,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pushReplacementNamed(context, '/login');
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color.fromARGB(255, 21, 145, 137),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(26),
                         ),
-                        const SizedBox(width: 8),
-                        Container(
-                          width: 20,
-                          height: 20,
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
+                        elevation: 0,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            "Mulai Sekarang",
+                            style: GoogleFonts.poppins(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
                           ),
-                          child: const Icon(
-                            Icons.arrow_forward,
-                            color: Color.fromARGB(255, 21, 145, 137),
-                            size: 12,
+                          const SizedBox(width: 8),
+                          Container(
+                            width: 20,
+                            height: 20,
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.arrow_forward,
+                              color: Color.fromARGB(255, 21, 145, 137),
+                              size: 12,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
 
                 const SizedBox(height: 150),
               ],
