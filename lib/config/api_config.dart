@@ -1,19 +1,23 @@
-import 'package:flutter/foundation.dart';
-import 'dart:io' show Platform;
-
 class ApiConfig {
-  // Resolve base URL with priority: dart-define > platform default
+  // ⚠️ PENTING: Gunakan HTTPS untuk menghindari Mixed Content Error di browser
+  // Base URL API Backend Laravel
+  static const String _productionUrl = 'https://smart-environment-web.citiasiainc.id/api/v1';
+  
+  // Resolve base URL with priority: dart-define > hardcoded production URL
   static String get baseUrl {
+    // Cek environment variable yang di-set saat build
     const defined = String.fromEnvironment('API_BASE_URL', defaultValue: '');
-    if (defined.isNotEmpty) return defined;
-    if (kIsWeb) {
-      final host = Uri.base.host.isEmpty ? 'localhost' : Uri.base.host;
-      return 'https://smart-environment-web.citiasiainc.id/api/v1';
+    if (defined.isNotEmpty) {
+      // Pastikan menggunakan HTTPS jika bukan localhost
+      if (defined.contains('localhost') || defined.contains('127.0.0.1')) {
+        return defined;
+      }
+      // Force HTTPS untuk domain publik
+      return defined.replaceFirst('http://', 'https://');
     }
-    if (Platform.isAndroid) {
-      return 'https://smart-environment-web.citiasiainc.id/api/v1';
-    }
-    return 'https://smart-environment-web.citiasiainc.id/api/v1';
+    
+    // Default: gunakan production URL (HTTPS)
+    return _productionUrl;
   }
 
   // Auth endpoints
