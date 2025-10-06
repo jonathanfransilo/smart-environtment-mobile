@@ -46,6 +46,8 @@ class _LoginScreenState extends State<LoginScreen> {
       // Redirect berdasarkan role
       final isCollector = await UserStorage.isCollector();
       
+      if (!mounted) return;
+      
       if (isCollector) {
         Navigator.of(context).pushNamedAndRemoveUntil('/home-kolektor', (route) => false);
       } else {

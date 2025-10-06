@@ -53,6 +53,8 @@ class _SplashScreenState extends State<SplashScreen>
       // User sudah login, check role untuk redirect
       final isCollector = await UserStorage.isCollector();
       
+      if (!mounted) return;
+      
       if (isCollector) {
         Navigator.of(context).pushReplacementNamed('/home-kolektor');
       } else {

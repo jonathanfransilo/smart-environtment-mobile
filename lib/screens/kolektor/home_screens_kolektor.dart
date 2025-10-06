@@ -1,9 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'pengambilan_sampah_screen.dart';
+import '../../services/pickup_service.dart';
 
-class HomeScreensKolektor extends StatelessWidget {
+class HomeScreensKolektor extends StatefulWidget {
   const HomeScreensKolektor({super.key});
+
+  @override
+  State<HomeScreensKolektor> createState() => _HomeScreensKolektorState();
+}
+
+class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
+  List<Map<String, dynamic>> pengambilanList = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPengambilanData();
+  }
+
+  Future<void> _loadPengambilanData() async {
+    final data = await PickupService.getPickupHistory();
+    if (mounted) {
+      setState(() {
+        pengambilanList = data;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -15,36 +38,34 @@ class HomeScreensKolektor extends StatelessWidget {
     );
 
     // Dummy data daftar tugas
-    final List<Map<String, String>> tugasList = [
+    final List<Map<String, dynamic>> tugasList = [
       {
         "name": "Davina Ajah",
         "address": "Jl. Raya Menteng no. 11 RT05 / RW03",
         "distance": "10 Km/dt",
-        "time": "50m"
+        "time": "50m",
+        "latitude": -6.200000,
+        "longitude": 106.816666,
       },
       {
         "name": "Rahmat Darmawan",
-        "address": "Jl. Raya Menteng no. 11 RT05 / RW03",
+        "address": "Jl. Gatot Subroto no. 2, Jakarta",
         "distance": "20 Km/dt",
-        "time": "60m"
+        "time": "60m",
+        "latitude": -6.215000,
+        "longitude": 106.830000,
       },
       {
-        "name": "Rahmat Darmawan",
-        "address": "Jl. Raya Menteng no. 11 RT05 / RW03",
-        "distance": "20 Km/dt",
-        "time": "60m"
+        "name": "Putri Amelia",
+        "address": "Jl. Sudirman No. 5, Jakarta",
+        "distance": "15 Km/dt",
+        "time": "45m",
+        "latitude": -6.210000,
+        "longitude": 106.825000,
       },
     ];
 
-    // Dummy data pengambilan terakhir
-    final List<Map<String, String>> pengambilanList = [
-      {
-        "name": "Rahmat Darmawan",
-        "address": "Jl. Raya Menteng no. 11 RT05 / RW03",
-        "price": "Rp. 50.000",
-        "image": "assets/images/dummy.jpg",
-      },
-    ];
+    // Data pengambilan terakhir akan dimuat dari PickupService
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -106,28 +127,21 @@ class HomeScreensKolektor extends StatelessWidget {
                     Row(
                       children: [
                         IconButton(
-                          onPressed: () {
-                            // Navigate ke halaman notifikasi
-                          },
+                          onPressed: () {},
                           icon: const Icon(Icons.notifications_outlined, size: 26),
                           color: Colors.black87,
                         ),
                         const SizedBox(width: 4),
-                        GestureDetector(
-                          onTap: () {
-                            // Navigate ke halaman profile
-                          },
-                          child: const CircleAvatar(
-                            radius: 18,
-                            backgroundImage: AssetImage("assets/images/profile.jpg"),
-                          ),
+                        const CircleAvatar(
+                          radius: 18,
+                          backgroundImage: AssetImage("assets/images/profile.jpg"),
                         ),
                       ],
                     ),
                   ],
                 ),
               ),
-              
+
               const SizedBox(height: 16),
 
               // Card Ringkasan
@@ -183,17 +197,9 @@ class HomeScreensKolektor extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
                           children: [
                             _statItem("50", "Total"),
-                            Container(
-                              width: 1,
-                              height: 40,
-                              color: Colors.grey[300],
-                            ),
+                            Container(width: 1, height: 40, color: Colors.grey[300]),
                             _statItem("30", "Selesai"),
-                            Container(
-                              width: 1,
-                              height: 40,
-                              color: Colors.grey[300],
-                            ),
+                            Container(width: 1, height: 40, color: Colors.grey[300]),
                             _statItem("20", "Belum"),
                           ],
                         ),
@@ -202,7 +208,7 @@ class HomeScreensKolektor extends StatelessWidget {
                   ),
                 ),
               ),
-              
+
               const SizedBox(height: 24),
 
               // Daftar Tugas
@@ -233,10 +239,12 @@ class HomeScreensKolektor extends StatelessWidget {
                 itemBuilder: (context, index) {
                   final tugas = tugasList[index];
                   return _taskCard(
-                    tugas["name"]!,
-                    tugas["address"]!,
-                    tugas["distance"]!,
-                    tugas["time"]!,
+                    tugas["name"],
+                    tugas["address"],
+                    tugas["distance"],
+                    tugas["time"],
+                    tugas["latitude"],
+                    tugas["longitude"],
                     primaryColor,
                     context,
                   );
@@ -267,23 +275,32 @@ class HomeScreensKolektor extends StatelessWidget {
 
               SizedBox(
                 height: 180,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: pengambilanList.length,
-                  itemBuilder: (context, index) {
-                    final item = pengambilanList[index];
-                    return _pickupCard(
-                      item["name"]!,
-                      item["address"]!,
-                      item["price"]!,
-                      item["image"]!,
-                      primaryColor,
-                    );
-                  },
-                ),
+                child: pengambilanList.isEmpty
+                    ? Center(
+                        child: Text(
+                          'Belum ada pengambilan sampah',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: pengambilanList.length,
+                        itemBuilder: (context, index) {
+                          final item = pengambilanList[index];
+                          return _pickupCard(
+                            item["name"]?.toString() ?? "",
+                            item["address"]?.toString() ?? "",
+                            "Rp. ${(item["totalPrice"] as num?)?.toInt() ?? 0}",
+                            item["image"]?.toString() ?? "assets/images/dummy.jpg",
+                            primaryColor,
+                          );
+                        },
+                      ),
               ),
-              
               const SizedBox(height: 20),
             ],
           ),
@@ -307,16 +324,13 @@ class HomeScreensKolektor extends StatelessWidget {
         const SizedBox(height: 6),
         Text(
           label,
-          style: GoogleFonts.poppins(
-            fontSize: 14,
-            color: Colors.black54,
-          ),
+          style: GoogleFonts.poppins(fontSize: 14, color: Colors.black54),
         ),
       ],
     );
   }
 
-  Widget _taskCard(String name, String address, String distance, String time, Color primaryColor, BuildContext context) {
+  Widget _taskCard(String name, String address, String distance, String time, double latitude, double longitude, Color primaryColor, BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -366,17 +380,13 @@ class HomeScreensKolektor extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             address,
-            style: GoogleFonts.poppins(
-              fontSize: 13,
-              color: Colors.grey[600],
-            ),
+            style: GoogleFonts.poppins(fontSize: 13, color: Colors.grey[600]),
           ),
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () {
-                // Navigate to PengambilanSampahScreen
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -387,9 +397,14 @@ class HomeScreensKolektor extends StatelessWidget {
                       idPengambilan: '#CLUAP09141441',
                       distance: distance,
                       time: time,
+                      latitude: latitude,
+                      longitude: longitude,
                     ),
                   ),
-                );
+                ).then((_) {
+                  // Refresh pengambilan list when returning from pengambilan screen
+                  _loadPengambilanData();
+                });
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: primaryColor,
@@ -402,10 +417,7 @@ class HomeScreensKolektor extends StatelessWidget {
               ),
               child: Text(
                 "Ambil",
-                style: GoogleFonts.poppins(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w600),
               ),
             ),
           )
