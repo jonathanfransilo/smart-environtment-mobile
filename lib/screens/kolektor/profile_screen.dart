@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
-import '../auth/login_screen.dart';
+import '../login_screen.dart';  // Ubah path ini jika login_screen tidak di folder auth
 
 class ProfileScreen extends StatefulWidget {
   final Function(String) onProfileUpdated;
@@ -19,19 +19,22 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   String _profileImagePath = '';
+  String _profileName = 'Raka Juliandra';
+  String _profileAddress = 'Menteng, Jakarta Pusat';
   final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
     super.initState();
-    _loadProfileImage();
+    _loadProfileData();
   }
 
-  Future<void> _loadProfileImage() async {
+  Future<void> _loadProfileData() async {
     final prefs = await SharedPreferences.getInstance();
-    final imagePath = prefs.getString('profile_image_path') ?? '';
     setState(() {
-      _profileImagePath = imagePath;
+      _profileImagePath = prefs.getString('profile_image_path') ?? '';
+      _profileName = prefs.getString('profile_name') ?? 'Raka Juliandra';
+      _profileAddress = prefs.getString('profile_address') ?? 'Menteng, Jakarta Pusat';
     });
   }
 
@@ -56,26 +59,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
         });
         await _saveProfileImage(image.path);
         
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Foto profile berhasil diperbarui!',
+                style: GoogleFonts.poppins(fontSize: 14),
+              ),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Foto profile berhasil diperbarui!',
+              'Gagal memperbarui foto profile',
               style: GoogleFonts.poppins(fontSize: 14),
             ),
-            backgroundColor: Colors.green,
+            backgroundColor: Colors.red,
           ),
         );
       }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Gagal memperbarui foto profile',
-            style: GoogleFonts.poppins(fontSize: 14),
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
     }
   }
 
@@ -148,6 +155,76 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _navigateToEditProfile() async {
+    // Sementara tampilkan dialog bahwa fitur belum tersedia
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Text(
+          'Edit Profile',
+          style: GoogleFonts.poppins(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        content: Text(
+          'Fitur Edit Profile akan segera tersedia',
+          style: GoogleFonts.poppins(fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'OK',
+              style: GoogleFonts.poppins(
+                color: Color(0xFF009688),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _navigateToRiwayatPengambilan() {
+    // Sementara tampilkan dialog bahwa fitur belum tersedia
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Text(
+          'Riwayat Pengambilan',
+          style: GoogleFonts.poppins(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        content: Text(
+          'Fitur Riwayat Pengambilan akan segera tersedia',
+          style: GoogleFonts.poppins(fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'OK',
+              style: GoogleFonts.poppins(
+                color: Color(0xFF009688),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildProfileImage() {
     return GestureDetector(
       onTap: _pickImage,
@@ -161,20 +238,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
               border: Border.all(color: Colors.grey[300]!, width: 2),
             ),
             child: ClipOval(
-              child: _profileImagePath.isNotEmpty
+              child: _profileImagePath.isNotEmpty && File(_profileImagePath).existsSync()
                   ? Image.file(
                       File(_profileImagePath),
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) {
-                        return Image.asset(
-                          'assets/images/dummy.jpg',
-                          fit: BoxFit.cover,
+                        return Container(
+                          color: Colors.grey[300],
+                          child: Icon(
+                            Icons.person,
+                            size: 50,
+                            color: Colors.grey[600],
+                          ),
                         );
                       },
                     )
-                  : Image.asset(
-                      'assets/images/dummy.jpg',
-                      fit: BoxFit.cover,
+                  : Container(
+                      color: Colors.grey[300],
+                      child: Icon(
+                        Icons.person,
+                        size: 50,
+                        color: Colors.grey[600],
+                      ),
                     ),
             ),
           ),
@@ -185,11 +270,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               width: 30,
               height: 30,
               decoration: BoxDecoration(
-                color: Color(0xFF009688),
+                color: const Color(0xFF009688),
                 shape: BoxShape.circle,
                 border: Border.all(color: Colors.white, width: 2),
               ),
-              child: Icon(
+              child: const Icon(
                 Icons.camera_alt,
                 color: Colors.white,
                 size: 16,
@@ -222,12 +307,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
       body: SingleChildScrollView(
-        padding: EdgeInsets.all(20),
+        padding: const EdgeInsets.all(20),
         child: Column(
           children: [
             // Profile Image Section
             Container(
-              padding: EdgeInsets.all(20),
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
@@ -235,23 +320,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   BoxShadow(
                     color: Colors.black.withOpacity(0.05),
                     blurRadius: 10,
-                    offset: Offset(0, 2),
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
               child: Column(
                 children: [
                   _buildProfileImage(),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   Text(
-                    'Raka Juliandra',
+                    _profileName,
                     style: GoogleFonts.poppins(
                       fontSize: 20,
                       fontWeight: FontWeight.w600,
                       color: Colors.black87,
                     ),
                   ),
-                  SizedBox(height: 4),
+                  const SizedBox(height: 4),
                   Text(
                     'Kolektor Sampah',
                     style: GoogleFonts.poppins(
@@ -259,11 +344,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       color: Colors.grey[600],
                     ),
                   ),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: Color(0xFF009688).withOpacity(0.1),
+                      color: const Color(0xFF009688).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
@@ -272,17 +357,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Container(
                           width: 8,
                           height: 8,
-                          decoration: BoxDecoration(
+                          decoration: const BoxDecoration(
                             color: Color(0xFF009688),
                             shape: BoxShape.circle,
                           ),
                         ),
-                        SizedBox(width: 8),
+                        const SizedBox(width: 8),
                         Text(
-                          'Menteng, Jakarta Pusat',
+                          _profileAddress,
                           style: GoogleFonts.poppins(
                             fontSize: 12,
-                            color: Color(0xFF009688),
+                            color: const Color(0xFF009688),
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -293,9 +378,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             
-            SizedBox(height: 24),
+            const SizedBox(height: 24),
             
-            // Menu Options
+            // Menu Options (removed notification)
             Container(
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -304,7 +389,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   BoxShadow(
                     color: Colors.black.withOpacity(0.05),
                     blurRadius: 10,
-                    offset: Offset(0, 2),
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
@@ -313,49 +398,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _buildMenuItem(
                     icon: Icons.person_outline,
                     title: 'Edit Profile',
-                    onTap: () {
-                      // Navigate to edit profile screen
-                    },
-                  ),
-                  _buildDivider(),
-                  _buildMenuItem(
-                    icon: Icons.notifications_outlined,
-                    title: 'Notifikasi',
-                    onTap: () {
-                      // Navigate to notification settings
-                    },
+                    onTap: _navigateToEditProfile,
                   ),
                   _buildDivider(),
                   _buildMenuItem(
                     icon: Icons.history,
                     title: 'Riwayat Pengambilan',
-                    onTap: () {
-                      // Navigate to pickup history
-                    },
+                    onTap: _navigateToRiwayatPengambilan,
                   ),
                   _buildDivider(),
                   _buildMenuItem(
                     icon: Icons.help_outline,
                     title: 'Bantuan',
                     onTap: () {
-                      // Navigate to help screen
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Fitur bantuan akan segera hadir',
+                            style: GoogleFonts.poppins(fontSize: 14),
+                          ),
+                          backgroundColor: const Color(0xFF009688),
+                        ),
+                      );
                     },
                   ),
                 ],
               ),
             ),
             
-            SizedBox(height: 24),
+            const SizedBox(height: 24),
             
             // Logout Button
-            Container(
+            SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: _logout,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.red,
                   foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(vertical: 16),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -364,8 +445,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.logout, size: 20),
-                    SizedBox(width: 8),
+                    const Icon(Icons.logout, size: 20),
+                    const SizedBox(width: 8),
                     Text(
                       'Keluar dari Akun',
                       style: GoogleFonts.poppins(
@@ -378,7 +459,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             
-            SizedBox(height: 40),
+            const SizedBox(height: 40),
           ],
         ),
       ),
@@ -394,7 +475,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         child: Row(
           children: [
             Container(
@@ -406,11 +487,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               child: Icon(
                 icon,
-                color: Color(0xFF009688),
+                color: const Color(0xFF009688),
                 size: 20,
               ),
             ),
-            SizedBox(width: 16),
+            const SizedBox(width: 16),
             Expanded(
               child: Text(
                 title,
@@ -433,7 +514,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   
   Widget _buildDivider() {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 16),
+      margin: const EdgeInsets.symmetric(horizontal: 16),
       height: 1,
       color: Colors.grey[200],
     );

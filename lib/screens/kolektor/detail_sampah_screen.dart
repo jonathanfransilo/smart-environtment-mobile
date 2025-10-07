@@ -55,18 +55,7 @@ class _DetailSampahScreenState extends State<DetailSampahScreen> {
   }
 
   String _getCategoryTag(String category) {
-    switch (category) {
-      case 'Kertas':
-      case 'Botol':
-      case 'Plastik':
-        return 'Organik';
-      case 'Dapur':
-        return 'Organik';
-      case 'Elektronik':
-        return 'Organik';
-      default:
-        return 'Organik';
-    }
+    return category; // Return the actual category (Organik/Anorganik)
   }
 
   Future<void> _konfirmasi() async {
@@ -255,7 +244,7 @@ class _DetailSampahScreenState extends State<DetailSampahScreen> {
                       Container(
                         padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: Color(0xFF009688),
+                          color: item['category'] == 'Organik' ? Colors.green[600] : Colors.blue[600],
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(

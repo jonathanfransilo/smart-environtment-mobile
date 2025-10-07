@@ -20,35 +20,20 @@ class InputKantongScreen extends StatefulWidget {
 
 class _InputKantongScreenState extends State<InputKantongScreen> {
   int _currentStep = 2; // 0: Datang, 1: Foto, 2: Input Kantong (current), 3: Selesai
-  String _selectedCategory = 'Kertas';
+  String _selectedCategory = 'Organik';
   final TextEditingController _searchController = TextEditingController();
   
   // Data jenis sampah dengan harga 5000/kg untuk semua
   final Map<String, List<Map<String, dynamic>>> _sampahCategories = {
-    'Kertas': [
-      {'name': 'Kertas Buku', 'price': 5000, 'quantity': 0},
-      {'name': 'Kertas Brosur', 'price': 5000, 'quantity': 0},
-      {'name': 'Kertas HVS', 'price': 5000, 'quantity': 0},
+    'Organik': [
+      {'name': 'Organik Kecil', 'price': 5000, 'quantity': 0},
+      {'name': 'Organik Sedang', 'price': 5000, 'quantity': 0},
+      {'name': 'Organik Besar', 'price': 5000, 'quantity': 0},
     ],
-    'Botol': [
-      {'name': 'Botol Plastik', 'price': 5000, 'quantity': 0},
-      {'name': 'Botol Kaca', 'price': 5000, 'quantity': 0},
-      {'name': 'Botol Minuman', 'price': 5000, 'quantity': 0},
-    ],
-    'Dapur': [
-      {'name': 'Kaleng Makanan', 'price': 5000, 'quantity': 0},
-      {'name': 'Wadah Plastik', 'price': 5000, 'quantity': 0},
-      {'name': 'Tutup Botol', 'price': 5000, 'quantity': 0},
-    ],
-    'Plastik': [
-      {'name': 'Plastik PE', 'price': 5000, 'quantity': 0},
-      {'name': 'Plastik PP', 'price': 5000, 'quantity': 0},
-      {'name': 'Kantong Plastik', 'price': 5000, 'quantity': 0},
-    ],
-    'Elektronik': [
-      {'name': 'Kabel Listrik', 'price': 5000, 'quantity': 0},
-      {'name': 'Komponen PCB', 'price': 5000, 'quantity': 0},
-      {'name': 'Baterai Bekas', 'price': 5000, 'quantity': 0},
+    'Anorganik': [
+      {'name': 'Anorganik Kecil', 'price': 5000, 'quantity': 0},
+      {'name': 'Anorganik Sedang', 'price': 5000, 'quantity': 0},
+      {'name': 'Anorganik Besar', 'price': 5000, 'quantity': 0},
     ],
   };
 
@@ -258,20 +243,11 @@ class _InputKantongScreenState extends State<InputKantongScreen> {
                 IconData icon;
                 
                 switch (category) {
-                  case 'Kertas':
-                    icon = Icons.description;
+                  case 'Organik':
+                    icon = Icons.eco;
                     break;
-                  case 'Botol':
-                    icon = Icons.local_drink;
-                    break;
-                  case 'Dapur':
-                    icon = Icons.kitchen;
-                    break;
-                  case 'Plastik':
-                    icon = Icons.shopping_bag;
-                    break;
-                  case 'Elektronik':
-                    icon = Icons.electrical_services;
+                  case 'Anorganik':
+                    icon = Icons.recycling;
                     break;
                   default:
                     icon = Icons.recycling;
@@ -349,13 +325,16 @@ class _InputKantongScreenState extends State<InputKantongScreen> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: Colors.grey[100],
+                    color: _selectedCategory == 'Organik' ? Colors.green[100] : Colors.blue[100],
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(
-                    Icons.description,
-                    color: Colors.grey,
-                    size: 20,
+                  child: Icon(
+                    item['name'].contains('Kecil') ? Icons.circle_outlined :
+                    item['name'].contains('Sedang') ? Icons.circle :
+                    Icons.album,
+                    color: _selectedCategory == 'Organik' ? Colors.green[600] : Colors.blue[600],
+                    size: item['name'].contains('Kecil') ? 16 : 
+                         item['name'].contains('Sedang') ? 20 : 24,
                   ),
                 ),
                 
