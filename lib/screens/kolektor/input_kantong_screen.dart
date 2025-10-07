@@ -1,17 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import 'detail_sampah_screen.dart';
+import '../../services/pickup_service.dart';
 
 class InputKantongScreen extends StatefulWidget {
+  final int pickupId;
   final String userName;
   final String address;
   final String idPengambilan;
+  final XFile imageFile;
 
   const InputKantongScreen({
     super.key,
+    required this.pickupId,
     required this.userName,
     required this.address,
     required this.idPengambilan,
+    required this.imageFile,
   });
 
   @override
@@ -23,19 +29,98 @@ class _InputKantongScreenState extends State<InputKantongScreen> {
   String _selectedCategory = 'Organik';
   final TextEditingController _searchController = TextEditingController();
   
-  // Data jenis sampah dengan harga 5000/kg untuk semua
-  final Map<String, List<Map<String, dynamic>>> _sampahCategories = {
-    'Organik': [
-      {'name': 'Organik Kecil', 'price': 5000, 'quantity': 0},
-      {'name': 'Organik Sedang', 'price': 5000, 'quantity': 0},
-      {'name': 'Organik Besar', 'price': 5000, 'quantity': 0},
-    ],
-    'Anorganik': [
-      {'name': 'Anorganik Kecil', 'price': 5000, 'quantity': 0},
-      {'name': 'Anorganik Sedang', 'price': 5000, 'quantity': 0},
-      {'name': 'Anorganik Besar', 'price': 5000, 'quantity': 0},
-    ],
+  // Data jenis sampah - akan diload dari API
+  Map<String, List<Map<String, dynamic>>> _sampahCategories = {
+    'Organik': [],
+    'Anorganik': [],
   };
+  
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadWasteItems();
+  }
+
+  Future<void> _loadWasteItems() async {
+    print('🔄 [InputKantong] Starting to load waste items...');
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final (success, message, data) = await PickupService.getWasteItems();
+      print('📦 [InputKantong] API Response - Success: $success, Message: $message, Data length: ${data?.length}');
+
+      if (mounted) {
+        if (success && data != null) {
+          print('✅ [InputKantong] Processing ${data.length} items...');
+          
+          // Group by category
+          final organikItems = <Map<String, dynamic>>[];
+          final anorganikItems = <Map<String, dynamic>>[];
+
+          for (var item in data) {
+            final category = item['waste_category'] as String;
+            
+            // Parse price - handle both String and num from API
+            final priceValue = item['price'];
+            double price;
+            if (priceValue is String) {
+              price = double.tryParse(priceValue) ?? 0.0;
+            } else if (priceValue is num) {
+              price = priceValue.toDouble();
+            } else {
+              price = 0.0;
+            }
+            
+            final itemData = {
+              'name': item['name'],
+              'price': price,
+              'quantity': 0,
+              'waste_id': item['waste_id'],
+              'pocket_size_id': item['pocket_size_id'],
+            };
+
+            if (category == 'organic') {
+              organikItems.add(itemData);
+            } else if (category == 'inorganic') {
+              anorganikItems.add(itemData);
+            }
+          }
+
+          print('📊 [InputKantong] Grouped - Organik: ${organikItems.length}, Anorganik: ${anorganikItems.length}');
+
+          setState(() {
+            _sampahCategories = {
+              'Organik': organikItems,
+              'Anorganik': anorganikItems,
+            };
+            _isLoading = false;
+          });
+          
+          print('✅ [InputKantong] Data loaded successfully!');
+        } else {
+          print('❌ [InputKantong] Failed to load: $message');
+          setState(() {
+            _errorMessage = message ?? 'Gagal memuat data';
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      print('💥 [InputKantong] Exception: $e');
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Terjadi kesalahan: $e';
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -96,10 +181,12 @@ class _InputKantongScreenState extends State<InputKantongScreen> {
       context,
       MaterialPageRoute(
         builder: (context) => DetailSampahScreen(
+          pickupId: widget.pickupId,
           userName: widget.userName,
           address: widget.address,
           idPengambilan: widget.idPengambilan,
           selectedSampah: _sampahCategories,
+          imageFile: widget.imageFile,
         ),
       ),
     );
@@ -294,7 +381,57 @@ class _InputKantongScreenState extends State<InputKantongScreen> {
   }
 
   Widget _buildSampahList() {
+    // Show loading
+    if (_isLoading) {
+      return const Expanded(
+        child: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    // Show error
+    if (_errorMessage != null) {
+      return Expanded(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                _errorMessage!,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: Colors.red[600],
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _loadWasteItems,
+                child: Text('Coba Lagi', style: GoogleFonts.poppins()),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     List<Map<String, dynamic>> items = _sampahCategories[_selectedCategory] ?? [];
+    
+    // Show empty state
+    if (items.isEmpty) {
+      return Expanded(
+        child: Center(
+          child: Text(
+            'Tidak ada data sampah',
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              color: Colors.grey[600],
+            ),
+          ),
+        ),
+      );
+    }
     
     return Expanded(
       child: ListView.builder(
@@ -354,7 +491,7 @@ class _InputKantongScreenState extends State<InputKantongScreen> {
                         ),
                       ),
                       Text(
-                        'Rp ${item['price']} / kg',
+                        'Rp ${item['price']} / kantong',
                         style: GoogleFonts.poppins(
                           fontSize: 12,
                           color: Colors.grey[600],
@@ -498,7 +635,7 @@ class _InputKantongScreenState extends State<InputKantongScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Total Item: ${_getTotalItems()} kg',
+                              'Total Item: ${_getTotalItems()} kantong',
                               style: GoogleFonts.poppins(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,

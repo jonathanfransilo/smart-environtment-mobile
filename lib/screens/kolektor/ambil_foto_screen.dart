@@ -6,12 +6,14 @@ import 'package:image_picker/image_picker.dart';
 import 'review_foto_screen.dart';
 
 class AmbilFotoScreen extends StatefulWidget {
+  final int pickupId;
   final String userName;
   final String address;
   final String idPengambilan;
 
   const AmbilFotoScreen({
     super.key,
+    required this.pickupId,
     required this.userName,
     required this.address,
     required this.idPengambilan,
@@ -49,6 +51,7 @@ class _AmbilFotoScreenState extends State<AmbilFotoScreen> {
           context,
           MaterialPageRoute(
             builder: (context) => ReviewFotoScreen(
+              pickupId: widget.pickupId,
               userName: widget.userName,
               address: widget.address,
               idPengambilan: widget.idPengambilan,

@@ -10,8 +10,6 @@ import 'screens/forgot_password_screen.dart';
 import 'screens/user/artikel_screen.dart';
 import 'screens/user/pelaporan_screen.dart';
 import 'screens/kolektor/home_screens_kolektor.dart';
-import 'screens/kolektor/pengambilan_sampah_screen.dart';
-import 'screens/kolektor/ambil_foto_screen.dart';
 
 void main() {
   runApp(const SirkularApp());
@@ -57,25 +55,8 @@ class SirkularApp extends StatelessWidget {
 
         // --- ROUTE KOLEKTOR ---
         '/home-kolektor': (context) => const HomeScreensKolektor(),
-
-        // 🔹 Halaman Pengambilan Sampah
-        '/pengambilan-sampah': (context) => const PengambilanSampahScreen(
-              userName: 'Davina Ajah',
-              userPhone: '+6285943643645',
-              address: 'Jl. Raya Menteng no. 11 RT05 / RW03',
-              idPengambilan: '#CLUAP09141441',
-              distance: '10 Km',
-              time: '50m',
-              latitude: -6.198324,
-              longitude: 106.841729,
-            ),
-
-        // 🔹 Halaman Ambil Foto
-        '/ambil-foto': (context) => const AmbilFotoScreen(
-              userName: 'Davina Ajah',
-              address: 'Jl. Raya Menteng no. 11 RT05 / RW03',
-              idPengambilan: '#CLUAP09141441',
-            ),
+        
+        // Note: PengambilanSampahScreen, AmbilFotoScreen, dll sekarang diakses via Navigator.push dengan parameter dinamis
       },
 
       // 🔹 Handling kalau route tidak ditemukan

@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'input_kantong_screen.dart';
 
 class ReviewFotoScreen extends StatefulWidget {
+  final int pickupId;
   final String userName;
   final String address;
   final String idPengambilan;
@@ -13,6 +14,7 @@ class ReviewFotoScreen extends StatefulWidget {
 
   const ReviewFotoScreen({
     super.key,
+    required this.pickupId,
     required this.userName,
     required this.address,
     required this.idPengambilan,
@@ -38,6 +40,7 @@ class _ReviewFotoScreenState extends State<ReviewFotoScreen> {
           context,
           MaterialPageRoute(
             builder: (context) => ReviewFotoScreen(
+              pickupId: widget.pickupId,
               userName: widget.userName,
               address: widget.address,
               idPengambilan: widget.idPengambilan,
@@ -79,9 +82,11 @@ class _ReviewFotoScreenState extends State<ReviewFotoScreen> {
         context,
         MaterialPageRoute(
           builder: (context) => InputKantongScreen(
+            pickupId: widget.pickupId,
             userName: widget.userName,
             address: widget.address,
             idPengambilan: widget.idPengambilan,
+            imageFile: widget.imageFile,
           ),
         ),
       );

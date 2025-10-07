@@ -1,8 +1,12 @@
-  import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:dio/dio.dart';
 import 'dart:convert';
+import '../config/api_config.dart';
+import 'api_client.dart';
 
 class PickupService {
   static const String _keyPengambilan = 'pengambilan_terakhir';
+  static final Dio _dio = ApiClient.instance.dio;
 
   // Simpan data pengambilan baru
   static Future<void> savePickupData({
@@ -70,5 +74,217 @@ class PickupService {
     String monthName = months[date.month - 1];
     
     return '$dayName, ${date.day} $monthName ${date.year} ${date.hour.toString().padLeft(2, '0')}.${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  // ========== API Methods ==========
+  
+  /// Ambil daftar waste items dengan pricing dari API
+  static Future<(bool success, String? message, List<Map<String, dynamic>>? data)> getWasteItems() async {
+    try {
+      print('🌐 [PickupService] Calling API: ${ApiConfig.collectorWasteItems}');
+      final response = await _dio.get(ApiConfig.collectorWasteItems);
+      
+      print('📡 [PickupService] Response status: ${response.statusCode}');
+      
+      final body = response.data as Map<String, dynamic>;
+      
+      if (body['success'] == true) {
+        final data = body['data'] as List<dynamic>?;
+        print('📦 [PickupService] Data received: ${data?.length} items');
+        
+        if (data != null) {
+          final items = data.map((e) => e as Map<String, dynamic>).toList();
+          print('✅ [PickupService] Successfully parsed ${items.length} waste items');
+          return (true, null, items);
+        }
+        return (true, null, <Map<String, dynamic>>[]);
+      } else {
+        final msg = body['errors']?['message']?.toString() ?? 'Gagal mengambil data waste items';
+        print('❌ [PickupService] API returned success=false: $msg');
+        return (false, msg, null);
+      }
+    } on DioException catch (e) {
+      print('💥 [PickupService] DioException: ${e.type}, ${e.message}');
+      print('💥 [PickupService] Response: ${e.response?.statusCode} - ${e.response?.data}');
+      
+      String msg = 'Terjadi kesalahan jaringan';
+      if (e.response?.data is Map) {
+        final body = e.response!.data as Map;
+        msg = body['errors']?['message']?.toString() ?? msg;
+      }
+      return (false, msg, null);
+    } catch (e) {
+      print('💥 [PickupService] Exception: $e');
+      return (false, 'Error: $e', null);
+    }
+  }
+  
+  /// Ambil daftar pickup hari ini dari API (untuk Collector)
+  static Future<(bool success, String? message, List<Map<String, dynamic>>? data)> getTodayPickups() async {
+    try {
+      final response = await _dio.get(ApiConfig.collectorPickupsToday);
+      
+      final body = response.data as Map<String, dynamic>;
+      
+      if (body['success'] == true) {
+        // API menggunakan key 'items' bukan 'data'
+        final items = body['items'] as List<dynamic>?;
+        if (items != null) {
+          final pickups = items.map((e) => e as Map<String, dynamic>).toList();
+          return (true, null, pickups);
+        }
+        return (true, null, <Map<String, dynamic>>[]);
+      } else {
+        final msg = body['errors']?['message']?.toString() ?? 'Gagal mengambil data pickup';
+        return (false, msg, null);
+      }
+    } on DioException catch (e) {
+      String msg = 'Terjadi kesalahan jaringan';
+      if (e.response?.data is Map) {
+        final body = e.response!.data as Map;
+        msg = body['errors']?['message']?.toString() ?? msg;
+      }
+      return (false, msg, null);
+    } catch (e) {
+      return (false, 'Error: $e', null);
+    }
+  }
+
+  /// Ambil detail pickup berdasarkan ID
+  static Future<(bool success, String? message, Map<String, dynamic>? data)> getPickupDetail(int id) async {
+    try {
+      final response = await _dio.get('${ApiConfig.collectorPickupDetail}/$id');
+      
+      final body = response.data as Map<String, dynamic>;
+      
+      if (body['success'] == true) {
+        final data = body['data'] as Map<String, dynamic>?;
+        return (true, null, data);
+      } else {
+        final msg = body['errors']?['message']?.toString() ?? 'Gagal mengambil detail pickup';
+        return (false, msg, null);
+      }
+    } on DioException catch (e) {
+      String msg = 'Terjadi kesalahan jaringan';
+      if (e.response?.data is Map) {
+        final body = e.response!.data as Map;
+        msg = body['errors']?['message']?.toString() ?? msg;
+      }
+      return (false, msg, null);
+    } catch (e) {
+      return (false, 'Error: $e', null);
+    }
+  }
+
+  /// Start pickup (ubah status ke on_progress)
+  static Future<(bool success, String? message)> startPickup(int id) async {
+    try {
+      final response = await _dio.put('${ApiConfig.collectorPickupDetail}/$id/start');
+      
+      final body = response.data as Map<String, dynamic>;
+      
+      if (body['success'] == true) {
+        return (true, null);
+      } else {
+        final msg = body['errors']?['message']?.toString() ?? 'Gagal memulai pickup';
+        return (false, msg);
+      }
+    } on DioException catch (e) {
+      String msg = 'Terjadi kesalahan jaringan';
+      if (e.response?.data is Map) {
+        final body = e.response!.data as Map;
+        msg = body['errors']?['message']?.toString() ?? msg;
+      }
+      return (false, msg);
+    } catch (e) {
+      return (false, 'Error: $e');
+    }
+  }
+
+  /// Complete pickup dengan waste items
+  static Future<(bool success, String? message, Map<String, dynamic>? data)> completePickup({
+    required int id,
+    required String photo,
+    required List<Map<String, dynamic>> wasteItems,
+    String? collectorNotes,
+  }) async {
+    try {
+      final url = '${ApiConfig.collectorPickupDetail}/$id/complete';
+      print('🌐 [PickupService] Calling PUT $url');
+      print('📦 [PickupService] Photo length: ${photo.length} chars');
+      print('📦 [PickupService] Waste items: ${wasteItems.length} items');
+      
+      final response = await _dio.put(
+        url,
+        data: {
+          'photo': photo,
+          'waste_items': wasteItems,
+          'collector_notes': collectorNotes,
+        },
+      );
+      
+      print('📡 [PickupService] Response status: ${response.statusCode}');
+      
+      final body = response.data as Map<String, dynamic>;
+      
+      if (body['success'] == true) {
+        final data = body['data'] as Map<String, dynamic>?;
+        print('✅ [PickupService] Complete pickup SUCCESS');
+        return (true, null, data);
+      } else {
+        final msg = body['errors']?['message']?.toString() ?? 'Gagal menyelesaikan pickup';
+        print('❌ [PickupService] API returned success=false: $msg');
+        return (false, msg, null);
+      }
+    } on DioException catch (e) {
+      print('💥 [PickupService] DioException Type: ${e.type}');
+      print('💥 [PickupService] DioException Message: ${e.message}');
+      print('💥 [PickupService] Response Status: ${e.response?.statusCode}');
+      print('💥 [PickupService] Response Data: ${e.response?.data}');
+      print('💥 [PickupService] Request Data: ${e.requestOptions.data}');
+      
+      String msg = 'Terjadi kesalahan jaringan';
+      if (e.response?.data is Map) {
+        final body = e.response!.data as Map;
+        msg = body['errors']?['message']?.toString() ?? body['message']?.toString() ?? msg;
+      }
+      return (false, msg, null);
+    } catch (e) {
+      print('💥 [PickupService] General Exception: $e');
+      return (false, 'Error: $e', null);
+    }
+  }
+
+  /// Skip pickup dengan reason
+  static Future<(bool success, String? message)> skipPickup({
+    required int id,
+    required String reason,
+  }) async {
+    try {
+      final response = await _dio.put(
+        '${ApiConfig.collectorPickupDetail}/$id/skip',
+        data: {
+          'reason': reason,
+        },
+      );
+      
+      final body = response.data as Map<String, dynamic>;
+      
+      if (body['success'] == true) {
+        return (true, null);
+      } else {
+        final msg = body['errors']?['message']?.toString() ?? 'Gagal melewati pickup';
+        return (false, msg);
+      }
+    } on DioException catch (e) {
+      String msg = 'Terjadi kesalahan jaringan';
+      if (e.response?.data is Map) {
+        final body = e.response!.data as Map;
+        msg = body['errors']?['message']?.toString() ?? msg;
+      }
+      return (false, msg);
+    } catch (e) {
+      return (false, 'Error: $e');
+    }
   }
 }

@@ -5,8 +5,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'ambil_foto_screen.dart';
+import '../../services/pickup_service.dart';
 
 class PengambilanSampahScreen extends StatefulWidget {
+  final int pickupId;
   final String userName;
   final String userPhone;
   final String address;
@@ -18,6 +20,7 @@ class PengambilanSampahScreen extends StatefulWidget {
 
   const PengambilanSampahScreen({
     super.key,
+    required this.pickupId,
     required this.userName,
     required this.userPhone,
     required this.address,
@@ -596,17 +599,65 @@ class _PengambilanSampahScreenState extends State<PengambilanSampahScreen>
   Widget _ambilFotoButton(Color primaryColor) => SizedBox(
         width: double.infinity,
         child: ElevatedButton(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => AmbilFotoScreen(
-                  userName: widget.userName,
-                  address: widget.address,
-                  idPengambilan: widget.idPengambilan,
+          onPressed: () async {
+            // Show loading
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) => Center(
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const CircularProgressIndicator(),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Memulai pengambilan...',
+                        style: GoogleFonts.poppins(fontSize: 14),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
+
+            // Call API to start pickup
+            final (success, message) = await PickupService.startPickup(widget.pickupId);
+            
+            // Close loading
+            if (mounted) Navigator.of(context).pop();
+
+            if (success) {
+              // Navigate to photo screen
+              if (mounted) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AmbilFotoScreen(
+                      pickupId: widget.pickupId,
+                      userName: widget.userName,
+                      address: widget.address,
+                      idPengambilan: widget.idPengambilan,
+                    ),
+                  ),
+                );
+              }
+            } else {
+              // Show error
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(message ?? 'Gagal memulai pengambilan'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            }
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: primaryColor,

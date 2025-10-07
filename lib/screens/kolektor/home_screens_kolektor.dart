@@ -16,19 +16,50 @@ class HomeScreensKolektor extends StatefulWidget {
 
 class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
   List<Map<String, dynamic>> pengambilanList = [];
+  List<Map<String, dynamic>> todayPickups = [];
   String _profileImagePath = '';
+  bool _isLoadingPickups = false;
+  bool _isLoadingHistory = false;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
+    _loadTodayPickups();
     _loadPengambilanData();
     _loadProfileImage();
   }
 
+  Future<void> _loadTodayPickups() async {
+    setState(() {
+      _isLoadingPickups = true;
+      _errorMessage = null;
+    });
+
+    final (success, message, data) = await PickupService.getTodayPickups();
+    
+    if (mounted) {
+      setState(() {
+        _isLoadingPickups = false;
+        if (success && data != null) {
+          todayPickups = data;
+        } else {
+          _errorMessage = message;
+          todayPickups = [];
+        }
+      });
+    }
+  }
+
   Future<void> _loadPengambilanData() async {
+    setState(() {
+      _isLoadingHistory = true;
+    });
+
     final data = await PickupService.getPickupHistory();
     if (mounted) {
       setState(() {
+        _isLoadingHistory = false;
         pengambilanList = data;
       });
     }
@@ -58,36 +89,6 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
       fontWeight: FontWeight.w600,
       color: Colors.black87,
     );
-
-    // Dummy data daftar tugas
-    final List<Map<String, dynamic>> tugasList = [
-      {
-        "name": "Davina Ajah",
-        "address": "Jl. Raya Menteng no. 11 RT05 / RW03",
-        "distance": "10 Km/dt",
-        "time": "50m",
-        "latitude": -6.200000,
-        "longitude": 106.816666,
-      },
-      {
-        "name": "Rahmat Darmawan",
-        "address": "Jl. Gatot Subroto no. 2, Jakarta",
-        "distance": "20 Km/dt",
-        "time": "60m",
-        "latitude": -6.215000,
-        "longitude": 106.830000,
-      },
-      {
-        "name": "Putri Amelia",
-        "address": "Jl. Sudirman No. 5, Jakarta",
-        "distance": "15 Km/dt",
-        "time": "45m",
-        "latitude": -6.210000,
-        "longitude": 106.825000,
-      },
-    ];
-
-    // Data pengambilan terakhir akan dimuat dari PickupService
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -213,7 +214,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        "12 Mei 2025",
+                        _formatTodayDate(),
                         style: GoogleFonts.poppins(
                           fontSize: 20,
                           fontWeight: FontWeight.w600,
@@ -230,11 +231,11 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
                           children: [
-                            _statItem("50", "Total"),
+                            _statItem(todayPickups.length.toString(), "Total"),
                             Container(width: 1, height: 40, color: Colors.grey[300]),
-                            _statItem("30", "Selesai"),
+                            _statItem(_getCompletedCount().toString(), "Selesai"),
                             Container(width: 1, height: 40, color: Colors.grey[300]),
-                            _statItem("20", "Belum"),
+                            _statItem(_getPendingCount().toString(), "Belum"),
                           ],
                         ),
                       )
@@ -265,25 +266,74 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
               ),
               const SizedBox(height: 12),
 
-              ListView.builder(
-                itemCount: tugasList.length,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemBuilder: (context, index) {
-                  final tugas = tugasList[index];
-                  return _taskCard(
-                    tugas["name"],
-                    tugas["address"],
-                    tugas["distance"],
-                    tugas["time"],
-                    tugas["latitude"],
-                    tugas["longitude"],
-                    primaryColor,
-                    context,
-                  );
-                },
-              ),
+              _isLoadingPickups
+                  ? const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(32.0),
+                        child: CircularProgressIndicator(),
+                      ),
+                    )
+                  : _errorMessage != null
+                      ? Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            children: [
+                              Text(
+                                _errorMessage!,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  color: Colors.red[600],
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 12),
+                              ElevatedButton(
+                                onPressed: _loadTodayPickups,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: primaryColor,
+                                ),
+                                child: Text(
+                                  'Coba Lagi',
+                                  style: GoogleFonts.poppins(),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : todayPickups.isEmpty
+                          ? Padding(
+                              padding: const EdgeInsets.all(32.0),
+                              child: Center(
+                                child: Text(
+                                  'Tidak ada tugas pickup hari ini',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 14,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ),
+                            )
+                          : ListView.builder(
+                              itemCount: todayPickups.length,
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              itemBuilder: (context, index) {
+                                final pickup = todayPickups[index];
+                                final houseInfo = pickup['house_info'] as Map<String, dynamic>?;
+                                return _taskCard(
+                                  houseInfo?['resident_name']?.toString() ?? 'N/A',
+                                  houseInfo?['address']?.toString() ?? 'N/A',
+                                  pickup['id']?.toString() ?? '',
+                                  pickup['status']?.toString() ?? 'scheduled',
+                                  houseInfo?['latitude'] as double? ?? 0.0,
+                                  houseInfo?['longitude'] as double? ?? 0.0,
+                                  primaryColor,
+                                  context,
+                                  pickup,
+                                );
+                              },
+                            ),
 
               const SizedBox(height: 24),
 
@@ -309,17 +359,19 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
 
               SizedBox(
                 height: 180,
-                child: pengambilanList.isEmpty
-                    ? Center(
-                        child: Text(
-                          'Belum ada pengambilan sampah',
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      )
-                    : ListView.builder(
+                child: _isLoadingHistory
+                    ? const Center(child: CircularProgressIndicator())
+                    : pengambilanList.isEmpty
+                        ? Center(
+                            child: Text(
+                              'Belum ada pengambilan sampah',
+                              style: GoogleFonts.poppins(
+                                fontSize: 14,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
                         scrollDirection: Axis.horizontal,
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         itemCount: pengambilanList.length,
@@ -365,7 +417,10 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
     );
   }
 
-  Widget _taskCard(String name, String address, String distance, String time, double latitude, double longitude, Color primaryColor, BuildContext context) {
+  Widget _taskCard(String name, String address, String pickupId, String status, double latitude, double longitude, Color primaryColor, BuildContext context, Map<String, dynamic> pickupData) {
+    // Status badge configuration
+    final statusConfig = _getStatusConfig(status);
+    
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -385,17 +440,24 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
         children: [
           Row(
             children: [
-              Text(
-                "•$time",
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  color: Colors.green[600],
-                  fontWeight: FontWeight.w600,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusConfig['color'].withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  statusConfig['label'],
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: statusConfig['color'],
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
               Text(
-                distance,
+                "#$pickupId",
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   color: Colors.grey[600],
@@ -421,26 +483,31 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => PengambilanSampahScreen(
-                      userName: name,
-                      userPhone: '+6285943643645',
-                      address: address,
-                      idPengambilan: '#CLUAP09141441',
-                      distance: distance,
-                      time: time,
-                      latitude: latitude,
-                      longitude: longitude,
-                    ),
-                  ),
-                ).then((_) {
-                  // Refresh pengambilan list when returning from pengambilan screen
-                  _loadPengambilanData();
-                });
-              },
+              onPressed: status == 'completed' || status == 'cancelled' || status == 'skipped'
+                  ? null
+                  : () {
+                      final houseInfo = pickupData['house_info'] as Map<String, dynamic>?;
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => PengambilanSampahScreen(
+                            pickupId: pickupData['id'] as int,
+                            userName: name,
+                            userPhone: houseInfo?['phone_number']?.toString() ?? '+62',
+                            address: address,
+                            idPengambilan: '#${pickupId}',
+                            distance: '0 Km', // Will be calculated based on GPS
+                            time: 'Hari ini',
+                            latitude: latitude,
+                            longitude: longitude,
+                          ),
+                        ),
+                      ).then((_) {
+                        // Refresh data when returning
+                        _loadTodayPickups();
+                        _loadPengambilanData();
+                      });
+                    },
               style: ElevatedButton.styleFrom(
                 backgroundColor: primaryColor,
                 foregroundColor: Colors.white,
@@ -451,7 +518,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
                 elevation: 0,
               ),
               child: Text(
-                "Ambil",
+                status == 'on_progress' ? "Lanjutkan" : status == 'completed' ? "Selesai" : "Ambil",
                 style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w600),
               ),
             ),
@@ -569,5 +636,61 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
         ],
       ),
     );
+  }
+
+  // Helper methods
+  String _formatTodayDate() {
+    final now = DateTime.now();
+    const List<String> months = [
+      '', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    return '${now.day} ${months[now.month]} ${now.year}';
+  }
+
+  int _getCompletedCount() {
+    return todayPickups.where((p) => p['status'] == 'completed').length;
+  }
+
+  int _getPendingCount() {
+    return todayPickups.where((p) => 
+      p['status'] == 'pending' || p['status'] == 'scheduled' || p['status'] == 'on_progress'
+    ).length;
+  }
+
+  Map<String, dynamic> _getStatusConfig(String status) {
+    switch (status) {
+      case 'pending':
+      case 'scheduled':
+        return {
+          'label': 'Dijadwalkan',
+          'color': Colors.blue[600],
+        };
+      case 'on_progress':
+        return {
+          'label': 'Dalam Proses',
+          'color': Colors.orange[600],
+        };
+      case 'completed':
+        return {
+          'label': 'Selesai',
+          'color': Colors.green[600],
+        };
+      case 'cancelled':
+        return {
+          'label': 'Dibatalkan',
+          'color': Colors.red[600],
+        };
+      case 'skipped':
+        return {
+          'label': 'Dilewati',
+          'color': Colors.grey[600],
+        };
+      default:
+        return {
+          'label': status,
+          'color': Colors.grey[600],
+        };
+    }
   }
 }

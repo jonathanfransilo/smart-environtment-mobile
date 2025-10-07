@@ -1,19 +1,26 @@
+  import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import 'pembayaran_screen.dart';
+import '../../services/pickup_service.dart';
 
 class DetailSampahScreen extends StatefulWidget {
+  final int pickupId;
   final String userName;
   final String address;
   final String idPengambilan;
   final Map<String, List<Map<String, dynamic>>> selectedSampah;
+  final XFile imageFile;
 
   const DetailSampahScreen({
     super.key,
+    required this.pickupId,
     required this.userName,
     required this.address,
     required this.idPengambilan,
     required this.selectedSampah,
+    required this.imageFile,
   });
 
   @override
@@ -35,6 +42,8 @@ class _DetailSampahScreenState extends State<DetailSampahScreen> {
             'quantity': item['quantity'],
             'price': item['price'],
             'total': (item['quantity'] as int) * (item['price'] as int),
+            'waste_id': item['waste_id'],
+            'pocket_size_id': item['pocket_size_id'],
           });
         }
       }
@@ -61,19 +70,110 @@ class _DetailSampahScreenState extends State<DetailSampahScreen> {
   Future<void> _konfirmasi() async {
     final selectedItems = _getSelectedItems();
     
-    // Navigate to Pembayaran screen
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => PembayaranScreen(
-          userName: widget.userName,
-          address: widget.address,
-          idPengambilan: widget.idPengambilan,
-          selectedItems: selectedItems,
-          totalPrice: _getTotalPrice(),
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Center(
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(
+                'Menyimpan data...',
+                style: GoogleFonts.poppins(fontSize: 14),
+              ),
+            ],
+          ),
         ),
       ),
     );
+
+    try {
+      print('🔄 [DetailSampah] Starting to submit...');
+      print('📷 [DetailSampah] Image name: ${widget.imageFile.name}');
+      
+      // Convert image to base64 (support web & mobile)
+      final imageBytes = await widget.imageFile.readAsBytes();
+      print('📦 [DetailSampah] Image bytes: ${imageBytes.length}');
+      
+      final base64Image = base64Encode(imageBytes);
+      print('🔐 [DetailSampah] Base64 encoded: ${base64Image.substring(0, 50)}...');
+
+      // Prepare waste items for API
+      final wasteItems = selectedItems.map((item) {
+        return {
+          'waste_id': item['waste_id'],
+          'pocket_size_id': item['pocket_size_id'],
+          'quantity': item['quantity'],
+        };
+      }).toList();
+      
+      print('📋 [DetailSampah] Waste items: $wasteItems');
+      print('🚀 [DetailSampah] Calling API...');
+
+      // Call API to complete pickup
+      final (success, message, data) = await PickupService.completePickup(
+        id: widget.pickupId,
+        photo: base64Image,
+        wasteItems: wasteItems,
+      );
+      
+      print('✅ [DetailSampah] API Response - Success: $success, Message: $message');
+
+      // Close loading
+      if (mounted) Navigator.of(context).pop();
+
+      if (success) {
+        // Navigate to Pembayaran screen with API response data
+        if (mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => PembayaranScreen(
+                userName: widget.userName,
+                address: widget.address,
+                idPengambilan: widget.idPengambilan,
+                selectedItems: selectedItems,
+                totalPrice: data?['total_amount'] as double? ?? _getTotalPrice(),
+              ),
+            ),
+          );
+        }
+      } else {
+        // Show error
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(message ?? 'Gagal menyimpan data'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e, stackTrace) {
+      print('💥 [DetailSampah] Exception: $e');
+      print('💥 [DetailSampah] StackTrace: $stackTrace');
+      
+      // Close loading if still open
+      if (mounted) Navigator.of(context).pop();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildProgressStepper() {
@@ -307,14 +407,14 @@ class _DetailSampahScreenState extends State<DetailSampahScreen> {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(
-                            'Rp ${(item['price'] as int)} / kg',
+                            'Rp ${(item['price'] as int)} / kantong',
                             style: GoogleFonts.poppins(
                               fontSize: 12,
                               color: Colors.grey[600],
                             ),
                           ),
                           Text(
-                            '${item['quantity']} kg',
+                            '${item['quantity']} kantong',
                             style: GoogleFonts.poppins(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
