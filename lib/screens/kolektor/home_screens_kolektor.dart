@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'pengambilan_sampah_screen.dart';
 import '../../services/pickup_service.dart';
+import 'profile_screen.dart';
+import 'riwayat_sampah_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io';
 
 class HomeScreensKolektor extends StatefulWidget {
   const HomeScreensKolektor({super.key});
@@ -12,11 +16,13 @@ class HomeScreensKolektor extends StatefulWidget {
 
 class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
   List<Map<String, dynamic>> pengambilanList = [];
+  String _profileImagePath = '';
 
   @override
   void initState() {
     super.initState();
     _loadPengambilanData();
+    _loadProfileImage();
   }
 
   Future<void> _loadPengambilanData() async {
@@ -26,6 +32,22 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
         pengambilanList = data;
       });
     }
+  }
+
+  Future<void> _loadProfileImage() async {
+    final prefs = await SharedPreferences.getInstance();
+    final imagePath = prefs.getString('profile_image_path') ?? '';
+    if (mounted) {
+      setState(() {
+        _profileImagePath = imagePath;
+      });
+    }
+  }
+
+  void _onProfileUpdated(String imagePath) {
+    setState(() {
+      _profileImagePath = imagePath;
+    });
   }
 
   @override
@@ -83,9 +105,11 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
                   children: [
                     Row(
                       children: [
-                        const CircleAvatar(
+                        CircleAvatar(
                           radius: 22,
-                          backgroundImage: AssetImage("assets/images/profile.jpg"),
+                          backgroundImage: _profileImagePath.isNotEmpty
+                              ? FileImage(File(_profileImagePath))
+                              : const AssetImage("assets/images/dummy.jpg") as ImageProvider,
                         ),
                         const SizedBox(width: 12),
                         Column(
@@ -132,9 +156,19 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
                           color: Colors.black87,
                         ),
                         const SizedBox(width: 4),
-                        const CircleAvatar(
-                          radius: 18,
-                          backgroundImage: AssetImage("assets/images/profile.jpg"),
+                        IconButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ProfileScreen(
+                                  onProfileUpdated: _onProfileUpdated,
+                                ),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.person, size: 26),
+                          color: Colors.black87,
                         ),
                       ],
                     ),
@@ -297,6 +331,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
                             "Rp. ${(item["totalPrice"] as num?)?.toInt() ?? 0}",
                             item["image"]?.toString() ?? "assets/images/dummy.jpg",
                             primaryColor,
+                            item, // Pass the full item data
                           );
                         },
                       ),
@@ -426,7 +461,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
     );
   }
 
-  Widget _pickupCard(String name, String address, String price, String image, Color primaryColor) {
+  Widget _pickupCard(String name, String address, String price, String image, Color primaryColor, Map<String, dynamic> fullData) {
     return Container(
       width: 280,
       margin: const EdgeInsets.only(right: 12),
@@ -500,7 +535,16 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
                   ),
                   const SizedBox(height: 8),
                   ElevatedButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => RiwayatSampahScreen(
+                            pickupData: fullData,
+                          ),
+                        ),
+                      );
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryColor,
                       foregroundColor: Colors.white,
