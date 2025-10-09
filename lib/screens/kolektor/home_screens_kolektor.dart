@@ -483,7 +483,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: status == 'completed' || status == 'cancelled' || status == 'skipped'
+              onPressed: status == 'completed' || status == 'cancelled' || status == 'skipped' || status == 'collected'
                   ? null
                   : () {
                       final houseInfo = pickupData['house_info'] as Map<String, dynamic>?;
@@ -550,20 +550,50 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
               topLeft: Radius.circular(12),
               bottomLeft: Radius.circular(12),
             ),
-            child: Image.asset(
-              image,
-              height: 180,
-              width: 100,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return Container(
-                  height: 180,
-                  width: 100,
-                  color: Colors.grey[300],
-                  child: const Icon(Icons.image, color: Colors.grey),
-                );
-              },
-            ),
+            child: image.startsWith('http')
+                ? Image.network(
+                    image,
+                    height: 180,
+                    width: 100,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        height: 180,
+                        width: 100,
+                        color: Colors.grey[300],
+                        child: const Icon(Icons.image, color: Colors.grey),
+                      );
+                    },
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Container(
+                        height: 180,
+                        width: 100,
+                        color: Colors.grey[200],
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            value: loadingProgress.expectedTotalBytes != null
+                                ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                : null,
+                          ),
+                        ),
+                      );
+                    },
+                  )
+                : Image.asset(
+                    image,
+                    height: 180,
+                    width: 100,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        height: 180,
+                        width: 100,
+                        color: Colors.grey[300],
+                        child: const Icon(Icons.image, color: Colors.grey),
+                      );
+                    },
+                  ),
           ),
           Expanded(
             child: Padding(
@@ -649,7 +679,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
   }
 
   int _getCompletedCount() {
-    return todayPickups.where((p) => p['status'] == 'completed').length;
+    return todayPickups.where((p) => p['status'] == 'completed' || p['status'] == 'collected').length;
   }
 
   int _getPendingCount() {
@@ -670,6 +700,11 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
         return {
           'label': 'Dalam Proses',
           'color': Colors.orange[600],
+        };
+      case 'collected':
+        return {
+          'label': 'Selesai',
+          'color': Colors.green[600],
         };
       case 'completed':
         return {

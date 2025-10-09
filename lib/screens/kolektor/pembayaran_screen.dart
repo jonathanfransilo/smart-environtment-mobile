@@ -8,6 +8,7 @@ class PembayaranScreen extends StatefulWidget {
   final String idPengambilan;
   final List<Map<String, dynamic>> selectedItems;
   final double totalPrice;
+  final String? photoUrl;
 
   const PembayaranScreen({
     super.key,
@@ -16,6 +17,7 @@ class PembayaranScreen extends StatefulWidget {
     required this.idPengambilan,
     required this.selectedItems,
     required this.totalPrice,
+    this.photoUrl,
   });
 
   @override
@@ -79,7 +81,7 @@ class _PembayaranScreenState extends State<PembayaranScreen> {
       idPengambilan: widget.idPengambilan,
       selectedItems: widget.selectedItems,
       totalPrice: widget.totalPrice,
-      imagePath: 'assets/images/dummy.jpg', // Default image path
+      imagePath: widget.photoUrl ?? 'assets/images/dummy.jpg', // Use photo_url from API
     );
   }
 

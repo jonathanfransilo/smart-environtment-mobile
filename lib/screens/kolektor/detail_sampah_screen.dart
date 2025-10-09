@@ -143,6 +143,7 @@ class _DetailSampahScreenState extends State<DetailSampahScreen> {
                 idPengambilan: widget.idPengambilan,
                 selectedItems: selectedItems,
                 totalPrice: data?['total_amount'] as double? ?? _getTotalPrice(),
+                photoUrl: data?['photo_url'] as String?,
               ),
             ),
           );

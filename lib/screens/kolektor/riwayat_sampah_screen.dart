@@ -87,11 +87,33 @@ class RiwayatSampahScreen extends StatelessWidget {
               height: 200,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
-                image: DecorationImage(
-                  image: AssetImage(pickupData['image'] ?? 'assets/images/dummy.jpg'),
-                  fit: BoxFit.cover,
-                ),
               ),
+              clipBehavior: Clip.antiAlias,
+              child: pickupData['image'] != null && pickupData['image'].toString().startsWith('http')
+                ? Image.network(
+                    pickupData['image'],
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Image.asset(
+                        'assets/images/dummy.jpg',
+                        fit: BoxFit.cover,
+                      );
+                    },
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Center(
+                        child: CircularProgressIndicator(
+                          value: loadingProgress.expectedTotalBytes != null
+                              ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                              : null,
+                        ),
+                      );
+                    },
+                  )
+                : Image.asset(
+                    pickupData['image'] ?? 'assets/images/dummy.jpg',
+                    fit: BoxFit.cover,
+                  ),
             ),
             
             // Address and ID
