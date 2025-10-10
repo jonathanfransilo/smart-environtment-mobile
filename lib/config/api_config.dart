@@ -1,8 +1,8 @@
 class ApiConfig {
   // ⚠️ PENTING: Gunakan HTTPS untuk menghindari Mixed Content Error di browser
   // Base URL API Backend Laravel
-  // static const String _productionUrl = 'http://127.0.0.1:8000/api/v1';
-  static const String _productionUrl = 'https://smart-environment-web.citiasiainc.id/api/v1';
+  static const String _productionUrl = 'http://127.0.0.1:8000/api/v1';
+  // static const String _productionUrl = 'https://smart-environment-web.citiasiainc.id/api/v1';
   
   // Resolve base URL with priority: dart-define > hardcoded production URL
   static String get baseUrl {
@@ -39,4 +39,9 @@ class ApiConfig {
   static const String collectorPickupDetail = '/mobile/collector/pickups'; // /{id}
   static const String collectorSchedules = '/mobile/collector/schedules';
   static const String collectorWasteItems = '/mobile/collector/waste-items';
+  
+  // Resident/User endpoints
+  static const String residentPickupsUpcoming = '/mobile/resident/pickups/upcoming';
+  static const String residentPickupsHistory = '/mobile/resident/pickups/history';
+  static const String residentPickupDetail = '/mobile/resident/pickups'; // /{id}
 }

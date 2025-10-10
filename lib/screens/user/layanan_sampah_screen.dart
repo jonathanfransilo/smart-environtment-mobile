@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'tambah_akun_layanan_screen.dart'; // Pastikan file ini ada di project Anda
+import 'riwayat_pengambilan_screen.dart';
 
 import '../../models/service_account.dart';
 import '../../services/service_account_service.dart';
@@ -409,72 +410,6 @@ class DetailAkunLayananScreen extends StatelessWidget {
     );
   }
 
-  /// 🔹 Popup Status (TELAH DIPERBAIKI SESUAI PERMINTAAN)
-  void _showStatusDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    // Warna untuk status "Belum Diambil" (Oranye)
-                    color: Colors.orange.withAlpha(26),
-                  ),
-                  child: const Icon(
-                    // Ikon untuk status "Belum Diambil" (Jam Pasir/Menunggu)
-                    Icons.hourglass_empty, 
-                    size: 60,
-                    color: Colors.orange,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  // Teks status yang diminta
-                  "Sampah belum diambil Kolektor",
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      // Warna tombol disesuaikan dengan status "Belum Diambil" (Oranye)
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                    child: const Text("OK"),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -596,11 +531,22 @@ class DetailAkunLayananScreen extends StatelessWidget {
             /// Tombol Aksi
             Row(
               children: [
+                // Tombol Riwayat Pengambilan
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: () => _showStatusDialog(context),
-                    icon: const Icon(Icons.restore_from_trash),
-                    label: const Text("Status Sampah"),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => RiwayatPengambilanScreen(
+                            serviceAccountId: akun.id,
+                            accountName: akun.name,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.history),
+                    label: const Text("Riwayat Pengambilan"),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF4CAF50),
                       padding: const EdgeInsets.symmetric(vertical: 14),
@@ -611,6 +557,7 @@ class DetailAkunLayananScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 12),
+                // Tombol Hapus Akun
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: () => _konfirmasiHapus(context),

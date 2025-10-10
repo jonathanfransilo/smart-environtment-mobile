@@ -487,6 +487,31 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
                   ? null
                   : () {
                       final houseInfo = pickupData['house_info'] as Map<String, dynamic>?;
+                      
+                      // Jika status on_progress, cari di mana user terakhir berhenti
+                      if (status == 'on_progress') {
+                        // TODO: Implementasi logika untuk melanjutkan ke halaman yang sesuai
+                        // Untuk sementara, tampilkan dialog
+                        showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: Text('Lanjutkan Pengambilan', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                            content: Text(
+                              'Fitur lanjutkan sedang dalam pengembangan. Silakan pilih pickup lain atau hubungi admin.',
+                              style: GoogleFonts.poppins(fontSize: 14),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: Text('OK', style: GoogleFonts.poppins(color: primaryColor)),
+                              ),
+                            ],
+                          ),
+                        );
+                        return;
+                      }
+                      
+                      // Untuk status lainnya (pending/scheduled), navigasi normal
                       Navigator.push(
                         context,
                         MaterialPageRoute(
