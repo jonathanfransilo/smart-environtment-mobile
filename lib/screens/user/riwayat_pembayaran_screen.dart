@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'riwayat_pembayaran_service.dart';
 import 'pdf_export_service.dart';
 
@@ -15,6 +17,10 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
   bool _isLoading = true;
   double _totalBulanIni = 0;
   int _jumlahTransaksi = 0;
+  
+  // Untuk sistem tagihan
+  double _totalTagihanPending = 0;
+  int _jumlahTagihanPending = 0;
 
   @override
   void initState() {
@@ -30,11 +36,17 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
       final total = await RiwayatPembayaranService.getTotalPembayaranBulanIni();
       final jumlah = await RiwayatPembayaranService.getJumlahTransaksiBulanIni();
       
+      // Load data tagihan pending
+      final totalTagihanPending = await RiwayatPembayaranService.getTotalTagihanPendingBulanIni();
+      final jumlahTagihanPending = await RiwayatPembayaranService.getJumlahTagihanPendingBulanIni();
+      
       if (mounted) {
         setState(() {
           _riwayatList = riwayat;
           _totalBulanIni = total;
           _jumlahTransaksi = jumlah;
+          _totalTagihanPending = totalTagihanPending;
+          _jumlahTagihanPending = jumlahTagihanPending;
           _isLoading = false;
         });
       }
@@ -63,6 +75,158 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
           ),
         );
       }
+    }
+  }
+
+  Future<void> _bayarSemuaTagihan() async {
+    if (_jumlahTagihanPending == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tidak ada tagihan yang perlu dibayar'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // Konfirmasi pembayaran
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: Text(
+          'Konfirmasi Pembayaran',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Anda akan membayar semua tagihan bulan ini:',
+              style: GoogleFonts.poppins(fontSize: 14),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '• Jumlah tagihan: $_jumlahTagihanPending',
+              style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[700]),
+            ),
+            Text(
+              '• Total pembayaran: ${RiwayatPembayaranService.formatCurrency(_totalTagihanPending)}',
+              style: GoogleFonts.poppins(
+                fontSize: 14, 
+                fontWeight: FontWeight.w600,
+                color: const Color.fromARGB(255, 21, 145, 137),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Lanjutkan pembayaran?',
+              style: GoogleFonts.poppins(fontSize: 14),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'Batal',
+              style: GoogleFonts.poppins(color: Colors.grey[600]),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color.fromARGB(255, 21, 145, 137),
+              foregroundColor: Colors.white,
+            ),
+            child: Text(
+              'Bayar Sekarang',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      // Show loading
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          content: Row(
+            children: [
+              const CircularProgressIndicator(
+                color: Color.fromARGB(255, 21, 145, 137),
+              ),
+              const SizedBox(width: 20),
+              Text(
+                'Memproses pembayaran...',
+                style: GoogleFonts.poppins(),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      // Proses pembayaran
+      final success = await RiwayatPembayaranService.bayarSemuaTagihanBulanIni();
+
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+
+        if (success) {
+          // Kirim notifikasi pembayaran berhasil
+          await _kirimNotifikasiPembayaranBerhasil();
+          
+          // Reload data
+          await _loadRiwayatPembayaran();
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Pembayaran berhasil! Semua tagihan telah lunas.',
+                style: GoogleFonts.poppins(),
+              ),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Pembayaran gagal. Silakan coba lagi.',
+                style: GoogleFonts.poppins(),
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _kirimNotifikasiPembayaranBerhasil() async {
+    try {
+      final totalFormatted = RiwayatPembayaranService.formatCurrency(_totalTagihanPending);
+      final message = 'Pembayaran berhasil! Anda telah membayar $_jumlahTagihanPending tagihan dengan total $totalFormatted';
+      
+      final prefs = await SharedPreferences.getInstance();
+      final notifications = prefs.getStringList('notifications') ?? [];
+      
+      final notificationData = {
+        'id': DateTime.now().millisecondsSinceEpoch.toString(),
+        'message': message,
+        'time': DateTime.now().toIso8601String(),
+        'isRead': false,
+        'type': 'pembayaran_berhasil',
+      };
+      
+      notifications.insert(0, jsonEncode(notificationData));
+      await prefs.setStringList('notifications', notifications);
+    } catch (e) {
+      print('Error sending payment success notification: $e');
     }
   }
 
@@ -223,7 +387,7 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
         title: Text(
-          'Riwayat Pembayaran',
+          'Tagihan & Pembayaran',
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.w600,
             color: Colors.black87,
@@ -313,11 +477,18 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
               child: Column(
                 children: [
                   _buildSummaryCard(),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
+                  
+                  // Card untuk tagihan pending
+                  if (_jumlahTagihanPending > 0) ...[
+                    _buildTagihanPendingCard(),
+                    const SizedBox(height: 16),
+                  ],
+                  
                   Row(
                     children: [
                       Text(
-                        'Riwayat Transaksi',
+                        'Riwayat Pembayaran',
                         style: GoogleFonts.poppins(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
@@ -352,7 +523,7 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
           ),
 
           // Riwayat List
-          if (_riwayatList.isEmpty)
+          if (_riwayatList.isEmpty && _jumlahTagihanPending == 0)
             SliverToBoxAdapter(
               child: _buildEmptyState(),
             )
@@ -370,6 +541,93 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
           // Bottom padding
           const SliverToBoxAdapter(
             child: SizedBox(height: 20),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTagihanPendingCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            Color.fromARGB(255, 255, 152, 0), // Orange
+            Color.fromARGB(255, 255, 193, 7),  // Amber
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.orange.withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.white,
+                size: 24,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Tagihan Belum Dibayar',
+                style: GoogleFonts.poppins(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            RiwayatPembayaranService.formatCurrency(_totalTagihanPending),
+            style: GoogleFonts.poppins(
+              color: Colors.white,
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '$_jumlahTagihanPending tagihan menunggu pembayaran',
+            style: GoogleFonts.poppins(
+              color: Colors.white70,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _bayarSemuaTagihan,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.orange[700],
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: Text(
+                'Bayar Semua Tagihan Bulan Ini',
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -418,7 +676,7 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
               ),
               const SizedBox(width: 8),
               Text(
-                'Total Bulan $monthName',
+                'Total Pembayaran $monthName',
                 style: GoogleFonts.poppins(
                   color: Colors.white70,
                   fontSize: 14,
@@ -440,19 +698,17 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
             children: [
               Expanded(
                 child: _buildSummaryItem(
-                  'Transaksi',
+                  'Lunas',
                   '$_jumlahTransaksi kali',
-                  Icons.receipt,
+                  Icons.check_circle,
                 ),
               ),
               Container(width: 1, height: 30, color: Colors.white30),
               Expanded(
                 child: _buildSummaryItem(
-                  'Rata-rata',
-                  _jumlahTransaksi > 0 
-                    ? RiwayatPembayaranService.formatCurrency(_totalBulanIni / _jumlahTransaksi)
-                    : 'Rp 0',
-                  Icons.trending_up,
+                  'Pending',
+                  '$_jumlahTagihanPending tagihan',
+                  Icons.pending,
                 ),
               ),
             ],
@@ -460,9 +716,7 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
         ],
       ),
     );
-  }
-
-  Widget _buildSummaryItem(String label, String value, IconData icon) {
+  }  Widget _buildSummaryItem(String label, String value, IconData icon) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Column(
@@ -577,14 +831,14 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
-                            color: Colors.green.withOpacity(0.1),
+                            color: _getStatusColor(riwayat['status'] ?? 'Lunas').withOpacity(0.1),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
-                            riwayat['status'] ?? 'Selesai',
+                            riwayat['status'] ?? 'Lunas',
                             style: GoogleFonts.poppins(
                               fontSize: 10,
-                              color: Colors.green[700],
+                              color: _getStatusColor(riwayat['status'] ?? 'Lunas'),
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -658,7 +912,7 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
           ),
           const SizedBox(height: 20),
           Text(
-            'Belum Ada Riwayat Pembayaran',
+            'Belum Ada Tagihan & Pembayaran',
             style: GoogleFonts.poppins(
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -667,7 +921,7 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Riwayat pembayaran akan muncul setelah kolektor selesai mengangkut sampah',
+            'Tagihan dan riwayat pembayaran akan muncul setelah kolektor membuat tagihan dari pengambilan sampah',
             textAlign: TextAlign.center,
             style: GoogleFonts.poppins(
               fontSize: 14,
@@ -860,6 +1114,18 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
         ],
       ),
     );
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'Menunggu Pembayaran':
+        return Colors.orange[700]!;
+      case 'Lunas':
+      case 'Selesai':
+        return Colors.green[700]!;
+      default:
+        return Colors.grey[600]!;
+    }
   }
 
   Widget _buildItemRow(Map<String, dynamic> item) {

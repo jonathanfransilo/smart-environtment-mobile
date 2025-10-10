@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
-import 'pembayaran_screen.dart';
+import 'tagihan_pembayaran_screen.dart';
 import '../../services/pickup_service.dart';
 
 class DetailSampahScreen extends StatefulWidget {
@@ -137,7 +137,7 @@ class _DetailSampahScreenState extends State<DetailSampahScreen> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => PembayaranScreen(
+              builder: (context) => TagihanPembayaranScreen(
                 userName: widget.userName,
                 address: widget.address,
                 idPengambilan: widget.idPengambilan,
