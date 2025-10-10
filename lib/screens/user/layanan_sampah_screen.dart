@@ -7,6 +7,7 @@ import 'riwayat_pengambilan_screen.dart';
 
 import '../../models/service_account.dart';
 import '../../services/service_account_service.dart';
+import '../../services/resident_pickup_service.dart';
 
 /// 🔹 Halaman utama daftar akun layanan
 class LayananSampahScreen extends StatefulWidget {
@@ -359,11 +360,268 @@ class DetailAkunLayananScreen extends StatelessWidget {
   final ServiceAccount akun;
   static final ServiceAccountService _serviceAccountService =
       ServiceAccountService();
+  static final ResidentPickupService _pickupService = ResidentPickupService();
 
   const DetailAkunLayananScreen({
     super.key,
     required this.akun,
   });
+
+  /// 🔹 Popup Status - Menampilkan status pickup hari ini
+  Future<void> _showStatusDialog(BuildContext context) async {
+    // Tampilkan loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Center(
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(
+                'Memeriksa status...',
+                style: GoogleFonts.poppins(fontSize: 14),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    // Fetch data pickup hari ini dari API
+    final (success, message, pickups) = await _pickupService.getUpcomingPickups(
+      serviceAccountId: akun.id,
+    );
+    
+    // Tutup loading dialog
+    if (context.mounted) Navigator.pop(context);
+
+    // Filter hanya pickup hari ini
+    final today = DateTime.now();
+    final todayStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    
+    final todayPickup = pickups?.where((pickup) {
+      final pickupDate = pickup['pickup_date'] as String?;
+      return pickupDate == todayStr;
+    }).toList();
+
+    if (!success || todayPickup == null || todayPickup.isEmpty) {
+      // Tidak ada jadwal hari ini
+      if (context.mounted) {
+        _showPickupStatusDialog(
+          context: context,
+          status: 'no_schedule',
+          message: 'Tidak ada jadwal pengambilan sampah hari ini',
+        );
+      }
+      return;
+    }
+
+    // Ada jadwal hari ini, ambil yang pertama
+    final pickup = todayPickup.first;
+    final status = pickup['status'] as String? ?? 'scheduled';
+    final confirmationStatus = pickup['confirmation_status'] as String? ?? 'pending';
+    final pickupDate = pickup['pickup_date'] as String? ?? '-';
+    final dayName = pickup['day_name'] as String? ?? '-';
+    
+    final collectorInfo = pickup['collector_info'] as Map<String, dynamic>?;
+    final collectorName = collectorInfo?['name'] as String? ?? 'Belum ditentukan';
+    final collectorPhone = collectorInfo?['phone_number'] as String? ?? '-';
+
+    if (context.mounted) {
+      _showPickupStatusDialog(
+        context: context,
+        status: status,
+        confirmationStatus: confirmationStatus,
+        pickupDate: pickupDate,
+        dayName: dayName,
+        collectorName: collectorName,
+        collectorPhone: collectorPhone,
+      );
+    }
+  }
+
+  /// Dialog untuk menampilkan status pickup
+  void _showPickupStatusDialog({
+    required BuildContext context,
+    required String status,
+    String? confirmationStatus,
+    String? pickupDate,
+    String? dayName,
+    String? collectorName,
+    String? collectorPhone,
+    String? message,
+  }) {
+    // Tentukan warna, ikon, dan teks berdasarkan status
+    Color statusColor;
+    IconData statusIcon;
+    String statusText;
+
+    if (status == 'no_schedule') {
+      statusColor = Colors.grey;
+      statusIcon = Icons.event_busy;
+      statusText = message ?? 'Tidak ada jadwal pengambilan hari ini';
+    } else if (status == 'collected' || status == 'completed') {
+      statusColor = const Color(0xFF4CAF50);
+      statusIcon = Icons.check_circle;
+      statusText = 'Sampah sudah diambil Kolektor';
+    } else if (status == 'in_progress') {
+      statusColor = Colors.orange;
+      statusIcon = Icons.local_shipping;
+      statusText = 'Kolektor sedang dalam perjalanan';
+    } else {
+      // scheduled / pending
+      statusColor = Colors.blue;
+      statusIcon = Icons.hourglass_empty;
+      statusText = 'Sampah belum diambil Kolektor';
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Icon & Status Text
+                Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: statusColor.withAlpha(26),
+                    ),
+                    child: Icon(
+                      statusIcon,
+                      size: 48,
+                      color: statusColor,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Center(
+                  child: Text(
+                    statusText,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ),
+                
+                // Detail informasi pickup (hanya jika ada jadwal hari ini)
+                if (status != 'no_schedule') ...[
+                  const SizedBox(height: 24),
+                  const Divider(),
+                  const SizedBox(height: 16),
+                  
+                  // Tanggal Pickup
+                  if (pickupDate != null && dayName != null) ...[
+                    _buildInfoRow(
+                      icon: Icons.calendar_today,
+                      label: 'Jadwal Pickup Hari Ini',
+                      value: '$dayName\n$pickupDate',
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  
+                  // Kolektor
+                  if (collectorName != null) ...[
+                    _buildInfoRow(
+                      icon: Icons.person,
+                      label: 'Kolektor',
+                      value: collectorName,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  
+                  // Nomor Telepon Kolektor
+                  if (collectorPhone != null && collectorPhone != '-') ...[
+                    _buildInfoRow(
+                      icon: Icons.phone,
+                      label: 'Kontak',
+                      value: collectorPhone,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ],
+                
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: statusColor,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text("OK"),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Widget helper untuk menampilkan info row
+  Widget _buildInfoRow({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 20, color: const Color(0xFF4CAF50)),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: Colors.black87,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 
   Future<void> _hapusAkun(BuildContext context) async {
     try {
@@ -528,37 +786,57 @@ class DetailAkunLayananScreen extends StatelessWidget {
 
             const SizedBox(height: 40),
 
-            /// Tombol Aksi
-            Row(
+            /// Tombol Aksi - Grid 2 kolom
+            Column(
               children: [
-                // Tombol Riwayat Pengambilan
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => RiwayatPengambilanScreen(
-                            serviceAccountId: akun.id,
-                            accountName: akun.name,
+                // Baris 1: Status & Riwayat
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _showStatusDialog(context),
+                        icon: const Icon(Icons.info_outline),
+                        label: const Text("Status"),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                      );
-                    },
-                    icon: const Icon(Icons.history),
-                    label: const Text("Riwayat Pengambilan"),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF4CAF50),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                  ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => RiwayatPengambilanScreen(
+                                serviceAccountId: akun.id,
+                                accountName: akun.name,
+                              ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.history),
+                        label: const Text("Riwayat"),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF4CAF50),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                // Tombol Hapus Akun
-                Expanded(
+                const SizedBox(height: 12),
+                // Baris 2: Hapus Akun
+                SizedBox(
+                  width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: () => _konfirmasiHapus(context),
                     icon: const Icon(Icons.delete),

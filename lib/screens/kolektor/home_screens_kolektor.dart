@@ -56,11 +56,15 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
       _isLoadingHistory = true;
     });
 
-    final data = await PickupService.getPickupHistory();
+    final (success, message, data) = await PickupService.getPickupHistoryFromAPI();
     if (mounted) {
       setState(() {
         _isLoadingHistory = false;
-        pengambilanList = data;
+        if (success && data != null) {
+          pengambilanList = data;
+        } else {
+          pengambilanList = [];
+        }
       });
     }
   }

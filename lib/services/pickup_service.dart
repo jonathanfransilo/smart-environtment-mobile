@@ -150,6 +150,85 @@ class PickupService {
     }
   }
 
+  /// Ambil riwayat pickup yang sudah completed dari API (untuk Collector)
+  static Future<(bool success, String? message, List<Map<String, dynamic>>? data)> getPickupHistoryFromAPI({int? limit}) async {
+    try {
+      print('🌐 [PickupService] Calling API: ${ApiConfig.collectorPickupsHistory}');
+      
+      final queryParams = limit != null ? {'limit': limit} : null;
+      final response = await _dio.get(
+        ApiConfig.collectorPickupsHistory,
+        queryParameters: queryParams,
+      );
+      
+      print('📡 [PickupService] Response status: ${response.statusCode}');
+      
+      final body = response.data as Map<String, dynamic>;
+      
+      if (body['success'] == true) {
+        final data = body['data'] as List<dynamic>?;
+        print('📦 [PickupService] History data received: ${data?.length} items');
+        
+        if (data != null) {
+          final history = data.map((e) {
+            final item = e as Map<String, dynamic>;
+            
+            // Transform data untuk UI
+            final houseInfo = item['house_info'] as Map<String, dynamic>?;
+            final wasteItems = item['waste_items'] as List<dynamic>?;
+            
+            // Transform waste items to match UI expectations
+            final transformedItems = wasteItems?.map((wasteItem) {
+              final wi = wasteItem as Map<String, dynamic>;
+              return {
+                'category': wi['waste_category'] ?? 'Unknown',
+                'name': '${wi['waste_category'] ?? 'Unknown'} ${wi['pocket_size'] ?? ''}',
+                'quantity': wi['quantity'] ?? 0,
+                'price': wi['unit_price'] ?? 0,
+                'totalPrice': wi['total_price'] ?? 0,
+              };
+            }).toList() ?? [];
+            
+            return {
+              'id': item['id'],
+              'idPengambilan': 'no ${item['id']}',
+              'name': houseInfo?['resident_name'] ?? 'N/A',
+              'address': houseInfo?['address'] ?? 'N/A',
+              'totalPrice': item['total_amount'] ?? 0,
+              'image': item['photo_url'] ?? 'assets/images/dummy.jpg',
+              'date': item['pickup_date'] ?? '',
+              'dayName': item['day_name'] ?? '',
+              'status': item['status'] ?? '',
+              'items': transformedItems, // Use 'items' key for compatibility
+              'notes': item['collector_notes'] ?? '',
+            };
+          }).toList();
+          
+          print('✅ [PickupService] Successfully parsed ${history.length} history items');
+          return (true, null, history);
+        }
+        return (true, null, <Map<String, dynamic>>[]);
+      } else {
+        final msg = body['errors']?['message']?.toString() ?? 'Gagal mengambil riwayat pickup';
+        print('❌ [PickupService] API returned success=false: $msg');
+        return (false, msg, null);
+      }
+    } on DioException catch (e) {
+      print('💥 [PickupService] DioException: ${e.type}, ${e.message}');
+      print('💥 [PickupService] Response: ${e.response?.statusCode} - ${e.response?.data}');
+      
+      String msg = 'Terjadi kesalahan jaringan';
+      if (e.response?.data is Map) {
+        final body = e.response!.data as Map;
+        msg = body['errors']?['message']?.toString() ?? msg;
+      }
+      return (false, msg, null);
+    } catch (e) {
+      print('💥 [PickupService] Exception: $e');
+      return (false, 'Error: $e', null);
+    }
+  }
+
   /// Ambil detail pickup berdasarkan ID
   static Future<(bool success, String? message, Map<String, dynamic>? data)> getPickupDetail(int id) async {
     try {

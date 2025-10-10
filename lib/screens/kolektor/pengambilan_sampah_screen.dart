@@ -77,20 +77,70 @@ class _PengambilanSampahScreenState extends State<PengambilanSampahScreen>
     });
   }
 
-  void _confirmPickup() {
-    setState(() {
-      _isConfirmed = true;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Pengambilan sampah dikonfirmasi!',
-          style: GoogleFonts.poppins(fontSize: 14),
+  Future<void> _confirmPickup() async {
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Center(
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(
+                'Mengkonfirmasi pengambilan...',
+                style: GoogleFonts.poppins(fontSize: 14),
+              ),
+            ],
+          ),
         ),
-        backgroundColor: Colors.green,
-        duration: const Duration(seconds: 2),
       ),
     );
+
+    // Call API to start pickup
+    final (success, message) = await PickupService.startPickup(widget.pickupId);
+    
+    // Close loading dialog
+    if (mounted) Navigator.pop(context);
+
+    if (success) {
+      setState(() {
+        _isConfirmed = true;
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Pengambilan sampah dikonfirmasi!',
+              style: GoogleFonts.poppins(fontSize: 14),
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              message ?? 'Gagal mengkonfirmasi pengambilan',
+              style: GoogleFonts.poppins(fontSize: 14),
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _makePhoneCall(String phoneNumber) async {
