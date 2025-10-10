@@ -9,6 +9,7 @@ import 'screens/user/profile_screen.dart';
 import 'screens/forgot_password_screen.dart';
 import 'screens/user/artikel_screen.dart';
 import 'screens/user/pelaporan_screen.dart';
+import 'screens/user/riwayat_pembayaran_screen.dart';
 import 'screens/kolektor/home_screens_kolektor.dart';
 
 void main() {
@@ -52,6 +53,7 @@ class SirkularApp extends StatelessWidget {
         '/profile': (context) => const ProfileScreen(),
         '/artikel': (context) => const ArtikelScreen(),
         '/pelaporan': (context) => const PelaporanScreen(),
+        '/riwayat-pembayaran': (context) => const RiwayatPembayaranScreen(),
 
         // --- ROUTE KOLEKTOR ---
         '/home-kolektor': (context) => const HomeScreensKolektor(),

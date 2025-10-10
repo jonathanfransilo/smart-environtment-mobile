@@ -561,7 +561,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   "assets/images/rekening.png",
                   "Riwayat Pembayaran",
                   onTap: () {
-                    _showSnackBar("Fitur Riwayat Pembayaran belum tersedia", false);
+                    Navigator.pushNamed(context, '/riwayat-pembayaran');
                   },
                 ),
                 _menuItem(

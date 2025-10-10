@@ -71,4 +71,32 @@ class NotificationService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_key);
   }
+
+  /// Tambah notifikasi khusus pembayaran
+  static Future<void> addPaymentNotification(String title, String message) async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = prefs.getStringList(_key) ?? [];
+    final list = data.map((e) => jsonDecode(e) as Map<String, dynamic>).toList();
+
+    final notif = {
+      "id": DateTime.now().millisecondsSinceEpoch.toString(),
+      "title": title,
+      "message": message,
+      "time": DateTime.now().toIso8601String(),
+      "isRead": false,
+      "type": "payment",
+    };
+
+    list.insert(0, notif); // tambah di awal biar notif terbaru di atas
+    await prefs.setStringList(
+      _key,
+      list.map((e) => jsonEncode(e)).toList(),
+    );
+  }
+
+  /// Dapatkan jumlah notifikasi yang belum dibaca
+  static Future<int> getUnreadCount() async {
+    final notifications = await getNotifications();
+    return notifications.where((n) => n['isRead'] == false).length;
+  }
 }

@@ -84,16 +84,15 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
   // Controller untuk mengelola input text dari TextField
   final TextEditingController _lokasiController = TextEditingController();
   final TextEditingController _waktuController = TextEditingController();
+  final TextEditingController _jamController = TextEditingController();
   final TextEditingController _ciriCiriController = TextEditingController();
   
   // State untuk menyimpan tanggal yang dipilih (opsional, untuk logika)
-  DateTime? _selectedDate; 
+  DateTime? _selectedDate;
+  TimeOfDay? _selectedTime;
   
   // Pilihan Data Dropdown
-  static const List<String> _cities = [
-    'Jakarta', 'Bogor', 'Depok', 'Tangerang', 'Bekasi',
-    'Bandung', 'Surabaya', 'Medan', 'Semarang', 'Yogyakarta',
-  ];
+  static const String _fixedCity = 'Jakarta'; // Kota tetap Jakarta
 
   static const List<String> _categories = [
     'Sampah Liar', 'Fasilitas Rusak', 'Tempat Sampah Penuh',
@@ -102,7 +101,6 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
   ];
 
   // State untuk menyimpan nilai yang dipilih
-  String? _selectedCity;
   String? _selectedCategory;
   
   // Kunci form untuk validasi
@@ -115,6 +113,7 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
   void dispose() {
     _lokasiController.dispose();
     _waktuController.dispose();
+    _jamController.dispose();
     _ciriCiriController.dispose();
     super.dispose();
   }
@@ -149,11 +148,43 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
     }
   }
 
+  // Fungsi untuk menampilkan Time Picker (Jam)
+  Future<void> _selectTime(BuildContext context) async {
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: _selectedTime ?? TimeOfDay.now(),
+      helpText: 'Pilih Jam Pelanggaran',
+      cancelText: 'BATAL',
+      confirmText: 'PILIH',
+      builder: (BuildContext context, Widget? child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            primaryColor: primaryColor,
+            colorScheme: ColorScheme.light(primary: primaryColor),
+            buttonTheme: ButtonThemeData(
+              colorScheme: ColorScheme.light(primary: primaryColor),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null && picked != _selectedTime) {
+      setState(() {
+        _selectedTime = picked;
+        // Format jam ke String dan masukkan ke controller
+        final hour = picked.hour.toString().padLeft(2, '0');
+        final minute = picked.minute.toString().padLeft(2, '0');
+        _jamController.text = '$hour:$minute';
+      });
+    }
+  }
+
   // Fungsi Navigasi ke DetailLaporanScreen
   void _submitReport() {
     if (_formKey.currentState!.validate()) {
       // Pastikan semua dropdown terisi
-      if (_selectedCity == null || _selectedCategory == null) {
+      if (_selectedCategory == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: Colors.red,
@@ -164,11 +195,12 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
       }
 
       // Ambil semua data dari state dan controller
+      final waktuLengkap = '${_waktuController.text}${_jamController.text.isNotEmpty ? ' pukul ${_jamController.text}' : ''}';
       final reportData = {
-        'kota': _selectedCity!,
+        'kota': _fixedCity,
         'kategori': _selectedCategory!,
         'lokasi': _lokasiController.text,
-        'waktu_pelanggaran': _waktuController.text, 
+        'waktu_pelanggaran': waktuLengkap, 
         'ciri_ciri': _ciriCiriController.text,
       };
 
@@ -215,14 +247,14 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
       imageWidget = Image.file(
         widget.imageFile!,
         fit: BoxFit.cover,
-        height: 200,
         width: double.infinity,
+        height: 200,
       );
     } else {
       // Kasus fallback
       imageWidget = Container(
-        height: 200, 
         width: double.infinity,
+        height: 200, 
         color: Colors.grey.shade300,
         child: const Center(child: Text("Tidak ada gambar")),
       );
@@ -243,54 +275,108 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Area Foto dengan Tombol Ubah Foto
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Stack(
-                  alignment: Alignment.bottomCenter,
-                  children: [
-                    imageWidget,
-                    // Tombol Ubah Foto
-                    InkWell(
-                      onTap: () {
-                          // Kembali ke PelaporanScreen untuk memilih foto baru
-                          Navigator.pop(context);
-                      },
-                      child: Container(
+              Container(
+                width: double.infinity,
+                height: 200, // Fixed height untuk menjaga konsistensi
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Stack(
+                    fit: StackFit.expand, // Memastikan stack mengisi container
+                    children: [
+                      // Pastikan image mengisi seluruh area
+                      SizedBox(
                         width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        color: Colors.black54,
-                        child: Text(
-                          "UBAH FOTO",
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.poppins(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
+                        height: 200,
+                        child: imageWidget,
+                      ),
+                      // Tombol Ubah Foto dengan posisi absolut
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        child: InkWell(
+                          onTap: () {
+                            // Kembali ke PelaporanScreen untuk memilih foto baru
+                            Navigator.pop(context);
+                          },
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.7),
+                              borderRadius: const BorderRadius.only(
+                                bottomLeft: Radius.circular(8),
+                                bottomRight: Radius.circular(8),
+                              ),
+                            ),
+                            child: Text(
+                              "UBAH FOTO",
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.poppins(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 24),
 
               // --- FORM FIELDS ---
 
-              // Dropdown KOTA
-              DropdownButtonFormField<String>(
-                value: _selectedCity,
-                decoration: InputDecoration(
-                  labelText: "Kota", 
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))
+              // KOTA TETAP (Jakarta)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade400),
+                  borderRadius: BorderRadius.circular(8),
+                  color: Colors.grey.shade50,
                 ),
-                items: _buildDropdownItems(_cities),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedCity = value;
-                  });
-                },
-                hint: const Text('Pilih Kota'),
-                validator: (value) => value == null ? 'Kota wajib dipilih.' : null,
+                child: Row(
+                  children: [
+                    Icon(Icons.location_city, color: primaryColor, size: 20),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Kota',
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _fixedCity,
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Spacer(),
+                    Icon(Icons.check_circle, color: Colors.green.shade600, size: 20),
+                  ],
+                ),
               ),
               const SizedBox(height: 16),
 
@@ -329,12 +415,56 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
                 readOnly: true, // Agar keyboard tidak muncul saat diklik
                 onTap: () => _selectDate(context), // Panggil kalender
                 decoration: InputDecoration(
-                  labelText: "Waktu Pelanggaran", 
+                  labelText: "Tanggal Pelanggaran", 
                   hintText: _selectedDate == null ? 'Pilih Tanggal' : null,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  suffixIcon: const Icon(Icons.calendar_today, color: primaryColor), // Ikon kalender
+                  prefixIcon: const Icon(Icons.calendar_today, color: primaryColor),
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
                 ),
-                validator: (value) => value!.isEmpty ? 'Waktu Pelanggaran wajib diisi.' : null,
+                validator: (value) => value!.isEmpty ? 'Tanggal Pelanggaran wajib diisi.' : null,
+              ),
+              const SizedBox(height: 16),
+
+              // Jam Pelanggaran (MENGGUNAKAN TIME PICKER)
+              TextFormField(
+                controller: _jamController,
+                readOnly: true, // Agar keyboard tidak muncul saat diklik
+                onTap: () => _selectTime(context), // Panggil time picker
+                decoration: InputDecoration(
+                  labelText: "Jam Pelanggaran (Opsional)",
+                  hintText: "Ketuk untuk memilih jam",
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  prefixIcon: Container(
+                    padding: const EdgeInsets.all(12),
+                    child: Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: primaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(
+                        Icons.access_time,
+                        color: primaryColor,
+                        size: 16,
+                      ),
+                    ),
+                  ),
+                  filled: true,
+                  fillColor: Colors.blue.shade50,
+                  suffixIcon: _jamController.text.isNotEmpty
+                      ? IconButton(
+                          icon: Icon(Icons.clear, color: Colors.grey.shade600),
+                          onPressed: () {
+                            setState(() {
+                              _jamController.clear();
+                              _selectedTime = null;
+                            });
+                          },
+                        )
+                      : Icon(Icons.schedule, color: Colors.grey.shade400),
+                ),
               ),
               const SizedBox(height: 16),
 
@@ -631,6 +761,191 @@ class DetailLaporanScreen extends StatelessWidget {
 }
 
 // ====================================================================
+// BAGIAN 1.6: SCREEN DETAIL LAPORAN TERKIRIM (DetailLaporanTerkirimScreen)
+// ====================================================================
+
+class DetailLaporanTerkirimScreen extends StatelessWidget {
+  final Laporan laporan;
+
+  const DetailLaporanTerkirimScreen({
+    super.key,
+    required this.laporan,
+  });
+
+  static const Color primaryColor = Color.fromARGB(255, 21, 145, 137);
+
+  // Widget untuk menampilkan sepasang Label dan Value
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              color: Colors.grey.shade600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: GoogleFonts.poppins(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: Colors.black87,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Tentukan widget gambar yang akan ditampilkan
+    Widget imageWidget;
+    if (laporan.isAsset) {
+      imageWidget = Image.asset(
+        "assets/images/dummy.jpg",
+        fit: BoxFit.cover,
+        height: 200,
+        width: double.infinity,
+        errorBuilder: (context, error, stackTrace) => Container(
+          height: 200,
+          color: Colors.grey.shade300,
+          child: const Center(child: Text("Error: Asset dummy.jpg tidak ditemukan")),
+        ),
+      );
+    } else if (laporan.imageFile != null) {
+      imageWidget = Image.file(
+        laporan.imageFile!,
+        fit: BoxFit.cover,
+        height: 200,
+        width: double.infinity,
+      );
+    } else {
+      imageWidget = Container(
+        height: 200,
+        width: double.infinity,
+        color: Colors.grey.shade300,
+        child: const Center(child: Text("Tidak ada gambar")),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          "Detail Laporan",
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+        ),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Area Foto dengan overlay "UBAH FOTO"
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: imageWidget,
+                ),
+                // Overlay "UBAH FOTO" (hanya untuk tampilan, tidak fungsional)
+                Positioned(
+                  bottom: 16,
+                  left: 16,
+                  right: 16,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.7),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Center(
+                      child: Text(
+                        "UBAH FOTO",
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // Header dengan ID dan Status
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Detail Laporan",
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "ID: ${laporan.id.substring(0, 10)}",
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: primaryColor,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    "PROSES",
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // Detail Data
+            _buildDetailRow("Kota", laporan.kota),
+            _buildDetailRow("Kategori", laporan.kategori),
+            _buildDetailRow("Lokasi", laporan.lokasi),
+            _buildDetailRow("Waktu Pelanggaran", laporan.waktuPelanggaran),
+            _buildDetailRow("Ciri-ciri Pelaku", laporan.ciriCiri),
+
+            const SizedBox(height: 32),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ====================================================================
 // BAGIAN 2: LAYAR UTAMA PEMILIH FOTO (PelaporanScreen)
 // ====================================================================
 
@@ -880,7 +1195,12 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
                   ],
                 ),
             )
-          : _imageDisplayWidget(), // Tampilkan Empty State/List
+          : Center(
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: _imageDisplayWidget(),
+              ),
+            ), // Tampilkan Empty State/List dengan Center
       
       floatingActionButton: _buildFloatingActionButton(),
     );
@@ -936,9 +1256,13 @@ class _ReportList extends StatelessWidget {
                   ),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                   onTap: () {
-                    // TODO: Navigasi ke detail laporan yang sudah terkirim
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text("Melihat detail Laporan ID: ${report.id}")),
+                    // Navigasi ke detail laporan yang sudah terkirim
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (ctx) => DetailLaporanTerkirimScreen(
+                          laporan: report,
+                        ),
+                      ),
                     );
                   },
                 ),
@@ -1002,6 +1326,7 @@ class _PelaporanEmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Container(
           width: 90,
@@ -1013,10 +1338,17 @@ class _PelaporanEmptyState extends StatelessWidget {
           child: Icon(Icons.info, size: 40, color: color),
         ),
         const SizedBox(height: 16),
-        Text(
-          text,
-          style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w400),
-          textAlign: TextAlign.center,
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 40.0),
+          child: Text(
+            text,
+            style: GoogleFonts.poppins(
+              fontSize: 16, 
+              fontWeight: FontWeight.w400,
+              color: Colors.grey[600],
+            ),
+            textAlign: TextAlign.center,
+          ),
         ),
       ],
     );

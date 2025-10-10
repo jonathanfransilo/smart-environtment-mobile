@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/pickup_service.dart';
 
 class PembayaranScreen extends StatefulWidget {
@@ -83,6 +85,68 @@ class _PembayaranScreenState extends State<PembayaranScreen> {
       totalPrice: widget.totalPrice,
       imagePath: widget.photoUrl ?? 'assets/images/dummy.jpg', // Use photo_url from API
     );
+
+    // Tambahkan ke riwayat pembayaran user
+    await _saveToUserRiwayatPembayaran();
+    
+    // Tambahkan notifikasi ke user
+    await _addUserNotification();
+  }
+
+  Future<void> _saveToUserRiwayatPembayaran() async {
+    try {
+      // Import service (tambahkan di top file)
+      // import '../user/riwayat_pembayaran_service.dart';
+      
+      // Buat data riwayat pembayaran
+      final riwayatData = {
+        'id': widget.idPengambilan,
+        'namaKolektor': 'Kolektor Sampah', // Bisa diganti dengan nama kolektor yang login
+        'alamat': widget.address,
+        'items': widget.selectedItems,
+        'totalHarga': widget.totalPrice,
+        'tanggalPengambilan': DateTime.now().toIso8601String(),
+        'status': 'Selesai',
+        'metodePembayaran': 'Tunai',
+        'createdAt': DateTime.now().toIso8601String(),
+      };
+      
+      // Simpan menggunakan RiwayatPembayaranService
+      final prefs = await SharedPreferences.getInstance();
+      final existingData = prefs.getStringList('riwayat_pembayaran') ?? [];
+      existingData.insert(0, jsonEncode(riwayatData));
+      await prefs.setStringList('riwayat_pembayaran', existingData);
+    } catch (e) {
+      print('Error saving to riwayat pembayaran: $e');
+    }
+  }
+
+  Future<void> _addUserNotification() async {
+    try {
+      final totalFormatted = 'Rp ${widget.totalPrice.toStringAsFixed(0).replaceAllMapped(
+        RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+        (Match m) => '${m[1]}.',
+      )}';
+      
+      final message = 'Pembayaran sampah sebesar $totalFormatted telah selesai. ID: ${widget.idPengambilan}';
+      
+      // Tambahkan notifikasi menggunakan NotificationService yang ada
+      // Gunakan metode addNotification yang sudah ada
+      final prefs = await SharedPreferences.getInstance();
+      final notifications = prefs.getStringList('notifications') ?? [];
+      
+      final notificationData = {
+        'id': DateTime.now().millisecondsSinceEpoch.toString(),
+        'message': message,
+        'time': DateTime.now().toIso8601String(),
+        'isRead': false,
+      };
+      
+      notifications.insert(0, jsonEncode(notificationData));
+      await prefs.setStringList('notifications', notifications);
+    } catch (e) {
+      print('Error adding notification: $e');
+    }
   }
 
   Widget _buildProgressStepper() {
