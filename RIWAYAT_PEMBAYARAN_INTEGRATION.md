@@ -29,7 +29,7 @@ Fitur riwayat pembayaran telah berhasil diimplementasikan dengan integrasi lengk
   - Pull-to-refresh functionality
 
 ### 3. Integration Point
-- **PembayaranScreen** (`lib/screens/kolektor/pembayaran_screen.dart`)
+- **TagihanPembayaranScreen** (`lib/screens/kolektor/tagihan_pembayaran_screen.dart`)
   - Diupdate untuk integrasi dengan riwayat pembayaran user
   - Auto-save ke user payment history saat pembayaran selesai
   - Auto-send notification ke user
@@ -125,7 +125,7 @@ _menuItem(
 
 ### Payment Completion Integration
 ```dart
-// pembayaran_screen.dart - Modified _savePickupData()
+// tagihan_pembayaran_screen.dart - Modified _savePickupData()
 Future<void> _savePickupData() async {
   // Existing pickup save logic
   await PickupService.savePickupData(/*...*/);
@@ -214,7 +214,7 @@ Sistem riwayat pembayaran telah selesai diimplementasikan dan siap untuk product
 2. ✅ `lib/screens/user/riwayat_pembayaran_screen.dart` - NEW  
 3. ✅ `lib/screens/user/notification_service.dart` - UPDATED
 4. ✅ `lib/screens/user/home_screen.dart` - UPDATED
-5. ✅ `lib/screens/kolektor/pembayaran_screen.dart` - UPDATED
+5. ✅ `lib/screens/kolektor/tagihan_pembayaran_screen.dart` - UPDATED
 6. ✅ `lib/main.dart` - UPDATED
 
 ### Integration Points Completed:

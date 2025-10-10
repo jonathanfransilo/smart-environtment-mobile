@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/pickup_service.dart';
 
-class PembayaranScreen extends StatefulWidget {
+class TagihanPembayaranScreen extends StatefulWidget {
   final String userName;
   final String address;
   final String idPengambilan;
@@ -12,7 +12,7 @@ class PembayaranScreen extends StatefulWidget {
   final double totalPrice;
   final String? photoUrl;
 
-  const PembayaranScreen({
+  const TagihanPembayaranScreen({
     super.key,
     required this.userName,
     required this.address,
@@ -23,10 +23,10 @@ class PembayaranScreen extends StatefulWidget {
   });
 
   @override
-  State<PembayaranScreen> createState() => _PembayaranScreenState();
+  State<TagihanPembayaranScreen> createState() => _TagihanPembayaranScreenState();
 }
 
-class _PembayaranScreenState extends State<PembayaranScreen> {
+class _TagihanPembayaranScreenState extends State<TagihanPembayaranScreen> {
   int _currentStep = 3; // Selesai
 
   Map<String, List<Map<String, dynamic>>> _groupItemsByCategory() {
@@ -52,14 +52,14 @@ class _PembayaranScreenState extends State<PembayaranScreen> {
   }
 
   Future<void> _lanjutkan() async {
-    // Simpan data pengambilan ke storage/database (simulasi)
-    await _savePickupData();
+    // Buat tagihan untuk user (bukan pembayaran langsung)
+    await _buatTagihan();
     
     // Show success message
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'Data pengambilan berhasil disimpan!',
+          'Tagihan berhasil dibuat dan dikirim ke user!',
           style: GoogleFonts.poppins(fontSize: 14),
         ),
         backgroundColor: Colors.green,
@@ -71,67 +71,65 @@ class _PembayaranScreenState extends State<PembayaranScreen> {
     await Future.delayed(const Duration(seconds: 1));
     if (mounted) {
       Navigator.popUntil(context, (route) => route.isFirst);
-      // Trigger refresh of home screen if possible
     }
   }
 
-  Future<void> _savePickupData() async {
-    // Simpan data pengambilan menggunakan PickupService
+  Future<void> _buatTagihan() async {
+    // Simpan data pengambilan ke storage kolektor
     await PickupService.savePickupData(
       userName: widget.userName,
       address: widget.address,
       idPengambilan: widget.idPengambilan,
       selectedItems: widget.selectedItems,
       totalPrice: widget.totalPrice,
-      imagePath: widget.photoUrl ?? 'assets/images/dummy.jpg', // Use photo_url from API
+      imagePath: widget.photoUrl ?? 'assets/images/dummy.jpg',
     );
 
-    // Tambahkan ke riwayat pembayaran user
-    await _saveToUserRiwayatPembayaran();
+    // Buat tagihan untuk user (BUKAN pembayaran langsung)
+    await _buatTagihanUntukUser();
     
-    // Tambahkan notifikasi ke user
-    await _addUserNotification();
+    // Kirim notifikasi tagihan baru ke user
+    await _kirimNotifikasiTagihan();
   }
 
-  Future<void> _saveToUserRiwayatPembayaran() async {
+  Future<void> _buatTagihanUntukUser() async {
     try {
-      // Import service (tambahkan di top file)
-      // import '../user/riwayat_pembayaran_service.dart';
-      
-      // Buat data riwayat pembayaran
-      final riwayatData = {
+      // Buat data tagihan (BUKAN pembayaran yang sudah selesai)
+      final tagihanData = {
         'id': widget.idPengambilan,
-        'namaKolektor': 'Kolektor Sampah', // Bisa diganti dengan nama kolektor yang login
+        'namaKolektor': 'Kolektor Sampah',
         'alamat': widget.address,
         'items': widget.selectedItems,
         'totalHarga': widget.totalPrice,
         'tanggalPengambilan': DateTime.now().toIso8601String(),
-        'status': 'Selesai',
-        'metodePembayaran': 'Tunai',
+        'status': 'Menunggu Pembayaran', // STATUS PENDING!
+        'metodePembayaran': null, // Belum dibayar
+        'tanggalJatuhTempo': DateTime.now().add(Duration(days: 30)).toIso8601String(), // 30 hari dari sekarang
         'createdAt': DateTime.now().toIso8601String(),
       };
       
-      // Simpan menggunakan RiwayatPembayaranService
+      // Simpan sebagai tagihan pending
       final prefs = await SharedPreferences.getInstance();
-      final existingData = prefs.getStringList('riwayat_pembayaran') ?? [];
-      existingData.insert(0, jsonEncode(riwayatData));
-      await prefs.setStringList('riwayat_pembayaran', existingData);
+      final existingTagihan = prefs.getStringList('riwayat_pembayaran') ?? [];
+      existingTagihan.insert(0, jsonEncode(tagihanData));
+      await prefs.setStringList('riwayat_pembayaran', existingTagihan);
+      
+      print('Tagihan berhasil dibuat untuk user: ${widget.idPengambilan}');
     } catch (e) {
-      print('Error saving to riwayat pembayaran: $e');
+      print('Error creating tagihan: $e');
     }
   }
 
-  Future<void> _addUserNotification() async {
+  Future<void> _kirimNotifikasiTagihan() async {
     try {
       final totalFormatted = 'Rp ${widget.totalPrice.toStringAsFixed(0).replaceAllMapped(
         RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
         (Match m) => '${m[1]}.',
       )}';
       
-      final message = 'Pembayaran sampah sebesar $totalFormatted telah selesai. ID: ${widget.idPengambilan}';
+      final message = 'Tagihan baru dari kolektor sebesar $totalFormatted. ID: ${widget.idPengambilan}. Silakan bayar sebelum akhir bulan.';
       
-      // Tambahkan notifikasi menggunakan NotificationService yang ada
-      // Gunakan metode addNotification yang sudah ada
+      // Kirim notifikasi tagihan baru (BUKAN pembayaran selesai)
       final prefs = await SharedPreferences.getInstance();
       final notifications = prefs.getStringList('notifications') ?? [];
       
@@ -140,12 +138,15 @@ class _PembayaranScreenState extends State<PembayaranScreen> {
         'message': message,
         'time': DateTime.now().toIso8601String(),
         'isRead': false,
+        'type': 'tagihan_baru', // Type khusus untuk tagihan
       };
       
       notifications.insert(0, jsonEncode(notificationData));
       await prefs.setStringList('notifications', notifications);
+      
+      print('Notifikasi tagihan berhasil dikirim');
     } catch (e) {
-      print('Error adding notification: $e');
+      print('Error sending tagihan notification: $e');
     }
   }
 
@@ -160,7 +161,7 @@ class _PembayaranScreenState extends State<PembayaranScreen> {
           _buildStepLine(1),
           _buildStepItem(2, 'Input Kantong', 'Selesai'),
           _buildStepLine(2),
-          _buildStepItem(3, 'Selesai', 'Progress'),
+          _buildStepItem(3, 'Buat Tagihan', 'Progress'),
         ],
       ),
     );
@@ -248,7 +249,7 @@ class _PembayaranScreenState extends State<PembayaranScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         title: Text(
-          'Pembayaran',
+          'Buat Tagihan',
           style: GoogleFonts.poppins(
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -288,7 +289,7 @@ class _PembayaranScreenState extends State<PembayaranScreen> {
                 ),
                 SizedBox(height: 12),
                 Text(
-                  'Pengambilan Sampah',
+                  'Buat Tagihan Sampah',
                   style: GoogleFonts.poppins(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -484,7 +485,7 @@ class _PembayaranScreenState extends State<PembayaranScreen> {
                   elevation: 0,
                 ),
                 child: Text(
-                  'Lanjutkan',
+                  'Buat Tagihan',
                   style: GoogleFonts.poppins(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
