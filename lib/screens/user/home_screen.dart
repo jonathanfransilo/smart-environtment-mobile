@@ -3,9 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'notification_service.dart';
 import 'notification_screen.dart';
-import 'tips_detail_screen.dart'; 
+import 'tips_detail_screen.dart';
+import 'payment_detail_screen.dart';
+import '../../services/invoice_service.dart'; 
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -25,6 +28,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // unread notification counter
   int _unreadNotifCount = 0;
+
+  // Invoice/Tagihan state
+  final InvoiceService _invoiceService = InvoiceService();
+  List<Map<String, dynamic>> _unpaidInvoices = [];
+  double _totalUnpaidAmount = 0;
+  bool _isLoadingInvoices = false;
+
+  // Currency formatter
+  final currencyFormat = NumberFormat.currency(
+    locale: 'id_ID',
+    symbol: 'Rp ',
+    decimalDigits: 0,
+  );
 
   // TIPS CARD: Page Controller dan state halaman saat ini
   final PageController _tipsController = PageController(viewportFraction: 0.85);
@@ -58,7 +74,34 @@ class _HomeScreenState extends State<HomeScreen> {
     await _loadUser();
     await _loadAkunLayanan(selectLastIfNotFound: true);
     await _loadUnreadNotif();
+    await _loadUnpaidInvoices();
     _hasLoadedAkunOnce = true;
+  }
+
+  /// Load unpaid invoices from API
+  Future<void> _loadUnpaidInvoices() async {
+    if (!mounted) return;
+    setState(() => _isLoadingInvoices = true);
+
+    try {
+      final data = await _invoiceService.getUnpaidInvoices();
+      final invoices = List<Map<String, dynamic>>.from(data['unpaid_invoices'] ?? []);
+      final totalAmount = (data['total_amount'] ?? 0).toDouble();
+
+      if (!mounted) return;
+      setState(() {
+        _unpaidInvoices = invoices;
+        _totalUnpaidAmount = totalAmount;
+        _isLoadingInvoices = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _unpaidInvoices = [];
+        _totalUnpaidAmount = 0;
+        _isLoadingInvoices = false;
+      });
+    }
   }
 
   // Initial loader (name + shimmer)
@@ -382,10 +425,24 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: InkWell(
                   borderRadius: BorderRadius.circular(18),
                   onTap: () async {
-                    if (_akunList.isEmpty) {
+                    // Show payment screen if there are unpaid invoices
+                    if (_unpaidInvoices.isNotEmpty && !_isLoadingInvoices) {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => PaymentDetailScreen(
+                            invoices: _unpaidInvoices,
+                            totalAmount: _totalUnpaidAmount,
+                          ),
+                        ),
+                      );
+                      
+                      // Refresh if payment was successful
+                      if (result == true) {
+                        await _loadUnpaidInvoices();
+                      }
+                    } else if (_akunList.isEmpty) {
                       await _openLayananSampahAndRefresh();
-                    } else {
-                      _showAkunSelector();
                     }
                   },
                   splashColor: const Color.fromARGB(255, 21, 145, 137).withAlpha(51),
@@ -419,7 +476,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(width: 12),
 
-                    // account info (animated)
+                    // Tagihan info (animated)
                     Expanded(
                       child: AnimatedSwitcher(
                         duration: const Duration(milliseconds: 300),
@@ -428,43 +485,77 @@ class _HomeScreenState extends State<HomeScreen> {
                         transitionBuilder: (child, anim) {
                           return FadeTransition(opacity: anim, child: child);
                         },
-                        child: _selectedAkun == null
+                        child: _isLoadingInvoices
                             ? Column(
-                                key: const ValueKey('empty_card'),
+                                key: const ValueKey('loading_card'),
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text("Belum ada akun",
+                                  Text("Memuat tagihan...",
                                       style: GoogleFonts.poppins(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.black)),
-                                  const SizedBox(height: 4),
-                                  Text("Tambahkan akun dulu",
-                                      style: GoogleFonts.poppins(
-                                          fontSize: 13,
-                                          color: const Color.fromARGB(
-                                              255, 21, 145, 137))),
+                                          fontSize: 14,
+                                          color: Colors.black54)),
                                 ],
                               )
-                            : Column(
-                                key: ValueKey(
-                                    'akun_${_selectedAkun!['id'] ?? 'sel'}'),
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(_selectedAkun!["nama"] ?? "Akun Layanan",
-                                      style: GoogleFonts.poppins(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.black)),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                      _selectedAkun!["alamat lengkap"] ?? "-",
-                                      style: GoogleFonts.poppins(
-                                          fontSize: 13,
-                                          color: const Color.fromARGB(
-                                              255, 21, 145, 137))),
-                                ],
-                              ),
+                            : _akunList.isEmpty
+                                ? Column(
+                                    key: const ValueKey('empty_card'),
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text("Belum ada akun",
+                                          style: GoogleFonts.poppins(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.black)),
+                                      const SizedBox(height: 4),
+                                      Text("Tambahkan akun dulu",
+                                          style: GoogleFonts.poppins(
+                                              fontSize: 13,
+                                              color: const Color.fromARGB(
+                                                  255, 21, 145, 137))),
+                                    ],
+                                  )
+                                : _unpaidInvoices.isEmpty
+                                    ? Column(
+                                        key: const ValueKey('no_invoice_card'),
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text("Tidak ada tagihan",
+                                              style: GoogleFonts.poppins(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.black)),
+                                          const SizedBox(height: 4),
+                                          Text("Semua tagihan sudah dibayar",
+                                              style: GoogleFonts.poppins(
+                                                  fontSize: 13,
+                                                  color: const Color.fromARGB(
+                                                      255, 21, 145, 137))),
+                                        ],
+                                      )
+                                    : Column(
+                                        key: ValueKey('invoice_${_unpaidInvoices.length}'),
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text("Total Tagihan",
+                                              style: GoogleFonts.poppins(
+                                                  fontSize: 13,
+                                                  color: Colors.black54)),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                              currencyFormat.format(_totalUnpaidAmount),
+                                              style: GoogleFonts.poppins(
+                                                  fontSize: 18,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.black)),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                              "${_unpaidInvoices.length} Akun Layanan",
+                                              style: GoogleFonts.poppins(
+                                                  fontSize: 11,
+                                                  color: const Color.fromARGB(
+                                                      255, 21, 145, 137))),
+                                        ],
+                                      ),
                       ),
                     ),
 
@@ -473,18 +564,30 @@ class _HomeScreenState extends State<HomeScreen> {
                     SizedBox(
                       height: 42,
                       child: ElevatedButton(
-                        onPressed: () async {
-                          if (_selectedAkun == null) {
-                            await _openLayananSampahAndRefresh();
-                          } else {
-                            await NotificationService.addNotification(
-                                "Pembayaran untuk akun ${_selectedAkun!["nama"]} berhasil.");
-                            await _loadUnreadNotif();
-                            _showSnackBar(
-                                "Pembayaran untuk akun ${_selectedAkun!["nama"]} berhasil!",
-                                true);
-                          }
-                        },
+                        onPressed: _isLoadingInvoices
+                            ? null
+                            : () async {
+                                if (_akunList.isEmpty) {
+                                  await _openLayananSampahAndRefresh();
+                                } else if (_unpaidInvoices.isNotEmpty) {
+                                  final result = await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => PaymentDetailScreen(
+                                        invoices: _unpaidInvoices,
+                                        totalAmount: _totalUnpaidAmount,
+                                      ),
+                                    ),
+                                  );
+                                  
+                                  // Refresh if payment was successful
+                                  if (result == true) {
+                                    await _loadUnpaidInvoices();
+                                  }
+                                } else {
+                                  _showSnackBar("Tidak ada tagihan yang perlu dibayar", false);
+                                }
+                              },
                         style: ElevatedButton.styleFrom(
                           backgroundColor:
                               const Color.fromARGB(255, 21, 145, 137),
@@ -497,7 +600,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           duration: const Duration(milliseconds: 300),
                           transitionBuilder: (child, anim) =>
                               FadeTransition(opacity: anim, child: child),
-                          child: _selectedAkun == null
+                          child: _akunList.isEmpty
                               ? Row(
                                   key: const ValueKey('addBtn'),
                                   mainAxisSize: MainAxisSize.min,
