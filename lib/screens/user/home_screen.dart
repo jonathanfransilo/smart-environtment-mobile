@@ -8,7 +8,8 @@ import 'notification_service.dart';
 import 'notification_screen.dart';
 import 'tips_detail_screen.dart';
 import 'payment_detail_screen.dart';
-import '../../services/invoice_service.dart'; 
+import '../../services/invoice_service.dart';
+import '../../services/service_account_service.dart'; 
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -143,49 +144,94 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  /// Load akun layanan dari SharedPreferences.
+  /// Load akun layanan dari API dan SharedPreferences.
   Future<bool> _loadAkunLayanan({bool selectLastIfNotFound = true}) async {
-    final prefs = await SharedPreferences.getInstance();
     final prevCount = _akunList.length;
-    final data = prefs.getStringList('akun_layanan') ?? [];
+    
+    try {
+      // Try to load from API first
+      final serviceAccountService = ServiceAccountService();
+      final accounts = await serviceAccountService.fetchAccounts();
+      
+      // Convert to Map format for backward compatibility
+      final akunList = accounts.map((account) => {
+        'id': account.id,
+        'nama': account.name,
+        'alamat lengkap': account.address,
+        'phone': account.contactPhone ?? '',
+        'status': account.status,
+      }).toList();
 
-    final akunList = <Map<String, dynamic>>[];
-    for (final s in data) {
-      try {
-        final m = Map<String, dynamic>.from(jsonDecode(s));
-        akunList.add(m);
-      } catch (_) {
-        // ignore malformed entry
-      }
-    }
-
-    if (!mounted) return false;
-    setState(() {
-      _akunList = akunList;
-      if (akunList.isEmpty) {
-        _selectedAkun = null;
-      } else {
-        if (_selectedAkun != null) {
-          final idx = akunList.indexWhere(
-              (a) => a['id']?.toString() == _selectedAkun!['id']?.toString());
-          if (idx != -1) {
-            _selectedAkun = akunList[idx];
-          } else {
-            _selectedAkun =
-                selectLastIfNotFound ? akunList.last : akunList.first;
-          }
+      if (!mounted) return false;
+      setState(() {
+        _akunList = akunList;
+        if (akunList.isEmpty) {
+          _selectedAkun = null;
         } else {
-          _selectedAkun = akunList.isNotEmpty ? akunList.last : null;
+          if (_selectedAkun != null) {
+            final idx = akunList.indexWhere(
+                (a) => a['id']?.toString() == _selectedAkun!['id']?.toString());
+            if (idx != -1) {
+              _selectedAkun = akunList[idx];
+            } else {
+              _selectedAkun =
+                  selectLastIfNotFound ? akunList.last : akunList.first;
+            }
+          } else {
+            _selectedAkun = akunList.isNotEmpty ? akunList.last : null;
+          }
+        }
+      });
+
+      final added = (akunList.length > prevCount);
+      if (_hasLoadedAkunOnce && added) {
+        await NotificationService.addNotification("Akun layanan berhasil dibuat.");
+        await _loadUnreadNotif();
+      }
+      return added;
+    } catch (e) {
+      // Fallback to SharedPreferences if API fails
+      final prefs = await SharedPreferences.getInstance();
+      final data = prefs.getStringList('akun_layanan') ?? [];
+
+      final akunList = <Map<String, dynamic>>[];
+      for (final s in data) {
+        try {
+          final m = Map<String, dynamic>.from(jsonDecode(s));
+          akunList.add(m);
+        } catch (_) {
+          // ignore malformed entry
         }
       }
-    });
 
-    final added = (akunList.length > prevCount);
-    if (_hasLoadedAkunOnce && added) {
-      await NotificationService.addNotification("Akun layanan berhasil dibuat.");
-      await _loadUnreadNotif();
+      if (!mounted) return false;
+      setState(() {
+        _akunList = akunList;
+        if (akunList.isEmpty) {
+          _selectedAkun = null;
+        } else {
+          if (_selectedAkun != null) {
+            final idx = akunList.indexWhere(
+                (a) => a['id']?.toString() == _selectedAkun!['id']?.toString());
+            if (idx != -1) {
+              _selectedAkun = akunList[idx];
+            } else {
+              _selectedAkun =
+                  selectLastIfNotFound ? akunList.last : akunList.first;
+            }
+          } else {
+            _selectedAkun = akunList.isNotEmpty ? akunList.last : null;
+          }
+        }
+      });
+
+      final added = (akunList.length > prevCount);
+      if (_hasLoadedAkunOnce && added) {
+        await NotificationService.addNotification("Akun layanan berhasil dibuat.");
+        await _loadUnreadNotif();
+      }
+      return added;
     }
-    return added;
   }
 
   void _showSnackBar(String message, bool success) {
