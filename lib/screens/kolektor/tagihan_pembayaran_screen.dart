@@ -91,8 +91,12 @@ class _TagihanPembayaranScreenState extends State<TagihanPembayaranScreen> {
       }
       
       // Navigate back to home and refresh
+      // Langsung ke home-kolektor tanpa melalui splash
       if (mounted) {
-        Navigator.popUntil(context, (route) => route.isFirst);
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          '/home-kolektor',
+          (route) => false, // Remove all routes
+        );
       }
     } catch (e) {
       // Close loading
