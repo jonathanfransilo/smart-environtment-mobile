@@ -20,14 +20,19 @@ class TokenStorage {
   }
 
   static Future<String?> getToken() async {
-    if (kIsWeb) {
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getString(_key);
-    } else if (Platform.isAndroid || Platform.isIOS || Platform.isMacOS) {
-      return _storage.read(key: _key);
-    } else {
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getString(_key);
+    try {
+      if (kIsWeb) {
+        final prefs = await SharedPreferences.getInstance();
+        return prefs.getString(_key);
+      } else if (Platform.isAndroid || Platform.isIOS || Platform.isMacOS) {
+        return await _storage.read(key: _key);
+      } else {
+        final prefs = await SharedPreferences.getInstance();
+        return prefs.getString(_key);
+      }
+    } catch (e) {
+      print('❌ [TokenStorage] Error getting token: $e');
+      return null; // Return null jika error
     }
   }
 

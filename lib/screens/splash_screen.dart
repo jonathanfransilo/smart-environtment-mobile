@@ -43,28 +43,73 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _checkAutoLogin() async {
-    await Future.delayed(const Duration(seconds: 2)); // Minimal splash time
-    
-    final token = await TokenStorage.getToken();
-    
-    if (!mounted) return;
-
-    if (token != null && token.isNotEmpty) {
-      // User sudah login, check role untuk redirect
-      final isCollector = await UserStorage.isCollector();
+    try {
+      print('🔍 [Splash] Starting auto-login check...');
+      
+      await Future.delayed(const Duration(seconds: 2)); // Minimal splash time
+      
+      if (!mounted) {
+        print('⚠️ [Splash] Widget not mounted, aborting');
+        return;
+      }
+      
+      final token = await TokenStorage.getToken();
+      print('🔑 [Splash] Token: ${token != null ? "Found (${token.substring(0, 20)}...)" : "Not found"}');
       
       if (!mounted) return;
-      
-      if (isCollector) {
-        Navigator.of(context).pushReplacementNamed('/home-kolektor');
+
+      if (token != null && token.isNotEmpty) {
+        // User sudah login, check role untuk redirect
+        print('👤 [Splash] Checking user role...');
+        final isCollector = await UserStorage.isCollector();
+        print('📋 [Splash] Is collector: $isCollector');
+        
+        if (!mounted) return;
+        
+        // Small delay to ensure context is ready
+        await Future.delayed(const Duration(milliseconds: 100));
+        
+        if (!mounted) return;
+        
+        if (isCollector) {
+          print('🚛 [Splash] Redirecting to collector home...');
+          Navigator.of(context).pushReplacementNamed('/home-kolektor');
+        } else {
+          print('🏠 [Splash] Redirecting to user home...');
+          Navigator.of(context).pushReplacementNamed('/home');
+        }
       } else {
-        Navigator.of(context).pushReplacementNamed('/home');
+        // Belum login, tampilkan tombol
+        print('🔓 [Splash] No token found, showing login button');
+        if (mounted) {
+          setState(() {
+            _isChecking = false;
+          });
+        }
       }
-    } else {
-      // Belum login, tampilkan tombol
-      setState(() {
-        _isChecking = false;
-      });
+    } catch (e, stackTrace) {
+      print('❌ [Splash] Error during auto-login check: $e');
+      print('Stack trace: $stackTrace');
+      
+      // Jika error, tampilkan tombol login sebagai fallback
+      if (mounted) {
+        setState(() {
+          _isChecking = false;
+        });
+        
+        // Optional: Show error snackbar
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Terjadi kesalahan saat memuat aplikasi'),
+            backgroundColor: Colors.red,
+            action: SnackBarAction(
+              label: 'OK',
+              textColor: Colors.white,
+              onPressed: () {},
+            ),
+          ),
+        );
+      }
     }
   }
 

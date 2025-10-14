@@ -69,7 +69,12 @@ class UserStorage {
 
   /// Check apakah user adalah collector
   static Future<bool> isCollector() async {
-    return await hasRole('collector') || await hasRole('kolektor');
+    try {
+      return await hasRole('collector') || await hasRole('kolektor');
+    } catch (e) {
+      print('❌ [UserStorage] Error checking isCollector: $e');
+      return false; // Default to false jika error
+    }
   }
 
   /// Check apakah user adalah warga

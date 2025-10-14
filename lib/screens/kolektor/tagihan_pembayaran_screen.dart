@@ -52,26 +52,202 @@ class _TagihanPembayaranScreenState extends State<TagihanPembayaranScreen> {
   }
 
   Future<void> _lanjutkan() async {
-    // Buat tagihan untuk user (bukan pembayaran langsung)
-    await _buatTagihan();
-    
-    // Show success message
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Tagihan berhasil dibuat dan dikirim ke user!',
-          style: GoogleFonts.poppins(fontSize: 14),
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Center(
+        child: Container(
+          padding: EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(color: Color(0xFF009688)),
+              SizedBox(height: 16),
+              Text(
+                'Membuat tagihan...',
+                style: GoogleFonts.poppins(fontSize: 14),
+              ),
+            ],
+          ),
         ),
-        backgroundColor: Colors.green,
-        duration: const Duration(seconds: 2),
       ),
     );
 
-    // Navigate back to home and refresh
-    await Future.delayed(const Duration(seconds: 1));
-    if (mounted) {
-      Navigator.popUntil(context, (route) => route.isFirst);
+    try {
+      // Buat tagihan untuk user (bukan pembayaran langsung)
+      await _buatTagihan();
+      
+      // Close loading
+      if (mounted) Navigator.pop(context);
+      
+      // Show success dialog
+      if (mounted) {
+        await _showSuccessDialog();
+      }
+      
+      // Navigate back to home and refresh
+      if (mounted) {
+        Navigator.popUntil(context, (route) => route.isFirst);
+      }
+    } catch (e) {
+      // Close loading
+      if (mounted) Navigator.pop(context);
+      
+      // Show error
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Gagal membuat tagihan: $e',
+              style: GoogleFonts.poppins(fontSize: 14),
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
+  }
+
+  Future<void> _showSuccessDialog() async {
+    return showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: Color(0xFF009688).withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.check_circle,
+                color: Color(0xFF009688),
+                size: 48,
+              ),
+            ),
+            SizedBox(height: 16),
+            Text(
+              'Tagihan Berhasil Dibuat!',
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Tagihan telah dikirim ke ${widget.userName}',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 12),
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'ID Pengambilan',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      Text(
+                        '#${widget.idPengambilan}',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Total',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      Text(
+                        'Rp ${widget.totalPrice.toStringAsFixed(0).replaceAllMapped(
+                          RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+                          (Match m) => '${m[1]}.',
+                        )}',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF009688),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: 16),
+            Text(
+              'User akan menerima notifikasi dan dapat membayar melalui aplikasi',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                color: Colors.grey[500],
+                fontStyle: FontStyle.italic,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Color(0xFF009688),
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: Text(
+                'Kembali ke Beranda',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _buatTagihan() async {
