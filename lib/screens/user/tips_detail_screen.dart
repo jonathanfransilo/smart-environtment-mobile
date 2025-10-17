@@ -71,31 +71,6 @@ class TipsDetailScreen extends StatelessWidget {
             ),
             
             const SizedBox(height: 20),
-            
-            // Tombol Aksi (Contoh)
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  // Tambahkan aksi terkait tips, misalnya berbagi
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Tips Berbagi ke Sosial Media!'))
-                  );
-                },
-                icon: const Icon(Icons.share, color: Colors.white),
-                label: Text(
-                  "Bagikan Tips Ini",
-                  style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w600),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color.fromARGB(255, 21, 145, 137),
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
           ],
         ),
       ),

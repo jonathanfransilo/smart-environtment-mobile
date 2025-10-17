@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../services/invoice_service.dart';
+import '../../services/notification_helper.dart';
+import 'riwayat_pembayaran_service.dart';
 
 class PaymentDetailScreen extends StatefulWidget {
   final List<Map<String, dynamic>> invoices;
@@ -30,6 +32,12 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
   );
 
   Future<void> _copyVAAndPay(String vaNumber, int invoiceId) async {
+    // Get VA bank from first invoice
+    final firstInvoice = widget.invoices.isNotEmpty
+        ? widget.invoices.first
+        : null;
+    final vaBank = firstInvoice?['va_bank'] ?? 'BCA';
+
     // Copy to clipboard
     await Clipboard.setData(ClipboardData(text: vaNumber));
 
@@ -57,6 +65,25 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
       // Pay all invoices
       for (var invoice in widget.invoices) {
         await _invoiceService.dummyPay(invoice['id']);
+
+        // Save to riwayat pembayaran
+        final riwayat = {
+          'id': '${invoice['id']}_${DateTime.now().millisecondsSinceEpoch}',
+          'namaKolektor':
+              invoice['service_account']?['name'] ?? 'Layanan Sampah',
+          'alamat': invoice['service_account']?['address'] ?? '-',
+          'items': invoice['items'] ?? [],
+          'totalHarga': (invoice['total_amount'] ?? 0).toDouble(),
+          'tanggalPengambilan': DateTime.now().toIso8601String(),
+          'status': 'Lunas',
+          'metodePembayaran': 'Virtual Account $vaBank',
+          'invoiceNumber': invoice['invoice_number'] ?? '-',
+          'period': invoice['period'] ?? '-',
+          'paidAt': DateTime.now().toIso8601String(),
+          'createdAt': DateTime.now().toIso8601String(),
+        };
+
+        await RiwayatPembayaranService.saveRiwayatPembayaran(riwayat);
       }
 
       if (!mounted) return;
@@ -66,12 +93,23 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
         _isPaid = true;
       });
 
+      // Trigger notifikasi pembayaran berhasil
+      final helper = NotificationHelper();
+      for (var invoice in widget.invoices) {
+        await helper.notifyPaymentSuccess(
+          period: invoice['period'] ?? '',
+          amount: invoice['amount'] ?? 0,
+        );
+      }
+
       // Show success dialog
       await showDialog(
         context: context,
         barrierDismissible: false,
         builder: (context) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -94,7 +132,10 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
               const SizedBox(height: 8),
               Text(
                 'Semua tagihan telah dibayar',
-                style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]),
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                ),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -144,7 +185,9 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
   @override
   Widget build(BuildContext context) {
     // Use first invoice VA number for display (in real app, might have multiple)
-    final firstInvoice = widget.invoices.isNotEmpty ? widget.invoices.first : null;
+    final firstInvoice = widget.invoices.isNotEmpty
+        ? widget.invoices.first
+        : null;
     final vaNumber = firstInvoice?['va_number'] ?? '';
     final vaBank = firstInvoice?['va_bank'] ?? 'BCA';
     final vaFormatted = firstInvoice?['va_number_formatted'] ?? vaNumber;
@@ -190,7 +233,12 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color.fromARGB(255, 21, 145, 137).withAlpha(77),
+                          color: const Color.fromARGB(
+                            255,
+                            21,
+                            145,
+                            137,
+                          ).withAlpha(77),
                           blurRadius: 12,
                           offset: const Offset(0, 6),
                         ),
@@ -247,7 +295,10 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
                             IconButton(
                               onPressed: _isPaid
                                   ? null
-                                  : () => _copyVAAndPay(vaNumber, firstInvoice?['id']),
+                                  : () => _copyVAAndPay(
+                                      vaNumber,
+                                      firstInvoice?['id'],
+                                    ),
                               icon: Icon(
                                 _isPaid ? Icons.check_circle : Icons.copy,
                                 color: Colors.white,
@@ -353,7 +404,12 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
                                 style: GoogleFonts.poppins(
                                   fontSize: 14,
                                   fontWeight: FontWeight.bold,
-                                  color: const Color.fromARGB(255, 21, 145, 137),
+                                  color: const Color.fromARGB(
+                                    255,
+                                    21,
+                                    145,
+                                    137,
+                                  ),
                                 ),
                               ),
                             ],

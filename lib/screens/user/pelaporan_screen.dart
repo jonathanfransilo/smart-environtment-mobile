@@ -2,12 +2,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:intl/intl.dart'; // Import ini dibutuhkan untuk format tanggal
+import 'package:intl/intl.dart';
+import '../../services/notification_helper.dart';
 
 // Fungsi utama untuk menjalankan aplikasi
 void main() {
-  // Pastikan Anda memiliki direktori assets/images/ dan file dummy.jpg
-  // untuk menjalankan kode ini tanpa error.
   runApp(const MyApp());
 }
 
@@ -21,9 +20,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.teal,
         // Mengatur tema warna primer
-        colorScheme: ColorScheme.fromSwatch(
-          primarySwatch: Colors.teal,
-        ),
+        colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.teal),
         useMaterial3: true,
       ),
       home: const PelaporanScreen(), // Mulai dari layar utama
@@ -45,7 +42,7 @@ class Laporan {
   final String ciriCiri;
   final File? imageFile;
   final bool isAsset;
-  final DateTime createdAt; // Tambahkan timestamp
+  final DateTime createdAt; 
 
   Laporan({
     required this.kota,
@@ -55,7 +52,8 @@ class Laporan {
     required this.ciriCiri,
     this.imageFile,
     required this.isAsset,
-  }) : id = DateTime.now().microsecondsSinceEpoch.toString(), // ID unik sederhana
+  }) : id = DateTime.now().microsecondsSinceEpoch
+           .toString(), 
        createdAt = DateTime.now();
 
   // Helper untuk mendapatkan deskripsi singkat
@@ -86,23 +84,28 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
   final TextEditingController _waktuController = TextEditingController();
   final TextEditingController _jamController = TextEditingController();
   final TextEditingController _ciriCiriController = TextEditingController();
-  
+
   // State untuk menyimpan tanggal yang dipilih (opsional, untuk logika)
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
-  
+
   // Pilihan Data Dropdown
   static const String _fixedCity = 'Jakarta'; // Kota tetap Jakarta
 
   static const List<String> _categories = [
-    'Sampah Liar', 'Fasilitas Rusak', 'Tempat Sampah Penuh',
-    'Pengambilan sampah tidak sesuai SOP', 'Warga buang sampah sembarangan',
-    'Warga merusak fasilitas', 'Petugas tidak ramah', 'Lainnya',
+    'Sampah Liar',
+    'Fasilitas Rusak',
+    'Tempat Sampah Penuh',
+    'Pengambilan sampah tidak sesuai SOP',
+    'Warga buang sampah sembarangan',
+    'Warga merusak fasilitas',
+    'Petugas tidak ramah',
+    'Lainnya',
   ];
 
   // State untuk menyimpan nilai yang dipilih
   String? _selectedCategory;
-  
+
   // Kunci form untuk validasi
   final _formKey = GlobalKey<FormState>();
 
@@ -134,7 +137,8 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
       context: context,
       initialDate: _selectedDate ?? DateTime.now(),
       firstDate: DateTime(2000),
-      lastDate: DateTime.now(), // Hanya bisa memilih tanggal hari ini atau sebelumnya
+      lastDate:
+          DateTime.now(), // Hanya bisa memilih tanggal hari ini atau sebelumnya
       helpText: 'Pilih Tanggal Pelanggaran',
       cancelText: 'BATAL',
       confirmText: 'PILIH',
@@ -188,42 +192,47 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: Colors.red,
-            content: Text("Mohon lengkapi semua field yang wajib diisi.", style: GoogleFonts.poppins()),
+            content: Text(
+              "Mohon lengkapi semua field yang wajib diisi.",
+              style: GoogleFonts.poppins(),
+            ),
           ),
         );
         return;
       }
 
       // Ambil semua data dari state dan controller
-      final waktuLengkap = '${_waktuController.text}${_jamController.text.isNotEmpty ? ' pukul ${_jamController.text}' : ''}';
+      final waktuLengkap =
+          '${_waktuController.text}${_jamController.text.isNotEmpty ? ' pukul ${_jamController.text}' : ''}';
       final reportData = {
         'kota': _fixedCity,
         'kategori': _selectedCategory!,
         'lokasi': _lokasiController.text,
-        'waktu_pelanggaran': waktuLengkap, 
+        'waktu_pelanggaran': waktuLengkap,
         'ciri_ciri': _ciriCiriController.text,
       };
 
       // Navigasi ke DetailLaporanScreen
       // ⭐️ BuatLaporanScreen menunggu hasil dari DetailLaporanScreen
-      Navigator.of(context).push(
-        MaterialPageRoute<Laporan>(
-          builder: (ctx) => DetailLaporanScreen(
-            reportData: reportData,
-            imageFile: widget.imageFile,
-            isAsset: widget.isAsset,
-          ),
-        ),
-      ).then((newReport) {
-        // Jika DetailLaporanScreen me-return objek Laporan (artinya dikonfirmasi)
-        if (newReport is Laporan) {
-          // Kirim objek Laporan ini kembali ke PelaporanScreen (pop dua kali)
-          Navigator.of(context).pop(newReport);
-        }
-      });
+      Navigator.of(context)
+          .push(
+            MaterialPageRoute<Laporan>(
+              builder: (ctx) => DetailLaporanScreen(
+                reportData: reportData,
+                imageFile: widget.imageFile,
+                isAsset: widget.isAsset,
+              ),
+            ),
+          )
+          .then((newReport) {
+            // Jika DetailLaporanScreen me-return objek Laporan (artinya dikonfirmasi)
+            if (newReport is Laporan) {
+              // Kirim objek Laporan ini kembali ke PelaporanScreen (pop dua kali)
+              Navigator.of(context).pop(newReport);
+            }
+          });
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -232,14 +241,16 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
     if (widget.isAsset) {
       // Menggunakan Image.asset untuk dummy image (asumsi file ada di assets/images/dummy.jpg)
       imageWidget = Image.asset(
-        "assets/images/dummy.jpg", 
+        "assets/images/dummy.jpg",
         fit: BoxFit.cover,
         height: 200,
         width: double.infinity,
         errorBuilder: (context, error, stackTrace) => Container(
           height: 200,
           color: Colors.grey.shade300,
-          child: const Center(child: Text("Error: Asset dummy.jpg tidak ditemukan")),
+          child: const Center(
+            child: Text("Error: Asset dummy.jpg tidak ditemukan"),
+          ),
         ),
       );
     } else if (widget.imageFile != null) {
@@ -254,7 +265,7 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
       // Kasus fallback
       imageWidget = Container(
         width: double.infinity,
-        height: 200, 
+        height: 200,
         color: Colors.grey.shade300,
         child: const Center(child: Text("Tidak ada gambar")),
       );
@@ -342,7 +353,10 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
               // KOTA TETAP (Jakarta)
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 18,
+                ),
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.grey.shade400),
                   borderRadius: BorderRadius.circular(8),
@@ -374,7 +388,11 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
                       ],
                     ),
                     const Spacer(),
-                    Icon(Icons.check_circle, color: Colors.green.shade600, size: 20),
+                    Icon(
+                      Icons.check_circle,
+                      color: Colors.green.shade600,
+                      size: 20,
+                    ),
                   ],
                 ),
               ),
@@ -384,8 +402,10 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
               DropdownButtonFormField<String>(
                 value: _selectedCategory,
                 decoration: InputDecoration(
-                  labelText: "Kategori", 
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))
+                  labelText: "Kategori",
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
                 items: _buildDropdownItems(_categories),
                 onChanged: (value) {
@@ -394,18 +414,23 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
                   });
                 },
                 hint: const Text('Pilih Kategori'),
-                validator: (value) => value == null ? 'Kategori wajib dipilih.' : null,
+                validator: (value) =>
+                    value == null ? 'Kategori wajib dipilih.' : null,
               ),
               const SizedBox(height: 16),
 
-              // Lokasi 
+              // Lokasi
               TextFormField(
                 controller: _lokasiController,
                 decoration: InputDecoration(
-                  labelText: "Lokasi", 
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))
+                  labelText: "Lokasi",
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
-                validator: (value) => value!.isEmpty ? 'Lokasi wajib diisi.' : null, // Tambahkan validasi
+                validator: (value) => value!.isEmpty
+                    ? 'Lokasi wajib diisi.'
+                    : null, // Tambahkan validasi
               ),
               const SizedBox(height: 16),
 
@@ -415,14 +440,20 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
                 readOnly: true, // Agar keyboard tidak muncul saat diklik
                 onTap: () => _selectDate(context), // Panggil kalender
                 decoration: InputDecoration(
-                  labelText: "Tanggal Pelanggaran", 
+                  labelText: "Tanggal Pelanggaran",
                   hintText: _selectedDate == null ? 'Pilih Tanggal' : null,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  prefixIcon: const Icon(Icons.calendar_today, color: primaryColor),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  prefixIcon: const Icon(
+                    Icons.calendar_today,
+                    color: primaryColor,
+                  ),
                   filled: true,
                   fillColor: Colors.grey.shade50,
                 ),
-                validator: (value) => value!.isEmpty ? 'Tanggal Pelanggaran wajib diisi.' : null,
+                validator: (value) =>
+                    value!.isEmpty ? 'Tanggal Pelanggaran wajib diisi.' : null,
               ),
               const SizedBox(height: 16),
 
@@ -434,7 +465,9 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
                 decoration: InputDecoration(
                   labelText: "Jam Pelanggaran (Opsional)",
                   hintText: "Ketuk untuk memilih jam",
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                   prefixIcon: Container(
                     padding: const EdgeInsets.all(12),
                     child: Container(
@@ -473,13 +506,17 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
                 controller: _ciriCiriController,
                 maxLines: 3,
                 decoration: InputDecoration(
-                  labelText: "Ciri-ciri", 
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))
+                  labelText: "Ciri-ciri",
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
-                validator: (value) => value!.isEmpty ? 'Ciri-ciri wajib diisi.' : null, // Tambahkan validasi
+                validator: (value) => value!.isEmpty
+                    ? 'Ciri-ciri wajib diisi.'
+                    : null, // Tambahkan validasi
               ),
               const SizedBox(height: 32),
-              
+
               // Tombol BUAT LAPORAN
               SizedBox(
                 width: double.infinity,
@@ -488,7 +525,9 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primaryColor,
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                   child: Text(
                     "BUAT LAPORAN",
@@ -523,11 +562,11 @@ class DetailLaporanScreen extends StatelessWidget {
     required this.imageFile,
     required this.isAsset,
   });
-  
+
   static const Color primaryColor = Color.fromARGB(255, 21, 145, 137);
 
   // Fungsi: Menampilkan modal konfirmasi dan mengembalikan objek Laporan
-  void _confirmReport(BuildContext context) {
+  void _confirmReport(BuildContext context) async {
     // 1. Buat objek Laporan baru
     final newReport = Laporan(
       kota: reportData['kota']!,
@@ -539,6 +578,13 @@ class DetailLaporanScreen extends StatelessWidget {
       isAsset: isAsset,
     );
 
+    // Trigger notifikasi pelaporan berhasil dibuat
+    final helper = NotificationHelper();
+    await helper.notifyReportCreated(
+      category: reportData['kategori']!,
+      location: reportData['lokasi']!,
+    );
+
     // 2. Tampilkan Dialog "Pelaporan Selesai"
     showDialog(
       context: context,
@@ -547,8 +593,10 @@ class DetailLaporanScreen extends StatelessWidget {
         return AlertDialog(
           // Menghilangkan padding default agar bisa mengisi seluruh lebar dialog
           contentPadding: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -599,24 +647,34 @@ class DetailLaporanScreen extends StatelessWidget {
                   child: ElevatedButton(
                     onPressed: () {
                       // 1. Tutup Dialog
-                      Navigator.of(dialogContext).pop(); 
-                      
+                      Navigator.of(dialogContext).pop();
+
                       // 2. ⭐️ Kunci: Pop dari DetailLaporanScreen dan kirim objek Laporan
                       // Objek Laporan ini akan diterima oleh BuatLaporanScreen
-                      Navigator.of(context).pop(newReport); 
-                      
+                      Navigator.of(context).pop(newReport);
+
                       // Pesan sukses:
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           backgroundColor: primaryColor,
-                          content: Text("Laporan berhasil dikirim!", style: GoogleFonts.poppins()),
+                          content: Text(
+                            "Laporan berhasil dikirim!",
+                            style: GoogleFonts.poppins(),
+                          ),
                         ),
                       );
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color.fromARGB(255, 68, 180, 219), // Warna biru muda sesuai gambar
+                      backgroundColor: const Color.fromARGB(
+                        255,
+                        68,
+                        180,
+                        219,
+                      ), // Warna biru muda sesuai gambar
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                     child: Text(
                       "OK",
@@ -636,7 +694,7 @@ class DetailLaporanScreen extends StatelessWidget {
       },
     );
   }
-  
+
   // Widget untuk menampilkan sepasang Label dan Value
   Widget _buildDetailRow(String label, String value) {
     return Padding(
@@ -670,14 +728,16 @@ class DetailLaporanScreen extends StatelessWidget {
     Widget imageWidget;
     if (isAsset) {
       imageWidget = Image.asset(
-        "assets/images/dummy.jpg", 
+        "assets/images/dummy.jpg",
         fit: BoxFit.cover,
         height: 200,
         width: double.infinity,
         errorBuilder: (context, error, stackTrace) => Container(
           height: 200,
           color: Colors.grey.shade300,
-          child: const Center(child: Text("Error: Asset dummy.jpg tidak ditemukan")),
+          child: const Center(
+            child: Text("Error: Asset dummy.jpg tidak ditemukan"),
+          ),
         ),
       );
     } else if (imageFile != null) {
@@ -689,7 +749,7 @@ class DetailLaporanScreen extends StatelessWidget {
       );
     } else {
       imageWidget = Container(
-        height: 200, 
+        height: 200,
         width: double.infinity,
         color: Colors.grey.shade300,
         child: const Center(child: Text("Tidak ada gambar")),
@@ -723,12 +783,15 @@ class DetailLaporanScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            
+
             // Detail Data
             _buildDetailRow("Kota", reportData['kota'] ?? '-'),
             _buildDetailRow("Kategori", reportData['kategori'] ?? '-'),
             _buildDetailRow("Lokasi", reportData['lokasi'] ?? '-'),
-            _buildDetailRow("Waktu Pelanggaran", reportData['waktu_pelanggaran'] ?? '-'),
+            _buildDetailRow(
+              "Waktu Pelanggaran",
+              reportData['waktu_pelanggaran'] ?? '-',
+            ),
             _buildDetailRow("Ciri-ciri Pelaku", reportData['ciri_ciri'] ?? '-'),
 
             const SizedBox(height: 32),
@@ -737,11 +800,14 @@ class DetailLaporanScreen extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () => _confirmReport(context), // Panggil fungsi konfirmasi
+                onPressed: () =>
+                    _confirmReport(context), // Panggil fungsi konfirmasi
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryColor,
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
                 child: Text(
                   "KONFIRMASI",
@@ -767,10 +833,7 @@ class DetailLaporanScreen extends StatelessWidget {
 class DetailLaporanTerkirimScreen extends StatelessWidget {
   final Laporan laporan;
 
-  const DetailLaporanTerkirimScreen({
-    super.key,
-    required this.laporan,
-  });
+  const DetailLaporanTerkirimScreen({super.key, required this.laporan});
 
   static const Color primaryColor = Color.fromARGB(255, 21, 145, 137);
 
@@ -815,7 +878,9 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
         errorBuilder: (context, error, stackTrace) => Container(
           height: 200,
           color: Colors.grey.shade300,
-          child: const Center(child: Text("Error: Asset dummy.jpg tidak ditemukan")),
+          child: const Center(
+            child: Text("Error: Asset dummy.jpg tidak ditemukan"),
+          ),
         ),
       );
     } else if (laporan.imageFile != null) {
@@ -912,7 +977,10 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
                   ],
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: primaryColor,
                     borderRadius: BorderRadius.circular(12),
@@ -958,11 +1026,11 @@ class PelaporanScreen extends StatefulWidget {
 
 class _PelaporanScreenState extends State<PelaporanScreen> {
   final ImagePicker _picker = ImagePicker();
-  File? _selectedImageFile; 
-  bool _isDummyImage = false; 
-  
+  File? _selectedImageFile;
+  bool _isDummyImage = false;
+
   // State untuk menyimpan daftar laporan yang sudah dikirim
-  final List<Laporan> _submittedReports = []; 
+  final List<Laporan> _submittedReports = [];
 
   static const Color primaryColor = Color.fromARGB(255, 21, 145, 137);
 
@@ -971,28 +1039,34 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
     // Memastikan ada gambar sebelum navigasi
     if (_selectedImageFile != null || _isDummyImage) {
       // ⭐️ Menangkap hasil pengiriman laporan dari BuatLaporanScreen
-      Navigator.of(context).push(
-        MaterialPageRoute<Laporan>( // Tentukan tipe kembalian adalah Laporan
-          builder: (ctx) => BuatLaporanScreen(
-            imageFile: _selectedImageFile,
-            isAsset: _isDummyImage,
-          ),
-        ),
-      ).then((newReport) {
-        // Membersihkan gambar di layar ini
-        _removeImage();
-        
-        // Memeriksa dan menyimpan laporan baru
-        if (newReport != null) {
-          setState(() {
-            _submittedReports.insert(0, newReport); // Tambahkan di awal daftar
+      Navigator.of(context)
+          .push(
+            MaterialPageRoute<Laporan>(
+              // Tentukan tipe kembalian adalah Laporan
+              builder: (ctx) => BuatLaporanScreen(
+                imageFile: _selectedImageFile,
+                isAsset: _isDummyImage,
+              ),
+            ),
+          )
+          .then((newReport) {
+            // Membersihkan gambar di layar ini
+            _removeImage();
+
+            // Memeriksa dan menyimpan laporan baru
+            if (newReport != null) {
+              setState(() {
+                _submittedReports.insert(
+                  0,
+                  newReport,
+                ); // Tambahkan di awal daftar
+              });
+              // SnackBar sudah ditangani di DetailLaporanScreen
+            }
           });
-          // SnackBar sudah ditangani di DetailLaporanScreen
-        }
-      });
     } else {
-       // Tampilkan opsi jika belum ada gambar yang dipilih
-       _showPickerOptions(context); 
+      // Tampilkan opsi jika belum ada gambar yang dipilih
+      _showPickerOptions(context);
     }
   }
 
@@ -1002,27 +1076,31 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
       final pickedFile = await _picker.pickImage(source: source);
       if (pickedFile != null) {
         setState(() {
-          _selectedImageFile = File(pickedFile.path); 
+          _selectedImageFile = File(pickedFile.path);
           _isDummyImage = false;
         });
       } else {
         // Jika tidak ada gambar dipilih -> pakai dummy asset
         setState(() {
           _isDummyImage = true;
-          _selectedImageFile = null; 
+          _selectedImageFile = null;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Tidak ada gambar, menggunakan dummy image.")),
+          const SnackBar(
+            content: Text("Tidak ada gambar, menggunakan dummy image."),
+          ),
         );
       }
     } catch (e) {
       // Jika error -> fallback ke dummy asset
       setState(() {
         _isDummyImage = true;
-        _selectedImageFile = null; 
+        _selectedImageFile = null;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Error mengambil gambar, menggunakan dummy image.")),
+        const SnackBar(
+          content: Text("Error mengambil gambar, menggunakan dummy image."),
+        ),
       );
     }
     // Langsung pindah ke form jika gambar sudah berhasil dipilih/diganti dengan dummy
@@ -1097,10 +1175,10 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
         height: 280,
         fit: BoxFit.cover,
       );
-    // 2. Jika harus menampilkan dummy asset
+      // 2. Jika harus menampilkan dummy asset
     } else if (_isDummyImage) {
       return Image.asset(
-        "assets/images/dummy.jpg", 
+        "assets/images/dummy.jpg",
         width: 280,
         height: 280,
         fit: BoxFit.cover,
@@ -1108,23 +1186,25 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
           width: 280,
           height: 280,
           color: Colors.grey.shade300,
-          child: const Center(child: Text("Error: Asset dummy.jpg tidak ditemukan")),
+          child: const Center(
+            child: Text("Error: Asset dummy.jpg tidak ditemukan"),
+          ),
         ),
       );
-    // 3. Jika tidak ada gambar (Empty State/List)
+      // 3. Jika tidak ada gambar (Empty State/List)
     } else {
       // ⭐️ Tampilkan daftar laporan jika ada
       if (_submittedReports.isNotEmpty) {
         return _ReportList(reports: _submittedReports);
       }
-      
+
       return _PelaporanEmptyState(
         text: "Ketuk '+' untuk memilih foto dan mulai melapor.",
         color: primaryColor,
       );
     }
   }
-  
+
   // 🔹 Widget untuk tombol FAB yang berubah (Plus atau Centang)
   Widget _buildFloatingActionButton() {
     final bool hasImage = _selectedImageFile != null || _isDummyImage;
@@ -1133,7 +1213,9 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
       backgroundColor: primaryColor,
       // Jika sudah ada gambar, FAB digunakan untuk menavigasi ke form
       // Jika belum ada gambar, FAB digunakan untuk memanggil opsi pilih gambar
-      onPressed: hasImage ? _goToBuatLaporan : () => _showPickerOptions(context), 
+      onPressed: hasImage
+          ? _goToBuatLaporan
+          : () => _showPickerOptions(context),
       child: Icon(
         hasImage ? Icons.check : Icons.add, // Centang jika ada gambar
       ),
@@ -1152,48 +1234,52 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
           style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
         ),
       ),
-      // Gunakan Stack/Center hanya jika menampilkan Preview Gambar, 
+      // Gunakan Stack/Center hanya jika menampilkan Preview Gambar,
       // jika menampilkan List, gunakan Column/Expanded
       body: showImagePreview
           ? Center(
               child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    // Gambar Preview
-                    Container(
-                      width: 280,
-                      height: 280,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
-                            blurRadius: 10,
-                            offset: const Offset(0, 5),
-                          ),
-                        ],
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: _imageDisplayWidget(),
-                      ),
-                    ),
-                    // Tombol Hapus Gambar (X)
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: CircleAvatar(
-                        radius: 18,
-                        backgroundColor: Colors.red.shade600,
-                        child: IconButton(
-                          icon: const Icon(Icons.close, size: 20, color: Colors.white),
-                          padding: EdgeInsets.zero,
-                          onPressed: _removeImage,
+                alignment: Alignment.center,
+                children: [
+                  // Gambar Preview
+                  Container(
+                    width: 280,
+                    height: 280,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 10,
+                          offset: const Offset(0, 5),
                         ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: _imageDisplayWidget(),
+                    ),
+                  ),
+                  // Tombol Hapus Gambar (X)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: CircleAvatar(
+                      radius: 18,
+                      backgroundColor: Colors.red.shade600,
+                      child: IconButton(
+                        icon: const Icon(
+                          Icons.close,
+                          size: 20,
+                          color: Colors.white,
+                        ),
+                        padding: EdgeInsets.zero,
+                        onPressed: _removeImage,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
+              ),
             )
           : Center(
               child: Padding(
@@ -1201,7 +1287,7 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
                 child: _imageDisplayWidget(),
               ),
             ), // Tampilkan Empty State/List dengan Center
-      
+
       floatingActionButton: _buildFloatingActionButton(),
     );
   }
@@ -1236,16 +1322,23 @@ class _ReportList extends StatelessWidget {
         ),
         Expanded(
           child: ListView.builder(
-            padding: const EdgeInsets.only(bottom: 80.0), // Berikan padding di bawah agar FAB tidak menutupi list terakhir
+            padding: const EdgeInsets.only(
+              bottom: 80.0,
+            ), // Berikan padding di bawah agar FAB tidak menutupi list terakhir
             itemCount: reports.length,
             itemBuilder: (context, index) {
               final report = reports[index];
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 elevation: 2,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
                 child: ListTile(
-                  leading: const Icon(Icons.check_circle_outline, color: Colors.green),
+                  leading: const Icon(
+                    Icons.check_circle_outline,
+                    color: Colors.green,
+                  ),
                   title: Text(
                     report.shortDescription,
                     style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
@@ -1259,9 +1352,8 @@ class _ReportList extends StatelessWidget {
                     // Navigasi ke detail laporan yang sudah terkirim
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (ctx) => DetailLaporanTerkirimScreen(
-                          laporan: report,
-                        ),
+                        builder: (ctx) =>
+                            DetailLaporanTerkirimScreen(laporan: report),
                       ),
                     );
                   },
@@ -1274,7 +1366,6 @@ class _ReportList extends StatelessWidget {
     );
   }
 }
-
 
 /// 🔹 Reusable tombol pilihan (Untuk Popup Gallery/Camera)
 class _OptionButton extends StatelessWidget {
@@ -1306,8 +1397,10 @@ class _OptionButton extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             label,
-            style:
-                GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500),
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
       ),
@@ -1328,14 +1421,21 @@ class _PelaporanEmptyState extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: 90,
-          height: 90,
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.2),
-            shape: BoxShape.circle,
+        // Gambar tanpa container circle background
+        Image.asset(
+          'assets/images/pelaporan.png',
+          width: 180,
+          height: 180,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) => Container(
+            width: 180,
+            height: 180,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.info, size: 60, color: color),
           ),
-          child: Icon(Icons.info, size: 40, color: color),
         ),
         const SizedBox(height: 16),
         Padding(
@@ -1343,7 +1443,7 @@ class _PelaporanEmptyState extends StatelessWidget {
           child: Text(
             text,
             style: GoogleFonts.poppins(
-              fontSize: 16, 
+              fontSize: 16,
               fontWeight: FontWeight.w400,
               color: Colors.grey[600],
             ),

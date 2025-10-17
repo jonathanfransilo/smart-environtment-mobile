@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:intl/intl.dart';
 import 'tambah_akun_layanan_screen.dart'; // Pastikan file ini ada di project Anda
 import 'riwayat_pengambilan_screen.dart';
 
 import '../../models/service_account.dart';
 import '../../services/service_account_service.dart';
 import '../../services/resident_pickup_service.dart';
+import '../../services/invoice_service.dart';
 
 /// 🔹 Halaman utama daftar akun layanan
 class LayananSampahScreen extends StatefulWidget {
@@ -153,10 +155,7 @@ class _LayananSampahScreenState extends State<LayananSampahScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SvgPicture.asset(
-              iconPath,
-              height: 50,
-            ),
+            SvgPicture.asset(iconPath, height: 50),
             const SizedBox(height: 12),
             Text(
               title,
@@ -262,90 +261,91 @@ class _LayananSampahScreenState extends State<LayananSampahScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         itemCount: _accounts.length,
         itemBuilder: (context, index) {
-        final akun = _accounts[index];
-        return GestureDetector(
-          onTap: () async {
-            final deleted = await Navigator.push<bool>(
-              context,
-              MaterialPageRoute(
-                builder: (context) => DetailAkunLayananScreen(
-                  akun: akun,
-                ),
-              ),
-            );
-
-            if (!context.mounted) return;
-
-            if (deleted == true) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Akun berhasil dihapus'),
-                  backgroundColor: Color(0xFF4CAF50),
+          final akun = _accounts[index];
+          return GestureDetector(
+            onTap: () async {
+              final deleted = await Navigator.push<bool>(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => DetailAkunLayananScreen(akun: akun),
                 ),
               );
-              await _loadAkunLayanan();
-            }
-          },
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withAlpha(13),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 26,
-                  backgroundColor: const Color(0xFF4CAF50).withAlpha(38),
-                  child: const Icon(Icons.home, color: Color(0xFF4CAF50)),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        akun.id,
-                        style: GoogleFonts.poppins(
-                          color: Colors.grey[600],
-                          fontSize: 12,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        akun.name,
-                        style: GoogleFonts.poppins(
-                          color: Colors.black,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        akun.address,
-                        style: GoogleFonts.poppins(
-                          color: Colors.grey[700],
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
+
+              if (!context.mounted) return;
+
+              if (deleted == true) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Akun berhasil dihapus'),
+                    backgroundColor: Color(0xFF4CAF50),
                   ),
-                ),
-                const Icon(Icons.arrow_forward_ios,
-                    size: 18, color: Colors.grey),
-              ],
+                );
+                await _loadAkunLayanan();
+              }
+            },
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withAlpha(13),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 26,
+                    backgroundColor: const Color(0xFF4CAF50).withAlpha(38),
+                    child: const Icon(Icons.home, color: Color(0xFF4CAF50)),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          akun.id,
+                          style: GoogleFonts.poppins(
+                            color: Colors.grey[600],
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          akun.name,
+                          style: GoogleFonts.poppins(
+                            color: Colors.black,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          akun.address,
+                          style: GoogleFonts.poppins(
+                            color: Colors.grey[700],
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(
+                    Icons.arrow_forward_ios,
+                    size: 18,
+                    color: Colors.grey,
+                  ),
+                ],
+              ),
             ),
-          ),
-        );
-      },
+          );
+        },
       ),
     );
   }
@@ -361,11 +361,9 @@ class DetailAkunLayananScreen extends StatelessWidget {
   static final ServiceAccountService _serviceAccountService =
       ServiceAccountService();
   static final ResidentPickupService _pickupService = ResidentPickupService();
+  static final InvoiceService _invoiceService = InvoiceService();
 
-  const DetailAkunLayananScreen({
-    super.key,
-    required this.akun,
-  });
+  const DetailAkunLayananScreen({super.key, required this.akun});
 
   /// 🔹 Popup Status - Menampilkan status pickup hari ini
   Future<void> _showStatusDialog(BuildContext context) async {
@@ -399,14 +397,15 @@ class DetailAkunLayananScreen extends StatelessWidget {
     final (success, message, pickups) = await _pickupService.getUpcomingPickups(
       serviceAccountId: akun.id,
     );
-    
+
     // Tutup loading dialog
     if (context.mounted) Navigator.pop(context);
 
     // Filter hanya pickup hari ini
     final today = DateTime.now();
-    final todayStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
-    
+    final todayStr =
+        '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+
     final todayPickup = pickups?.where((pickup) {
       final pickupDate = pickup['pickup_date'] as String?;
       return pickupDate == todayStr;
@@ -427,12 +426,14 @@ class DetailAkunLayananScreen extends StatelessWidget {
     // Ada jadwal hari ini, ambil yang pertama
     final pickup = todayPickup.first;
     final status = pickup['status'] as String? ?? 'scheduled';
-    final confirmationStatus = pickup['confirmation_status'] as String? ?? 'pending';
+    final confirmationStatus =
+        pickup['confirmation_status'] as String? ?? 'pending';
     final pickupDate = pickup['pickup_date'] as String? ?? '-';
     final dayName = pickup['day_name'] as String? ?? '-';
-    
+
     final collectorInfo = pickup['collector_info'] as Map<String, dynamic>?;
-    final collectorName = collectorInfo?['name'] as String? ?? 'Belum ditentukan';
+    final collectorName =
+        collectorInfo?['name'] as String? ?? 'Belum ditentukan';
     final collectorPhone = collectorInfo?['phone_number'] as String? ?? '-';
 
     if (context.mounted) {
@@ -504,11 +505,7 @@ class DetailAkunLayananScreen extends StatelessWidget {
                       shape: BoxShape.circle,
                       color: statusColor.withAlpha(26),
                     ),
-                    child: Icon(
-                      statusIcon,
-                      size: 48,
-                      color: statusColor,
-                    ),
+                    child: Icon(statusIcon, size: 48, color: statusColor),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -523,13 +520,13 @@ class DetailAkunLayananScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-                
+
                 // Detail informasi pickup (hanya jika ada jadwal hari ini)
                 if (status != 'no_schedule') ...[
                   const SizedBox(height: 24),
                   const Divider(),
                   const SizedBox(height: 16),
-                  
+
                   // Tanggal Pickup
                   if (pickupDate != null && dayName != null) ...[
                     _buildInfoRow(
@@ -539,7 +536,7 @@ class DetailAkunLayananScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                   ],
-                  
+
                   // Kolektor
                   if (collectorName != null) ...[
                     _buildInfoRow(
@@ -549,7 +546,7 @@ class DetailAkunLayananScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                   ],
-                  
+
                   // Nomor Telepon Kolektor
                   if (collectorPhone != null && collectorPhone != '-') ...[
                     _buildInfoRow(
@@ -560,7 +557,7 @@ class DetailAkunLayananScreen extends StatelessWidget {
                     const SizedBox(height: 12),
                   ],
                 ],
-                
+
                 const SizedBox(height: 24),
                 SizedBox(
                   width: double.infinity,
@@ -623,43 +620,358 @@ class DetailAkunLayananScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _hapusAkun(BuildContext context) async {
+  Future<void> _nonaktifkanAkun(BuildContext context) async {
+    // Tampilkan loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Center(
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(
+                'Memeriksa tagihan...',
+                style: GoogleFonts.poppins(fontSize: 14),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
     try {
+      // Check tagihan yang belum dibayar
+      final invoiceData = await _invoiceService.getUnpaidInvoices();
+
+      // Tutup loading dialog
+      if (!context.mounted) return;
+      Navigator.pop(context);
+
+      final invoices = invoiceData['unpaid_invoices'] as List<dynamic>?;
+      final totalAmount = invoiceData['total_amount'] as num? ?? 0;
+
+      // Jika ada tagihan yang belum dibayar
+      if (invoices != null && invoices.isNotEmpty) {
+        _showTagihanBelumLunasDialog(context, invoices, totalAmount);
+        return;
+      }
+
+      // Jika tidak ada tagihan, lanjutkan nonaktifkan akun
       await _serviceAccountService.deleteAccount(akun.id);
+
       if (!context.mounted) return;
 
-      Navigator.pop(context, true);
+      // Tampilkan success dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF4CAF50),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.check, color: Colors.white, size: 48),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Akun Berhasil Dinonaktifkan',
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Akun layanan telah dinonaktifkan. Anda dapat mengaktifkan kembali akun ini kapan saja.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: Colors.grey[700],
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(ctx); // tutup dialog
+                    Navigator.pop(context, true); // kembali ke list
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4CAF50),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: Text(
+                    'OK',
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
     } catch (error) {
+      // Tutup loading jika masih ada
+      if (context.mounted) {
+        Navigator.pop(context);
+      }
+
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Gagal menghapus akun: $error'),
+          content: Text('Gagal menonaktifkan akun: $error'),
           backgroundColor: Colors.redAccent,
         ),
       );
     }
   }
 
-  void _konfirmasiHapus(BuildContext context) {
+  void _showTagihanBelumLunasDialog(
+    BuildContext context,
+    List<dynamic> invoices,
+    num totalAmount,
+  ) {
+    final currencyFormat = NumberFormat.currency(
+      locale: 'id_ID',
+      symbol: 'Rp ',
+      decimalDigits: 0,
+    );
+
     showDialog(
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          title: const Text("Hapus Akun"),
-          content: const Text("Apakah Anda yakin ingin menghapus akun ini?"),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Icon warning
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade100,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.warning_amber_rounded,
+                  color: Colors.orange.shade700,
+                  size: 48,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Title
+              Text(
+                'Tidak Dapat Dinonaktifkan',
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Message
+              Text(
+                'Akun ini masih memiliki tagihan yang belum dibayar. Silakan lunasi tagihan terlebih dahulu sebelum menonaktifkan akun.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: Colors.grey[700],
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Info tagihan
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Jumlah Tagihan:',
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                        Text(
+                          '${invoices.length} tagihan',
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.red.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Total Belum Dibayar:',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Text(
+                          currencyFormat.format(totalAmount),
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.red.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: Text(
+                        'Tutup',
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(ctx); // tutup dialog
+                        // Navigate ke halaman pembayaran atau riwayat pembayaran
+                        // Anda bisa implement navigasi ke payment screen di sini
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Silakan bayar tagihan di menu Home',
+                              style: GoogleFonts.poppins(),
+                            ),
+                            backgroundColor: const Color(0xFF4CAF50),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4CAF50),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: Text(
+                        'Bayar',
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _konfirmasiNonaktifkan(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: [
+              const Icon(Icons.block, color: Colors.orange),
+              const SizedBox(width: 8),
+              Text(
+                "Nonaktifkan Akun",
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          content: Text(
+            "Apakah Anda yakin ingin menonaktifkan akun layanan ini? Akun yang dinonaktifkan dapat diaktifkan kembali kapan saja.",
+            style: GoogleFonts.poppins(fontSize: 14),
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text("Batal"),
+              child: Text(
+                "Batal",
+                style: GoogleFonts.poppins(color: Colors.grey),
+              ),
             ),
-            TextButton(
+            ElevatedButton(
               onPressed: () async {
                 Navigator.pop(ctx);
-                await _hapusAkun(context);
+                await _nonaktifkanAkun(context);
               },
-              child: const Text(
-                "Hapus",
-                style: TextStyle(color: Colors.red),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: Text(
+                "Nonaktifkan",
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
               ),
             ),
           ],
@@ -709,8 +1021,11 @@ class DetailAkunLayananScreen extends StatelessWidget {
                   CircleAvatar(
                     radius: 30,
                     backgroundColor: const Color(0xFF4CAF50).withAlpha(38),
-                    child: const Icon(Icons.home,
-                        size: 32, color: Color(0xFF4CAF50)),
+                    child: const Icon(
+                      Icons.home,
+                      size: 32,
+                      color: Color(0xFF4CAF50),
+                    ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -718,7 +1033,7 @@ class DetailAkunLayananScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                            akun.name,
+                          akun.name,
                           style: GoogleFonts.poppins(
                             fontSize: 18,
                             fontWeight: FontWeight.w600,
@@ -727,7 +1042,7 @@ class DetailAkunLayananScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                            akun.address,
+                          akun.address,
                           style: GoogleFonts.poppins(
                             fontSize: 14,
                             color: Colors.grey[700],
@@ -742,12 +1057,12 @@ class DetailAkunLayananScreen extends StatelessWidget {
             const SizedBox(height: 24),
 
             /// Info List
-      _infoCard(Icons.badge, "ID Akun", akun.id),
-      _infoCard(Icons.person, "Nama", akun.name),
-      _infoCard(Icons.phone, "Kontak", akun.contactPhone ?? '-'),
-      _infoCard(Icons.location_on, "Alamat Lengkap", akun.address),
-      _infoCard(Icons.map, "Kecamatan", akun.kecamatanName ?? '-'),
-      _infoCard(Icons.home_work, "Kelurahan", akun.kelurahanName ?? '-'),
+            _infoCard(Icons.badge, "ID Akun", akun.id),
+            _infoCard(Icons.person, "Nama", akun.name),
+            _infoCard(Icons.phone, "Kontak", akun.contactPhone ?? '-'),
+            _infoCard(Icons.location_on, "Alamat Lengkap", akun.address),
+            _infoCard(Icons.map, "Kecamatan", akun.kecamatanName ?? '-'),
+            _infoCard(Icons.home_work, "Kelurahan", akun.kelurahanName ?? '-'),
 
             const SizedBox(height: 24),
 
@@ -769,8 +1084,11 @@ class DetailAkunLayananScreen extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.calendar_today,
-                      color: Color(0xFF4CAF50), size: 20),
+                  const Icon(
+                    Icons.calendar_today,
+                    color: Color(0xFF4CAF50),
+                    size: 20,
+                  ),
                   const SizedBox(width: 10),
                   Text(
                     akun.hariPengangkutan ?? "Senin & Kamis",
@@ -834,15 +1152,16 @@ class DetailAkunLayananScreen extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 12),
-                // Baris 2: Hapus Akun
+                // Baris 2: Nonaktifkan Akun
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: () => _konfirmasiHapus(context),
-                    icon: const Icon(Icons.delete),
-                    label: const Text("Hapus Akun"),
+                    onPressed: () => _konfirmasiNonaktifkan(context),
+                    icon: const Icon(Icons.block),
+                    label: const Text("Nonaktifkan Akun"),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color.fromARGB(255, 220, 61, 61),
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),

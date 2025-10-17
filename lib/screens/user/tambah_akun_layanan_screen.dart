@@ -14,6 +14,7 @@ import '../../models/service_account.dart';
 import '../../services/area_service.dart';
 import '../../services/config_service.dart';
 import '../../services/service_account_service.dart';
+import '../../services/notification_helper.dart';
 
 class TambahAkunLayananScreen extends StatefulWidget {
   const TambahAkunLayananScreen({super.key});
@@ -302,6 +303,12 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
       );
 
       if (!mounted) return;
+
+      // Trigger notifikasi akun layanan berhasil dibuat
+      final helper = NotificationHelper();
+      await helper.notifyServiceAccountCreated(
+        accountName: account.name,
+      );
 
       _showSuccessBottomSheet(context, account);
     } catch (error) {

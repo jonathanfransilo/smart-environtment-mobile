@@ -912,7 +912,7 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
           ),
           const SizedBox(height: 20),
           Text(
-            'Belum Ada Tagihan & Pembayaran',
+            'Belum Ada Pembayaran',
             style: GoogleFonts.poppins(
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -921,7 +921,7 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Tagihan dan riwayat pembayaran akan muncul setelah kolektor membuat tagihan dari pengambilan sampah',
+            'riwayat pembayaran akan muncul setelah kolektor membuat tagihan dari pengambilan sampah',
             textAlign: TextAlign.center,
             style: GoogleFonts.poppins(
               fontSize: 14,

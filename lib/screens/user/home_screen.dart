@@ -9,7 +9,8 @@ import 'notification_screen.dart';
 import 'tips_detail_screen.dart';
 import 'payment_detail_screen.dart';
 import '../../services/invoice_service.dart';
-import '../../services/service_account_service.dart'; 
+import '../../services/service_account_service.dart';
+import '../../services/notification_helper.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -45,7 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // TIPS CARD: Page Controller dan state halaman saat ini
   final PageController _tipsController = PageController(viewportFraction: 0.85);
-  int _currentPage = 0; 
+  int _currentPage = 0;
 
   @override
   void initState() {
@@ -77,6 +78,23 @@ class _HomeScreenState extends State<HomeScreen> {
     await _loadUnreadNotif();
     await _loadUnpaidInvoices();
     _hasLoadedAkunOnce = true;
+
+    // Check dan trigger notifikasi otomatis
+    await _checkAutomaticNotifications();
+  }
+
+  /// Check semua notifikasi otomatis (jadwal, tagihan, artikel)
+  Future<void> _checkAutomaticNotifications() async {
+    try {
+      final helper = NotificationHelper();
+      await helper.checkAndTriggerNotifications(
+        serviceAccountId: _selectedAkun?['id']?.toString(),
+      );
+      // Refresh unread count setelah check notifikasi
+      await _loadUnreadNotif();
+    } catch (e) {
+      print('Error checking automatic notifications: $e');
+    }
   }
 
   /// Load unpaid invoices from API
@@ -86,8 +104,25 @@ class _HomeScreenState extends State<HomeScreen> {
 
     try {
       final data = await _invoiceService.getUnpaidInvoices();
-      final invoices = List<Map<String, dynamic>>.from(data['unpaid_invoices'] ?? []);
-      final totalAmount = (data['total_amount'] ?? 0).toDouble();
+      var invoices = List<Map<String, dynamic>>.from(
+        data['unpaid_invoices'] ?? [],
+      );
+
+      // Filter by selected account if one is selected
+      if (_selectedAkun != null && _akunList.length > 1) {
+        final selectedAccountId = _selectedAkun!['id']?.toString();
+        invoices = invoices.where((invoice) {
+          final serviceAccount = invoice['service_account'];
+          if (serviceAccount == null) return false;
+          return serviceAccount['id']?.toString() == selectedAccountId;
+        }).toList();
+      }
+
+      // Calculate total amount for filtered invoices
+      final totalAmount = invoices.fold<double>(
+        0.0,
+        (sum, invoice) => sum + ((invoice['total_amount'] ?? 0).toDouble()),
+      );
 
       if (!mounted) return;
       setState(() {
@@ -147,20 +182,24 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Load akun layanan dari API dan SharedPreferences.
   Future<bool> _loadAkunLayanan({bool selectLastIfNotFound = true}) async {
     final prevCount = _akunList.length;
-    
+
     try {
       // Try to load from API first
       final serviceAccountService = ServiceAccountService();
       final accounts = await serviceAccountService.fetchAccounts();
-      
+
       // Convert to Map format for backward compatibility
-      final akunList = accounts.map((account) => {
-        'id': account.id,
-        'nama': account.name,
-        'alamat lengkap': account.address,
-        'phone': account.contactPhone ?? '',
-        'status': account.status,
-      }).toList();
+      final akunList = accounts
+          .map(
+            (account) => {
+              'id': account.id,
+              'nama': account.name,
+              'alamat lengkap': account.address,
+              'phone': account.contactPhone ?? '',
+              'status': account.status,
+            },
+          )
+          .toList();
 
       if (!mounted) return false;
       setState(() {
@@ -170,12 +209,14 @@ class _HomeScreenState extends State<HomeScreen> {
         } else {
           if (_selectedAkun != null) {
             final idx = akunList.indexWhere(
-                (a) => a['id']?.toString() == _selectedAkun!['id']?.toString());
+              (a) => a['id']?.toString() == _selectedAkun!['id']?.toString(),
+            );
             if (idx != -1) {
               _selectedAkun = akunList[idx];
             } else {
-              _selectedAkun =
-                  selectLastIfNotFound ? akunList.last : akunList.first;
+              _selectedAkun = selectLastIfNotFound
+                  ? akunList.last
+                  : akunList.first;
             }
           } else {
             _selectedAkun = akunList.isNotEmpty ? akunList.last : null;
@@ -185,7 +226,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
       final added = (akunList.length > prevCount);
       if (_hasLoadedAkunOnce && added) {
-        await NotificationService.addNotification("Akun layanan berhasil dibuat.");
+        await NotificationService.addNotification(
+          "Akun layanan berhasil dibuat.",
+        );
         await _loadUnreadNotif();
       }
       return added;
@@ -212,12 +255,14 @@ class _HomeScreenState extends State<HomeScreen> {
         } else {
           if (_selectedAkun != null) {
             final idx = akunList.indexWhere(
-                (a) => a['id']?.toString() == _selectedAkun!['id']?.toString());
+              (a) => a['id']?.toString() == _selectedAkun!['id']?.toString(),
+            );
             if (idx != -1) {
               _selectedAkun = akunList[idx];
             } else {
-              _selectedAkun =
-                  selectLastIfNotFound ? akunList.last : akunList.first;
+              _selectedAkun = selectLastIfNotFound
+                  ? akunList.last
+                  : akunList.first;
             }
           } else {
             _selectedAkun = akunList.isNotEmpty ? akunList.last : null;
@@ -227,7 +272,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
       final added = (akunList.length > prevCount);
       if (_hasLoadedAkunOnce && added) {
-        await NotificationService.addNotification("Akun layanan berhasil dibuat.");
+        await NotificationService.addNotification(
+          "Akun layanan berhasil dibuat.",
+        );
         await _loadUnreadNotif();
       }
       return added;
@@ -240,8 +287,10 @@ class _HomeScreenState extends State<HomeScreen> {
       SnackBar(
         content: Row(
           children: [
-            Icon(success ? Icons.check_circle : Icons.cancel,
-                color: Colors.white),
+            Icon(
+              success ? Icons.check_circle : Icons.cancel,
+              color: Colors.white,
+            ),
             const SizedBox(width: 8),
             Expanded(child: Text(message, style: GoogleFonts.poppins())),
           ],
@@ -286,16 +335,21 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
                   children: [
-                    Text("Pilih Akun Layanan",
-                        style: GoogleFonts.poppins(
-                            fontSize: 16, fontWeight: FontWeight.bold)),
+                    Text(
+                      "Pilih Akun Layanan",
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     const Spacer(),
                     TextButton.icon(
                       onPressed: () async {
                         Navigator.pop(context);
                         await Navigator.pushNamed(context, '/layanan-sampah');
-                        final added =
-                            await _loadAkunLayanan(selectLastIfNotFound: true);
+                        final added = await _loadAkunLayanan(
+                          selectLastIfNotFound: true,
+                        );
                         if (added) await _loadUnreadNotif();
                       },
                       icon: const Icon(Icons.add),
@@ -313,33 +367,49 @@ class _HomeScreenState extends State<HomeScreen> {
                   separatorBuilder: (_, __) => const Divider(height: 1),
                   itemBuilder: (context, index) {
                     final akun = _akunList[index];
-                    final isSelected = _selectedAkun != null &&
+                    final isSelected =
+                        _selectedAkun != null &&
                         akun['id']?.toString() ==
                             _selectedAkun!['id']?.toString();
                     return ListTile(
                       leading: CircleAvatar(
-                        backgroundColor:
-                            const Color.fromARGB(255, 21, 145, 137)
-                                .withAlpha(31), // Sesuaikan warna
-                        child: const Icon(Icons.home,
-                            color: Color.fromARGB(255, 21, 145, 137)),
+                        backgroundColor: const Color.fromARGB(
+                          255,
+                          21,
+                          145,
+                          137,
+                        ).withAlpha(31), // Sesuaikan warna
+                        child: const Icon(
+                          Icons.home,
+                          color: Color.fromARGB(255, 21, 145, 137),
+                        ),
                       ),
-                      title: Text(akun["nama"] ?? "Akun Layanan",
-                          style: GoogleFonts.poppins(
-                              fontWeight: isSelected
-                                  ? FontWeight.w700
-                                  : FontWeight.w600)),
-                      subtitle: Text(akun["alamat lengkap"] ?? "-",
-                          style: GoogleFonts.poppins(fontSize: 13)),
+                      title: Text(
+                        akun["nama"] ?? "Akun Layanan",
+                        style: GoogleFonts.poppins(
+                          fontWeight: isSelected
+                              ? FontWeight.w700
+                              : FontWeight.w600,
+                        ),
+                      ),
+                      subtitle: Text(
+                        akun["alamat lengkap"] ?? "-",
+                        style: GoogleFonts.poppins(fontSize: 13),
+                      ),
                       trailing: isSelected
-                          ? const Icon(Icons.check_circle,
-                              color: Color.fromARGB(255, 21, 145, 137))
+                          ? const Icon(
+                              Icons.check_circle,
+                              color: Color.fromARGB(255, 21, 145, 137),
+                            )
                           : null,
-                      onTap: () {
+                      onTap: () async {
                         setState(() {
                           _selectedAkun = akun;
                         });
                         Navigator.pop(context);
+
+                        // Reload invoices for selected account
+                        await _loadUnpaidInvoices();
                       },
                     );
                   },
@@ -378,10 +448,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             Text(
               "Selamat Datang",
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                color: Colors.black54,
-              ),
+              style: GoogleFonts.poppins(fontSize: 14, color: Colors.black54),
             ),
           ],
         ),
@@ -412,7 +479,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       shape: BoxShape.circle,
                     ),
                     constraints: const BoxConstraints(
-                        minWidth: 16, minHeight: 16),
+                      minWidth: 16,
+                      minHeight: 16,
+                    ),
                     child: Center(
                       child: Text(
                         _unreadNotifCount > 9 ? '9+' : '$_unreadNotifCount',
@@ -457,10 +526,7 @@ class _HomeScreenState extends State<HomeScreen> {
               builder: (context, value, child) {
                 return Transform.translate(
                   offset: Offset(0, 20 * (1 - value)),
-                  child: Opacity(
-                    opacity: value,
-                    child: child,
-                  ),
+                  child: Opacity(opacity: value, child: child),
                 );
               },
               child: Material(
@@ -482,16 +548,31 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                       );
-                      
+
                       // Refresh if payment was successful
                       if (result == true) {
                         await _loadUnpaidInvoices();
                       }
                     } else if (_akunList.isEmpty) {
                       await _openLayananSampahAndRefresh();
+                    } else if (_unpaidInvoices.isEmpty &&
+                        _akunList.isNotEmpty) {
+                      // Show account selector when there are accounts but no invoices
+                      _showAkunSelector();
                     }
                   },
-                  splashColor: const Color.fromARGB(255, 21, 145, 137).withAlpha(51),
+                  onLongPress: () async {
+                    // Show account selector on long press when there are multiple accounts
+                    if (_akunList.length > 1) {
+                      _showAkunSelector();
+                    }
+                  },
+                  splashColor: const Color.fromARGB(
+                    255,
+                    21,
+                    145,
+                    137,
+                  ).withAlpha(51),
                   child: Container(
                     decoration: BoxDecoration(
                       image: const DecorationImage(
@@ -501,174 +582,292 @@ class _HomeScreenState extends State<HomeScreen> {
                       borderRadius: BorderRadius.circular(18),
                     ),
                     padding: const EdgeInsets.all(18),
-                child: Row(
-                  children: [
-                    // icon box
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withAlpha(10),
-                            blurRadius: 6,
-                            offset: const Offset(0, 3),
+                    child: Row(
+                      children: [
+                        // icon box
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withAlpha(10),
+                                blurRadius: 6,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                      child:
-                          Image.asset("assets/images/wallet.png", height: 40),
-                    ),
-                    const SizedBox(width: 12),
+                          child: Image.asset(
+                            "assets/images/wallet.png",
+                            height: 40,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
 
-                    // Tagihan info (animated)
-                    Expanded(
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 300),
-                        switchInCurve: Curves.easeInOut,
-                        switchOutCurve: Curves.easeInOut,
-                        transitionBuilder: (child, anim) {
-                          return FadeTransition(opacity: anim, child: child);
-                        },
-                        child: _isLoadingInvoices
-                            ? Column(
-                                key: const ValueKey('loading_card'),
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text("Memuat tagihan...",
-                                      style: GoogleFonts.poppins(
+                        // Tagihan info (animated)
+                        Expanded(
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 300),
+                            switchInCurve: Curves.easeInOut,
+                            switchOutCurve: Curves.easeInOut,
+                            transitionBuilder: (child, anim) {
+                              return FadeTransition(
+                                opacity: anim,
+                                child: child,
+                              );
+                            },
+                            child: _isLoadingInvoices
+                                ? Column(
+                                    key: const ValueKey('loading_card'),
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        "Memuat tagihan...",
+                                        style: GoogleFonts.poppins(
                                           fontSize: 14,
-                                          color: Colors.black54)),
-                                ],
-                              )
-                            : _akunList.isEmpty
+                                          color: Colors.black54,
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : _akunList.isEmpty
                                 ? Column(
                                     key: const ValueKey('empty_card'),
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      Text("Belum ada akun",
-                                          style: GoogleFonts.poppins(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.black)),
+                                      Text(
+                                        "Belum ada akun",
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black,
+                                        ),
+                                      ),
                                       const SizedBox(height: 4),
-                                      Text("Tambahkan akun dulu",
-                                          style: GoogleFonts.poppins(
-                                              fontSize: 13,
-                                              color: const Color.fromARGB(
-                                                  255, 21, 145, 137))),
+                                      Text(
+                                        "Tambahkan akun dulu",
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 13,
+                                          color: const Color.fromARGB(
+                                            255,
+                                            21,
+                                            145,
+                                            137,
+                                          ),
+                                        ),
+                                      ),
                                     ],
                                   )
                                 : _unpaidInvoices.isEmpty
-                                    ? Column(
-                                        key: const ValueKey('no_invoice_card'),
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                ? Column(
+                                    key: const ValueKey('no_invoice_card'),
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        "Tidak ada tagihan",
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        "Semua tagihan sudah dibayar",
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 13,
+                                          color: const Color.fromARGB(
+                                            255,
+                                            21,
+                                            145,
+                                            137,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : Column(
+                                    key: ValueKey(
+                                      'invoice_${_unpaidInvoices.length}',
+                                    ),
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
                                         children: [
-                                          Text("Tidak ada tagihan",
-                                              style: GoogleFonts.poppins(
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.black)),
-                                          const SizedBox(height: 4),
-                                          Text("Semua tagihan sudah dibayar",
-                                              style: GoogleFonts.poppins(
-                                                  fontSize: 13,
-                                                  color: const Color.fromARGB(
-                                                      255, 21, 145, 137))),
-                                        ],
-                                      )
-                                    : Column(
-                                        key: ValueKey('invoice_${_unpaidInvoices.length}'),
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text("Total Tagihan",
-                                              style: GoogleFonts.poppins(
-                                                  fontSize: 13,
-                                                  color: Colors.black54)),
-                                          const SizedBox(height: 4),
                                           Text(
-                                              currencyFormat.format(_totalUnpaidAmount),
-                                              style: GoogleFonts.poppins(
-                                                  fontSize: 18,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.black)),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                              "${_unpaidInvoices.length} Akun Layanan",
-                                              style: GoogleFonts.poppins(
-                                                  fontSize: 11,
-                                                  color: const Color.fromARGB(
-                                                      255, 21, 145, 137))),
+                                            "Total Tagihan",
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 13,
+                                              color: Colors.black54,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          if (_akunList.length > 1)
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 6,
+                                                    vertical: 2,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: const Color.fromARGB(
+                                                  255,
+                                                  21,
+                                                  145,
+                                                  137,
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Text(
+                                                    "Tap untuk ganti akun",
+                                                    style: GoogleFonts.poppins(
+                                                      fontSize: 9,
+                                                      color: Colors.white,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  const Icon(
+                                                    Icons.keyboard_arrow_down,
+                                                    color: Colors.white,
+                                                    size: 12,
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
                                         ],
                                       ),
-                      ),
-                    ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        currencyFormat.format(
+                                          _totalUnpaidAmount,
+                                        ),
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        _selectedAkun != null &&
+                                                _akunList.length > 1
+                                            ? "Akun: ${_selectedAkun!['nama'] ?? 'Unknown'}"
+                                            : _akunList.length > 1
+                                            ? "Semua akun (${_unpaidInvoices.length} tagihan)"
+                                            : "${_unpaidInvoices.length} Tagihan",
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 11,
+                                          color: const Color.fromARGB(
+                                            255,
+                                            21,
+                                            145,
+                                            137,
+                                          ),
+                                          fontWeight: _selectedAkun != null
+                                              ? FontWeight.w600
+                                              : FontWeight.normal,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                          ),
+                        ),
 
-                    // tombol (AnimatedSwitcher)
-                    const SizedBox(width: 12),
-                    SizedBox(
-                      height: 42,
-                      child: ElevatedButton(
-                        onPressed: _isLoadingInvoices
-                            ? null
-                            : () async {
-                                if (_akunList.isEmpty) {
-                                  await _openLayananSampahAndRefresh();
-                                } else if (_unpaidInvoices.isNotEmpty) {
-                                  final result = await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => PaymentDetailScreen(
-                                        invoices: _unpaidInvoices,
-                                        totalAmount: _totalUnpaidAmount,
+                        // tombol (AnimatedSwitcher)
+                        const SizedBox(width: 12),
+                        SizedBox(
+                          height: 42,
+                          child: ElevatedButton(
+                            onPressed: _isLoadingInvoices
+                                ? null
+                                : () async {
+                                    if (_akunList.isEmpty) {
+                                      await _openLayananSampahAndRefresh();
+                                    } else if (_unpaidInvoices.isNotEmpty) {
+                                      final result = await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              PaymentDetailScreen(
+                                                invoices: _unpaidInvoices,
+                                                totalAmount: _totalUnpaidAmount,
+                                              ),
+                                        ),
+                                      );
+
+                                      // Refresh if payment was successful
+                                      if (result == true) {
+                                        await _loadUnpaidInvoices();
+                                      }
+                                    } else {
+                                      _showSnackBar(
+                                        "Tidak ada tagihan yang perlu dibayar",
+                                        false,
+                                      );
+                                    }
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color.fromARGB(
+                                255,
+                                21,
+                                145,
+                                137,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                            ),
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 300),
+                              transitionBuilder: (child, anim) =>
+                                  FadeTransition(opacity: anim, child: child),
+                              child: _akunList.isEmpty
+                                  ? Row(
+                                      key: const ValueKey('addBtn'),
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(
+                                          Icons.add,
+                                          size: 16,
+                                          color: Colors.white,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          "Create",
+                                          style: GoogleFonts.poppins(
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  : Text(
+                                      "Bayar",
+                                      key: const ValueKey('payBtn'),
+                                      style: GoogleFonts.poppins(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
                                       ),
                                     ),
-                                  );
-                                  
-                                  // Refresh if payment was successful
-                                  if (result == true) {
-                                    await _loadUnpaidInvoices();
-                                  }
-                                } else {
-                                  _showSnackBar("Tidak ada tagihan yang perlu dibayar", false);
-                                }
-                              },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor:
-                              const Color.fromARGB(255, 21, 145, 137),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20)),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 8),
+                            ),
+                          ),
                         ),
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 300),
-                          transitionBuilder: (child, anim) =>
-                              FadeTransition(opacity: anim, child: child),
-                          child: _akunList.isEmpty
-                              ? Row(
-                                  key: const ValueKey('addBtn'),
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(Icons.add,
-                                        size: 16, color: Colors.white),
-                                    const SizedBox(width: 6),
-                                    Text("Create",
-                                        style: GoogleFonts.poppins(
-                                            color: Colors.white))
-                                  ],
-                                )
-                              : Text("Bayar",
-                                  key: const ValueKey('payBtn'),
-                                  style: GoogleFonts.poppins(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w600)),
-                        ),
-                      ),
+                      ],
                     ),
-                  ],
-                ),
                   ),
                 ),
               ),
@@ -714,12 +913,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   },
                 ),
                 _menuItem(
-                    "assets/images/artikel.png",
-                    "Artikel",
-                    onTap: () {
-                      Navigator.pushNamed(context, '/artikel');
-                    },
-                  ),
+                  "assets/images/artikel.png",
+                  "Artikel",
+                  onTap: () {
+                    Navigator.pushNamed(context, '/artikel');
+                  },
+                ),
                 _menuItem(
                   "assets/images/pelanggaran.png",
                   "Pelaporan",
@@ -744,189 +943,32 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 12),
 
-            // --- PageView Tips ---
+            // --- PageView Artikel ---
             SizedBox(
               height: 180,
               child: PageView(
                 controller: _tipsController,
                 children: [
                   // Card dengan background gambar dari Google Drive
-                      InkWell(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const TipsDetailScreen(
-                                tipTitle: "Perpanjangan Tanggung Jawab Produsen dan Implementasi di Indonesia",
-                                tipContent:
-                                    "Extended Producer Responsibility (EPR) menekankan bahwa produsen bertanggung jawab atas seluruh siklus hidup produk mereka, termasuk tahap akhir (pembuangan dan daur ulang).",
-                              ),
-                            ),
-                          );
-                        },
-                        borderRadius: BorderRadius.circular(16),
-                        child: Container(
-                          height: 180,
-                          width: 260,
-                          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            image: const DecorationImage(
-                              image: NetworkImage(
-                                  "https://drive.google.com/uc?export=view&id=1qjMCUnULqvjAzzMtpd2v2jctliNJWi9G"),
-                              fit: BoxFit.cover,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.3),
-                                blurRadius: 10,
-                                offset: const Offset(0, 5),
-                              ),
-                            ],
-                          ),
-                          alignment: Alignment.bottomLeft,
-                          padding: const EdgeInsets.all(12),
-                          child: Container(
-                            color: Colors.black45,
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            child: Text(
-                              "Perpanjangan Tanggung Jawab Produsen dan Implementasi di Indonesia",
-                              style: GoogleFonts.poppins(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      
-                  // Card dengan background gambar dari Google Drive
-                      InkWell(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const TipsDetailScreen(
-                                tipTitle: "5 Hal yang Perlu Anda Ketahui Tentang Extended Producer Responsibility (EPR)",
-                                tipContent:
-                                    "Extended Producer Responsibility (EPR) menekankan bahwa produsen bertanggung jawab atas seluruh siklus hidup produk mereka, termasuk tahap akhir (pembuangan dan daur ulang).",
-                              ),
-                            ),
-                          );
-                        },
-                        borderRadius: BorderRadius.circular(16),
-                        child: Container(
-                          height: 180,
-                          width: 260,
-                          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            image: const DecorationImage(
-                              image: NetworkImage(
-                                  "https://drive.google.com/uc?export=view&id=1rcruFRS7rrGgQP5whXAonFPEQfz27mMq"),
-                              fit: BoxFit.cover,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.3),
-                                blurRadius: 10,
-                                offset: const Offset(0, 5),
-                              ),
-                            ],
-                          ),
-                          alignment: Alignment.bottomLeft,
-                          padding: const EdgeInsets.all(12),
-                          child: Container(
-                            color: Colors.black45,
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            child: Text(
-                              "5 Hal yang Perlu Anda Ketahui Tentang Extended Producer Responsibility (EPR)",
-                              style: GoogleFonts.poppins(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-
-                  // Card dengan background gambar dari Google Drive
-                      InkWell(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const TipsDetailScreen(
-                                tipTitle: "Tips Mengurangi Sampah Plastik di Kehidupan Sehari-hari",
-                                tipContent:
-                                    "Kurangi penggunaan plastik sekali pakai dengan membawa tas belanja, botol minum, dan wadah makanan sendiri. Ini adalah langkah kecil dengan dampak besar.",
-                              ),
-                            ),
-                          );
-                        },
-                        borderRadius: BorderRadius.circular(16),
-                        child: Container(
-                          height: 180,
-                          width: 260,
-                          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            image: const DecorationImage(
-                              image: NetworkImage(
-                                  "https://drive.google.com/uc?export=view&id=1ZawfY_Ktp5ZVeQb4T1mVQ9qONZXVaKDO"),
-                              fit: BoxFit.cover,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.3),
-                                blurRadius: 10,
-                                offset: const Offset(0, 5),
-                              ),
-                            ],
-                          ),
-                          alignment: Alignment.bottomLeft,
-                          padding: const EdgeInsets.all(12),
-                          child: Container(
-                            color: Colors.black45,
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            child: Text(
-                              "Tips Mengurangi Sampah Plastik di Kehidupan Sehari-hari",
-                              style: GoogleFonts.poppins(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-
-                  // Card dengan background gambar dari Google Drive
                   InkWell(
                     onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const TipsDetailScreen(
-                            tipTitle: "Manfaat Daur Ulang bagi Lingkungan dan Ekonomi",
-                            tipContent:
-                                "Daur ulang membantu mengurangi jumlah limbah yang masuk ke tempat pembuangan sampah, menghemat sumber daya alam, dan mengurangi emisi gas rumah kaca. Selain itu, daur ulang juga dapat menciptakan lapangan kerja dan mendukung ekonomi lokal.",
-                          ),
-                        ),
-                      );
+                      // Navigate ke halaman Artikel (list)
+                      Navigator.pushNamed(context, '/artikel');
                     },
                     borderRadius: BorderRadius.circular(16),
                     child: Container(
                       height: 180,
                       width: 260,
-                      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(16),
                         image: const DecorationImage(
                           image: NetworkImage(
-                              "https://drive.google.com/uc?export=view&id=1DIdr3ulKtU5oagWsA4pufnTzhZ1S_9ge"),
+                            "https://drive.google.com/uc?export=view&id=1qjMCUnULqvjAzzMtpd2v2jctliNJWi9G",
+                          ),
                           fit: BoxFit.cover,
                         ),
                         boxShadow: [
@@ -941,7 +983,160 @@ class _HomeScreenState extends State<HomeScreen> {
                       padding: const EdgeInsets.all(12),
                       child: Container(
                         color: Colors.black45,
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        child: Text(
+                          "Perpanjangan Tanggung Jawab Produsen dan Implementasi di Indonesia",
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Card dengan background gambar dari Google Drive
+                  InkWell(
+                    onTap: () {
+                      // Navigate ke halaman Artikel (list)
+                      Navigator.pushNamed(context, '/artikel');
+                    },
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      height: 180,
+                      width: 260,
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        image: const DecorationImage(
+                          image: NetworkImage(
+                            "https://drive.google.com/uc?export=view&id=1rcruFRS7rrGgQP5whXAonFPEQfz27mMq",
+                          ),
+                          fit: BoxFit.cover,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: 10,
+                            offset: const Offset(0, 5),
+                          ),
+                        ],
+                      ),
+                      alignment: Alignment.bottomLeft,
+                      padding: const EdgeInsets.all(12),
+                      child: Container(
+                        color: Colors.black45,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        child: Text(
+                          "5 Hal yang Perlu Anda Ketahui Tentang Extended Producer Responsibility (EPR)",
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Card dengan background gambar dari Google Drive
+                  InkWell(
+                    onTap: () {
+                      // Navigate ke halaman Artikel (list)
+                      Navigator.pushNamed(context, '/artikel');
+                    },
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      height: 180,
+                      width: 260,
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        image: const DecorationImage(
+                          image: NetworkImage(
+                            "https://drive.google.com/uc?export=view&id=1ZawfY_Ktp5ZVeQb4T1mVQ9qONZXVaKDO",
+                          ),
+                          fit: BoxFit.cover,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: 10,
+                            offset: const Offset(0, 5),
+                          ),
+                        ],
+                      ),
+                      alignment: Alignment.bottomLeft,
+                      padding: const EdgeInsets.all(12),
+                      child: Container(
+                        color: Colors.black45,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        child: Text(
+                          "Tips Mengurangi Sampah Plastik di Kehidupan Sehari-hari",
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Card dengan background gambar dari Google Drive
+                  InkWell(
+                    onTap: () {
+                      // Navigate ke halaman Artikel (list)
+                      Navigator.pushNamed(context, '/artikel');
+                    },
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      height: 180,
+                      width: 260,
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        image: const DecorationImage(
+                          image: NetworkImage(
+                            "https://drive.google.com/uc?export=view&id=1DIdr3ulKtU5oagWsA4pufnTzhZ1S_9ge",
+                          ),
+                          fit: BoxFit.cover,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: 10,
+                            offset: const Offset(0, 5),
+                          ),
+                        ],
+                      ),
+                      alignment: Alignment.bottomLeft,
+                      padding: const EdgeInsets.all(12),
+                      child: Container(
+                        color: Colors.black45,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         child: Text(
                           "Manfaat Daur Ulang bagi Lingkungan dan Ekonomi",
                           style: GoogleFonts.poppins(
@@ -973,7 +1168,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
             // --- PageView Tips ---
             SizedBox(
-              height: 180,
+              height: 220,
               child: PageView(
                 controller: _tipsController,
                 children: [
@@ -983,14 +1178,20 @@ class _HomeScreenState extends State<HomeScreen> {
                     subtitle:
                         "Pisahkan sampah organik & anorganik agar mudah didaur ulang.",
                     index: 0,
-                    backgroundColor: const Color.fromARGB(255, 21, 145, 137), // Hijau utama
+                    backgroundColor: const Color.fromARGB(
+                      255,
+                      21,
+                      145,
+                      137,
+                    ), // Hijau utama
                     onTap: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (_) => const TipsDetailScreen(
                             tipTitle: "Pisahkan Sampah",
-                            tipContent: "Mulai dari sekarang, sediakan dua tempat sampah di rumah Anda. Satu untuk sampah organik (sisa makanan, daun, dll.) dan satu lagi untuk sampah anorganik (plastik, kertas, kaleng, botol). Pemilahan ini mempermudah proses daur ulang dan pengomposan. Pastikan sampah anorganik sudah bersih sebelum dibuang!",
+                            tipContent:
+                                "Mulai dari sekarang, sediakan dua tempat sampah di rumah Anda. Satu untuk sampah organik (sisa makanan, daun, dll.) dan satu lagi untuk sampah anorganik (plastik, kertas, kaleng, botol). Pemilahan ini mempermudah proses daur ulang dan pengomposan. Pastikan sampah anorganik sudah bersih sebelum dibuang!",
                           ),
                         ),
                       );
@@ -999,16 +1200,18 @@ class _HomeScreenState extends State<HomeScreen> {
                   _tipsCard(
                     icon: Icons.lightbulb_outline,
                     title: "Hemat Energi",
-                    subtitle: "Matikan lampu & cabut charger saat tidak digunakan.",
+                    subtitle:
+                        "Matikan lampu & cabut charger saat tidak digunakan.",
                     index: 1,
                     backgroundColor: Colors.blue.shade600, // Biru untuk energi
                     onTap: () {
-                       Navigator.push(
+                      Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (_) => const TipsDetailScreen(
                             tipTitle: "Hemat Energi",
-                            tipContent: "Langkah kecil seperti mematikan lampu saat keluar ruangan, mencabut kabel charger yang tidak digunakan, dan meminimalkan penggunaan AC sangat membantu mengurangi emisi karbon. Pertimbangkan untuk beralih ke lampu LED yang lebih hemat energi.",
+                            tipContent:
+                                "Langkah kecil seperti mematikan lampu saat keluar ruangan, mencabut kabel charger yang tidak digunakan, dan meminimalkan penggunaan AC sangat membantu mengurangi emisi karbon. Pertimbangkan untuk beralih ke lampu LED yang lebih hemat energi.",
                           ),
                         ),
                       );
@@ -1017,16 +1220,18 @@ class _HomeScreenState extends State<HomeScreen> {
                   _tipsCard(
                     icon: Icons.water_drop_outlined,
                     title: "Hemat Air",
-                    subtitle: "Gunakan air seperlunya, perbaiki keran bocor segera.",
+                    subtitle:
+                        "Gunakan air seperlunya, perbaiki keran bocor segera.",
                     index: 2,
                     backgroundColor: Colors.orange.shade700, // Oranye untuk air
                     onTap: () {
-                       Navigator.push(
+                      Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (_) => const TipsDetailScreen(
                             tipTitle: "Hemat Air",
-                            tipContent: "Air adalah sumber daya yang terbatas. Pastikan Anda menutup keran saat menyikat gigi, gunakan shower untuk mandi (lebih hemat dari bathtub), dan segera perbaiki keran atau pipa yang bocor. Selain ramah lingkungan, ini juga menghemat tagihan bulanan Anda!",
+                            tipContent:
+                                "Air adalah sumber daya yang terbatas. Pastikan Anda menutup keran saat menyikat gigi, gunakan shower untuk mandi (lebih hemat dari bathtub), dan segera perbaiki keran atau pipa yang bocor. Selain ramah lingkungan, ini juga menghemat tagihan bulanan Anda!",
                           ),
                         ),
                       );
@@ -1035,16 +1240,19 @@ class _HomeScreenState extends State<HomeScreen> {
                   _tipsCard(
                     icon: Icons.shopping_bag_outlined,
                     title: "Kurangi Plastik",
-                    subtitle: "Bawa tas belanja sendiri untuk mengurangi sampah plastik.",
+                    subtitle:
+                        "Bawa tas belanja sendiri untuk mengurangi sampah plastik.",
                     index: 3,
-                    backgroundColor: Colors.purple.shade600, // Ungu/Pink untuk plastik
+                    backgroundColor:
+                        Colors.purple.shade600, // Ungu/Pink untuk plastik
                     onTap: () {
-                       Navigator.push(
+                      Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (_) => const TipsDetailScreen(
                             tipTitle: "Kurangi Plastik",
-                            tipContent: "Sampah plastik membutuhkan waktu ratusan tahun untuk terurai. Selalu bawa tas belanja kain (reusable bag), hindari sedotan plastik, dan bawa botol minum isi ulang (tumbler) saat bepergian. Aksi 3R (Reduce, Reuse, Recycle) sangat penting!",
+                            tipContent:
+                                "Sampah plastik membutuhkan waktu ratusan tahun untuk terurai. Selalu bawa tas belanja kain (reusable bag), hindari sedotan plastik, dan bawa botol minum isi ulang (tumbler) saat bepergian. Aksi 3R (Reduce, Reuse, Recycle) sangat penting!",
                           ),
                         ),
                       );
@@ -1074,8 +1282,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     boxShadow: _currentPage == index
                         ? [
                             BoxShadow(
-                              color: const Color.fromARGB(255, 21, 145, 137)
-                                  .withAlpha(102),
+                              color: const Color.fromARGB(
+                                255,
+                                21,
+                                145,
+                                137,
+                              ).withAlpha(102),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             ),
@@ -1173,8 +1385,18 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: InkWell(
                   borderRadius: BorderRadius.circular(16),
                   onTap: onTap,
-                  splashColor: const Color.fromARGB(255, 21, 145, 137).withAlpha(51),
-                  highlightColor: const Color.fromARGB(255, 21, 145, 137).withAlpha(25),
+                  splashColor: const Color.fromARGB(
+                    255,
+                    21,
+                    145,
+                    137,
+                  ).withAlpha(51),
+                  highlightColor: const Color.fromARGB(
+                    255,
+                    21,
+                    145,
+                    137,
+                  ).withAlpha(25),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
                     padding: const EdgeInsets.all(14),
@@ -1207,34 +1429,39 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // UPDATED: Tips Card dengan animasi smooth dan efek hover
+  // IMPROVED: Tips Card dengan desain modern, gradient, dan animasi smooth
   Widget _tipsCard({
     required IconData icon,
     required String title,
     required String subtitle,
     required int index,
-    required Color backgroundColor, 
+    required Color backgroundColor,
     VoidCallback? onTap,
   }) {
     final isActive = (_currentPage == index);
     final scale = isActive ? 1.0 : 0.92;
-    final opacity = isActive ? 1.0 : 0.7;
+    final opacity = isActive ? 1.0 : 0.75;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 400),
       curve: Curves.easeOutCubic,
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 12), 
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
       transform: Matrix4.identity()..scale(scale),
       alignment: Alignment.center,
-      width: 260,
+      width: 280,
       decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(20),
+        gradient: LinearGradient(
+          colors: [backgroundColor, backgroundColor.withOpacity(0.85)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: backgroundColor.withAlpha(isActive ? 128 : 77), 
-            blurRadius: isActive ? 20 : 12,
-            offset: Offset(0, isActive ? 10 : 6),
+            color: backgroundColor.withOpacity(isActive ? 0.5 : 0.3),
+            blurRadius: isActive ? 24 : 16,
+            offset: Offset(0, isActive ? 12 : 8),
+            spreadRadius: isActive ? 2 : 0,
           ),
         ],
       ),
@@ -1242,63 +1469,175 @@ class _HomeScreenState extends State<HomeScreen> {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(20),
-          splashColor: Colors.white.withAlpha(77),
-          highlightColor: Colors.white.withAlpha(51),
+          borderRadius: BorderRadius.circular(24),
+          splashColor: Colors.white.withOpacity(0.3),
+          highlightColor: Colors.white.withOpacity(0.2),
           child: AnimatedOpacity(
             duration: const Duration(milliseconds: 300),
             opacity: opacity,
             child: Padding(
               padding: const EdgeInsets.all(20),
-              child: Row(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  TweenAnimationBuilder<double>(
-                    tween: Tween(begin: 0.8, end: isActive ? 1.0 : 0.9),
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeOut,
-                    builder: (context, value, child) {
-                      return Transform.scale(
-                        scale: value,
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withAlpha(51),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(icon, color: Colors.white, size: 32),
+                  // Icon dengan background circle dan glow effect
+                  Row(
+                    children: [
+                      TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 0.8, end: isActive ? 1.0 : 0.9),
+                        duration: const Duration(milliseconds: 400),
+                        curve: Curves.elasticOut,
+                        builder: (context, value, child) {
+                          return Transform.scale(
+                            scale: value,
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.25),
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.white.withOpacity(0.3),
+                                    blurRadius: isActive ? 16 : 8,
+                                    spreadRadius: isActive ? 2 : 0,
+                                  ),
+                                ],
+                              ),
+                              child: Icon(icon, color: Colors.white, size: 32),
+                            ),
+                          );
+                        },
+                      ),
+                      const Spacer(),
+                      // Decorative element
+                      if (isActive)
+                        TweenAnimationBuilder<double>(
+                          tween: Tween(begin: 0.0, end: 1.0),
+                          duration: const Duration(milliseconds: 500),
+                          curve: Curves.easeOut,
+                          builder: (context, value, child) {
+                            return Opacity(
+                              opacity: value,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.4),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.eco,
+                                      color: Colors.white,
+                                      size: 12,
+                                    ),
+                                    const SizedBox(width: 3),
+                                    Text(
+                                      'Tips',
+                                      style: GoogleFonts.poppins(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
                         ),
-                      );
-                    },
+                    ],
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          title,
-                          style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15,
-                            color: Colors.white,
-                            letterSpacing: 0.3,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          subtitle,
-                          style: GoogleFonts.poppins(
-                            fontSize: 11.5,
-                            color: Colors.white.withAlpha(217),
-                            height: 1.3,
-                          ),
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
+                  const SizedBox(height: 16),
+                  // Title dengan efek shimmer
+                  Text(
+                    title,
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 17,
+                      color: Colors.white,
+                      letterSpacing: 0.5,
+                      shadows: [
+                        Shadow(
+                          color: Colors.black.withOpacity(0.2),
+                          offset: const Offset(0, 2),
+                          blurRadius: 4,
                         ),
                       ],
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
+                  const SizedBox(height: 8),
+                  // Divider dengan gradient
+                  Container(
+                    height: 3,
+                    width: 50,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.white, Colors.white.withOpacity(0.3)],
+                      ),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  // Subtitle dengan line height optimal
+                  Flexible(
+                    child: Text(
+                      subtitle,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.white.withOpacity(0.95),
+                        height: 1.4,
+                        fontWeight: FontWeight.w400,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Action indicator
+                  if (isActive)
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0.0, end: 1.0),
+                      duration: const Duration(milliseconds: 600),
+                      curve: Curves.easeOut,
+                      builder: (context, value, child) {
+                        return Opacity(
+                          opacity: value,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Text(
+                                'Tap untuk detail',
+                                style: GoogleFonts.poppins(
+                                  color: Colors.white.withOpacity(0.8),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w500,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.arrow_forward_rounded,
+                                color: Colors.white.withOpacity(0.8),
+                                size: 14,
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
                 ],
               ),
             ),
