@@ -70,73 +70,6 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
     }
   }
 
-  /// Format tanggal ke format Indonesia
-  String _formatDate(String? dateStr) {
-    if (dateStr == null || dateStr.isEmpty) return '-';
-    
-    try {
-      final date = DateTime.parse(dateStr);
-      final formatter = DateFormat('EEEE, dd MMMM yyyy', 'id_ID');
-      return formatter.format(date);
-    } catch (e) {
-      return dateStr;
-    }
-  }
-
-  /// Get status color
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'collected':
-      case 'completed':
-        return const Color(0xFF4CAF50); // Green
-      case 'cancelled':
-        return Colors.red;
-      case 'skipped':
-        return Colors.orange;
-      case 'in_progress':
-      case 'on_progress':
-        return Colors.blue;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  /// Get status icon
-  IconData _getStatusIcon(String status) {
-    switch (status.toLowerCase()) {
-      case 'collected':
-      case 'completed':
-        return Icons.check_circle;
-      case 'cancelled':
-        return Icons.cancel;
-      case 'skipped':
-        return Icons.info;
-      case 'in_progress':
-      case 'on_progress':
-        return Icons.local_shipping;
-      default:
-        return Icons.help;
-    }
-  }
-
-  /// Get status text
-  String _getStatusText(String status) {
-    switch (status.toLowerCase()) {
-      case 'collected':
-      case 'completed':
-        return 'Sudah Diambil';
-      case 'cancelled':
-        return 'Dibatalkan';
-      case 'skipped':
-        return 'Dilewati';
-      case 'in_progress':
-      case 'on_progress':
-        return 'Sedang Diambil';
-      default:
-        return status;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -146,7 +79,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "Riwayat Pengambilan",
+              "Riwayat Pengambilan Sampah",
               style: GoogleFonts.poppins(
                 fontWeight: FontWeight.w600,
                 fontSize: 18,
@@ -163,7 +96,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
             ),
           ],
         ),
-        backgroundColor: const Color(0xFF4CAF50),
+        backgroundColor: const Color.fromARGB(255, 21, 145, 137),
         foregroundColor: Colors.white,
         elevation: 0,
       ),
@@ -217,7 +150,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
               icon: const Icon(Icons.refresh),
               label: const Text("Coba Lagi"),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4CAF50),
+                backgroundColor: const Color.fromARGB(255, 21, 145, 137),
               ),
             ),
           ],
@@ -230,8 +163,13 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.history, size: 64, color: Colors.grey[400]),
-            const SizedBox(height: 16),
+            Image.asset(
+              'assets/images/Riwayat pengambilan sampah.png',
+              width: 200,
+              height: 200,
+              fit: BoxFit.contain,
+            ),
+            const SizedBox(height: 24),
             Text(
               "Belum ada riwayat pengambilan",
               textAlign: TextAlign.center,
@@ -260,204 +198,214 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
     );
   }
 
-  /// Card untuk setiap pickup
+  /// Card untuk setiap pickup - Design seperti gambar
   Widget _buildPickupCard(Map<String, dynamic> pickup) {
     final pickupDate = pickup['pickup_date'] as String?;
-    final status = pickup['status'] as String? ?? 'unknown';
-    final totalAmount = pickup['total_amount'];
-    final collectorNotes = pickup['collector_notes'] as String?;
-    
-    // Waste items
     final wasteItems = pickup['waste_items'] as List<dynamic>?;
     
-    final statusColor = _getStatusColor(status);
-    final statusIcon = _getStatusIcon(status);
-    final statusText = _getStatusText(status);
+    if (wasteItems == null || wasteItems.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
-    return GestureDetector(
-      onTap: () => _showDetailDialog(pickup),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha(13),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            // Header dengan status
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: statusColor.withAlpha(26),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                  topRight: Radius.circular(16),
+    // Group waste items by category
+    return Column(
+      children: wasteItems.map((item) {
+        final wasteCategory = item['waste_category'] ?? 
+                             item['waste_name'] ?? 
+                             item['waste']?['category'] ?? 'Sampah';
+        final quantity = item['quantity'] ?? 0;
+        final pocketSize = (item['pocket_size'] is String) 
+            ? item['pocket_size']
+            : (item['pocket_size']?['name'] ?? '-');
+        final pricePerUnit = item['price_per_unit'] ?? 0;
+        final totalPrice = item['total_price'] ?? (quantity * pricePerUnit);
+        
+        // Get waste type from API (Organik/Anorganik/B3)
+        final wasteType = item['waste_type']?.toString() ?? 
+                         item['waste']?['type']?.toString() ?? 
+                         _getCategoryFromName(wasteCategory);
+        
+        // Get category color based on waste type
+        final categoryColor = _getCategoryColor(wasteType);
+        
+        // Parse weight from pocket_size (e.g., "1.5 kg" -> 1.5)
+        double weight = 0;
+        if (pocketSize.contains('kg')) {
+          final weightStr = pocketSize.replaceAll(RegExp(r'[^0-9.]'), '');
+          weight = double.tryParse(weightStr) ?? 0;
+        }
+        final totalWeight = weight * quantity;
+
+        return GestureDetector(
+          onTap: () => _showDetailDialog(pickup),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey[300]!, width: 1),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(8),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
                 ),
-              ),
-              child: Row(
-                children: [
-                  Icon(statusIcon, color: statusColor, size: 24),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          statusText,
-                          style: GoogleFonts.poppins(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: statusColor,
-                          ),
-                        ),
-                        if (pickupDate != null)
-                          Text(
-                            _formatDate(pickupDate),
-                            style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              color: Colors.grey[700],
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  if (totalAmount != null)
+              ],
+            ),
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Badge kategori dari API (Organik/Anorganik/B3)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
+                        color: categoryColor,
+                        borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        'Rp ${_formatCurrency(totalAmount)}',
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFF4CAF50),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-
-            // Body - Waste Items
-            if (wasteItems != null && wasteItems.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "Jenis Sampah",
-                      style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[800],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    ...wasteItems.take(3).map((item) {
-                      // Handle berbagai format dari API
-                      final wasteName = item['waste_category'] ?? 
-                                       item['waste_name'] ?? 
-                                       item['waste']?['category'] ?? '-';
-                      final quantity = item['quantity'] ?? 0;
-                      // pocket_size bisa string langsung atau object dengan key 'name'
-                      final pocketSize = (item['pocket_size'] is String) 
-                          ? item['pocket_size']
-                          : (item['pocket_size']?['name'] ?? '-');
-                      
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 6,
-                              height: 6,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFF4CAF50),
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                '$wasteName - $pocketSize',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 13,
-                                  color: Colors.grey[700],
-                                ),
-                              ),
-                            ),
-                            Text(
-                              '${quantity}x',
-                              style: GoogleFonts.poppins(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey[800],
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                    if (wasteItems.length > 3)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(
-                          '+${wasteItems.length - 3} item lainnya',
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            color: const Color(0xFF4CAF50),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-
-            // Catatan Kolektor
-            if (collectorNotes != null && collectorNotes.isNotEmpty)
-              Container(
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(Icons.note, size: 16, color: Colors.grey[600]),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        collectorNotes,
+                        wasteType,
                         style: GoogleFonts.poppins(
                           fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    /* HIDDEN: Edit button
+                    TextButton(
+                      onPressed: () {},
+                      child: Text(
+                        'Edit',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
                           color: Colors.grey[700],
                         ),
                       ),
                     ),
+                    */
                   ],
                 ),
-              ),
-          ],
-        ),
-      ),
+                
+                const SizedBox(height: 12),
+                
+                // Nama Sampah
+                Text(
+                  wasteCategory,
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                
+                const SizedBox(height: 8),
+                
+                // Berat dengan harga per kg
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Berat',
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        color: Colors.grey[500],
+                      ),
+                    ),
+                    Text(
+                      'Rp ${_formatCurrency(pricePerUnit)}/ kg',
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+                
+                const SizedBox(height: 4),
+                
+                // Total berat
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '${totalWeight.toStringAsFixed(1)} kg',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+                
+                const SizedBox(height: 8),
+                
+                // Tanggal (bukan Biaya)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Tanggal',
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        color: Colors.grey[500],
+                      ),
+                    ),
+                  ],
+                ),
+                
+                const SizedBox(height: 4),
+                
+                // Tampilkan tanggal dan total biaya
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      pickupDate != null ? _formatDateShort(pickupDate) : '-',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    Text(
+                      'Rp. ${_formatCurrency(totalPrice)}',
+                      style: GoogleFonts.poppins(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF4CAF50),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
     );
+  }
+
+  /// Format tanggal pendek (contoh: Selasa, 27 Mei 2025 13:58)
+  String _formatDateShort(String? dateStr) {
+    if (dateStr == null || dateStr.isEmpty) return '-';
+    
+    try {
+      final date = DateTime.parse(dateStr);
+      final dayName = DateFormat('EEEE', 'id_ID').format(date);
+      final dateFormatted = DateFormat('d MMM yyyy', 'id_ID').format(date);
+      return '$dayName, $dateFormatted';
+    } catch (e) {
+      return dateStr;
+    }
   }
 
   /// Format currency
@@ -469,18 +417,55 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
     return formatter.format(number);
   }
 
-  /// Show detail dialog
+  /// Get category from waste name (fallback jika tidak ada waste_type dari API)
+  String _getCategoryFromName(String wasteName) {
+    final lowerName = wasteName.toLowerCase();
+    
+    // Organik keywords
+    if (lowerName.contains('dapur') || 
+        lowerName.contains('sisa') || 
+        lowerName.contains('makanan') ||
+        lowerName.contains('organik')) {
+      return 'Organik';
+    }
+    
+    // B3 keywords
+    if (lowerName.contains('baterai') || 
+        lowerName.contains('elektronik') || 
+        lowerName.contains('lampu') ||
+        lowerName.contains('b3')) {
+      return 'B3';
+    }
+    
+    // Default: Anorganik (kertas, plastik, kaleng, dll)
+    return 'Anorganik';
+  }
+
+  /// Get category color based on waste type
+  Color _getCategoryColor(String wasteType) {
+    final lowerType = wasteType.toLowerCase();
+    
+    if (lowerType.contains('organik')) {
+      return const Color(0xFF4CAF50); // Green
+    } else if (lowerType.contains('b3')) {
+      return const Color(0xFFF44336); // Red
+    } else {
+      return const Color(0xFF2196F3); // Blue for Anorganik
+    }
+  }
+
+  /// Show detail dialog - Design sesuai gambar
   void _showDetailDialog(Map<String, dynamic> pickup) {
     final pickupDate = pickup['pickup_date'] as String?;
-    final status = pickup['status'] as String? ?? 'unknown';
-    final totalAmount = pickup['total_amount'];
-    final collectorNotes = pickup['collector_notes'] as String?;
     final photoUrl = pickup['photo_url'] as String?;
     final wasteItems = pickup['waste_items'] as List<dynamic>?;
+    final serviceAccount = pickup['service_account'] as Map<String, dynamic>?;
     
-    final statusColor = _getStatusColor(status);
-    final statusIcon = _getStatusIcon(status);
-    final statusText = _getStatusText(status);
+    // Get address from service_account
+    final address = serviceAccount?['address'] ?? 
+                    serviceAccount?['alamat'] ?? 
+                    'Alamat tidak tersedia';
+    final accountId = pickup['id']?.toString() ?? '-';
 
     showDialog(
       context: context,
@@ -489,242 +474,275 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
           child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header
-                  Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: statusColor.withAlpha(26),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header dengan checkmark dan title
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(20),
+                      topRight: Radius.circular(20),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF4CAF50),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.check,
+                          color: Colors.white,
+                          size: 24,
+                        ),
                       ),
-                      child: Icon(
-                        statusIcon,
-                        size: 48,
-                        color: statusColor,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Pengambilan Sampah',
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Foto (jika ada)
+                if (photoUrl != null && photoUrl.isNotEmpty)
+                  ClipRRect(
+                    child: Image.network(
+                      photoUrl,
+                      width: double.infinity,
+                      height: 200,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        height: 200,
+                        color: Colors.grey[200],
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.image_not_supported, 
+                              size: 48, 
+                              color: Colors.grey[400]
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Foto tidak tersedia',
+                              style: GoogleFonts.poppins(
+                                color: Colors.grey[600],
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  Center(
-                    child: Text(
-                      statusText,
-                      style: GoogleFonts.poppins(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: statusColor,
+
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Alamat
+                      Text(
+                        address,
+                        style: GoogleFonts.poppins(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
                       ),
-                    ),
-                  ),
-                  if (pickupDate != null) ...[
-                    const SizedBox(height: 8),
-                    Center(
-                      child: Text(
-                        _formatDate(pickupDate),
+                      
+                      const SizedBox(height: 4),
+                      
+                      // ID Pickup
+                      Text(
+                        '#$accountId',
                         style: GoogleFonts.poppins(
                           fontSize: 13,
                           color: Colors.grey[600],
                         ),
                       ),
-                    ),
-                  ],
-                  
-                  const SizedBox(height: 24),
-                  const Divider(),
-                  const SizedBox(height: 16),
-
-                  // Foto (jika ada)
-                  if (photoUrl != null) ...[
-                    Text(
-                      "Foto Pengambilan",
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.network(
-                        photoUrl,
-                        width: double.infinity,
-                        height: 200,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          height: 200,
-                          color: Colors.grey[200],
-                          child: const Icon(Icons.image_not_supported),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-
-                  // Detail sampah
-                  if (wasteItems != null && wasteItems.isNotEmpty) ...[
-                    Text(
-                      "Detail Sampah",
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    ...wasteItems.map((item) {
-                      // Handle berbagai format dari API
-                      final wasteName = item['waste_category'] ?? 
-                                       item['waste_name'] ?? 
-                                       item['waste']?['category'] ?? '-';
-                      final quantity = item['quantity'] ?? 0;
-                      // pocket_size bisa string langsung atau object dengan key 'name'
-                      final pocketSize = (item['pocket_size'] is String) 
-                          ? item['pocket_size']
-                          : (item['pocket_size']?['name'] ?? '-');
-                      final totalPrice = item['total_price'];
                       
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  wasteName,
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                Text(
-                                  '${quantity}x',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  pocketSize,
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 12,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                                if (totalPrice != null)
-                                  Text(
-                                    'Rp ${_formatCurrency(totalPrice)}',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 12,
-                                      color: const Color(0xFF4CAF50),
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                  ],
-
-                  // Total
-                  if (totalAmount != null) ...[
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF4CAF50).withAlpha(26),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      const SizedBox(height: 16),
+                      const Divider(),
+                      const SizedBox(height: 16),
+                      
+                      // Waktu Pengambilan
+                      Row(
                         children: [
-                          Text(
-                            "Total Harga",
-                            style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
+                          Icon(Icons.access_time, 
+                            size: 18, 
+                            color: Colors.grey[600]
                           ),
+                          const SizedBox(width: 8),
                           Text(
-                            'Rp ${_formatCurrency(totalAmount)}',
+                            'Waktu Pengambilan',
                             style: GoogleFonts.poppins(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF4CAF50),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
                             ),
                           ),
                         ],
                       ),
-                    ),
-                  ],
-
-                  // Catatan
-                  if (collectorNotes != null && collectorNotes.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    Text(
-                      "Catatan Kolektor",
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        collectorNotes,
+                      const SizedBox(height: 8),
+                      Text(
+                        pickupDate != null ? _formatDateWithTime(pickupDate) : '-',
                         style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          color: Colors.grey[700],
+                          fontSize: 14,
+                          color: Colors.black87,
                         ),
                       ),
-                    ),
-                  ],
-
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF4CAF50),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                      
+                      const SizedBox(height: 16),
+                      const Divider(),
+                      const SizedBox(height: 16),
+                      
+                      // Sampah Header
+                      Row(
+                        children: [
+                          Icon(Icons.delete_outline, 
+                            size: 18, 
+                            color: Colors.grey[600]
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Sampah',
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
+                      
+                      const SizedBox(height: 12),
+                      
+                      // Detail Sampah List
+                      if (wasteItems != null && wasteItems.isNotEmpty)
+                        ...wasteItems.map((item) {
+                          final wasteName = item['waste_category'] ?? 
+                                           item['waste_name'] ?? 
+                                           item['waste']?['category'] ?? '-';
+                          final quantity = item['quantity'] ?? 0;
+                          
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    wasteName,
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 14,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '${quantity}x',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      
+                      const SizedBox(height: 16),
+                      const Divider(height: 1),
+                      const SizedBox(height: 16),
+                      
+                      // Total (Jumlah)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Jumlah',
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          Text(
+                            '${wasteItems?.length ?? 0}',
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
+                      
+                      const SizedBox(height: 24),
+                      
+                      // Close Button
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF4CAF50),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: Text(
+                            'Tutup',
+                            style: GoogleFonts.poppins(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
                       ),
-                      child: const Text("Tutup"),
-                    ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         );
       },
     );
+  }
+
+  /// Format tanggal dengan waktu (contoh: Selasa, 27 Mei 2025 13:58)
+  String _formatDateWithTime(String? dateStr) {
+    if (dateStr == null || dateStr.isEmpty) return '-';
+    
+    try {
+      final date = DateTime.parse(dateStr);
+      final dayName = DateFormat('EEEE', 'id_ID').format(date);
+      final dateFormatted = DateFormat('d MMMM yyyy HH:mm', 'id_ID').format(date);
+      return '$dayName, $dateFormatted';
+    } catch (e) {
+      return dateStr;
+    }
   }
 }
