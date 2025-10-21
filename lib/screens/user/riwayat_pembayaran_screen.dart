@@ -1,9 +1,8 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'riwayat_pembayaran_service.dart';
 import 'pdf_export_service.dart';
+import 'payment_method_screen.dart';
 
 class RiwayatPembayaranScreen extends StatefulWidget {
   const RiwayatPembayaranScreen({super.key});
@@ -32,21 +31,51 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
     setState(() => _isLoading = true);
     
     try {
-      final riwayat = await RiwayatPembayaranService.getRiwayatPembayaran();
-      final total = await RiwayatPembayaranService.getTotalPembayaranBulanIni();
-      final jumlah = await RiwayatPembayaranService.getJumlahTransaksiBulanIni();
+      // Load from API for invoice payments
+      final service = RiwayatPembayaranService();
+      final paymentHistory = await service.getPaymentHistory(page: 1, perPage: 50);
       
-      // Load data tagihan pending
-      final totalTagihanPending = await RiwayatPembayaranService.getTotalTagihanPendingBulanIni();
-      final jumlahTagihanPending = await RiwayatPembayaranService.getJumlahTagihanPendingBulanIni();
+      // Load from local storage for waste pickups (legacy)
+      final localRiwayat = await RiwayatPembayaranService.getRiwayatPembayaran();
+      
+      // Combine both lists
+      final combined = [...paymentHistory, ...localRiwayat];
+      
+      // Sort by date
+      combined.sort((a, b) {
+        final dateA = DateTime.parse(a['created_at'] ?? DateTime.now().toIso8601String());
+        final dateB = DateTime.parse(b['created_at'] ?? DateTime.now().toIso8601String());
+        return dateB.compareTo(dateA);
+      });
+      
+      // Calculate totals for this month (only from payments)
+      final now = DateTime.now();
+      final thisMonth = paymentHistory.where((p) {
+        final createdAt = DateTime.parse(p['created_at']);
+        return createdAt.month == now.month && createdAt.year == now.year;
+      }).toList();
+      
+      final totalBulanIni = thisMonth.where((p) => p['status'] == 'success').fold<double>(
+        0.0,
+        (sum, p) => sum + ((p['amount'] ?? 0) as num).toDouble(),
+      );
+      
+      final jumlahTransaksi = thisMonth.where((p) => p['status'] == 'success').length;
+      
+      // Calculate pending invoices
+      final pendingPayments = paymentHistory.where((p) => p['status'] == 'pending').toList();
+      final totalTagihanPending = pendingPayments.fold<double>(
+        0.0,
+        (sum, p) => sum + ((p['amount'] ?? 0) as num).toDouble(),
+      );
       
       if (mounted) {
         setState(() {
-          _riwayatList = riwayat;
-          _totalBulanIni = total;
-          _jumlahTransaksi = jumlah;
+          _riwayatList = combined;
+          _totalBulanIni = totalBulanIni;
+          _jumlahTransaksi = jumlahTransaksi;
           _totalTagihanPending = totalTagihanPending;
-          _jumlahTagihanPending = jumlahTagihanPending;
+          _jumlahTagihanPending = pendingPayments.length;
           _isLoading = false;
         });
       }
@@ -89,144 +118,43 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
       return;
     }
 
-    // Konfirmasi pembayaran
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: Text(
-          'Konfirmasi Pembayaran',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+    // Get pending payment invoices
+    final pendingPayments = _riwayatList.where((item) {
+      return item.containsKey('order_id') && item['status'] == 'pending';
+    }).toList();
+
+    if (pendingPayments.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tidak ada tagihan pending yang ditemukan'),
+          backgroundColor: Colors.orange,
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Anda akan membayar semua tagihan bulan ini:',
-              style: GoogleFonts.poppins(fontSize: 14),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              '• Jumlah tagihan: $_jumlahTagihanPending',
-              style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[700]),
-            ),
-            Text(
-              '• Total pembayaran: ${RiwayatPembayaranService.formatCurrency(_totalTagihanPending)}',
-              style: GoogleFonts.poppins(
-                fontSize: 14, 
-                fontWeight: FontWeight.w600,
-                color: const Color.fromARGB(255, 21, 145, 137),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Lanjutkan pembayaran?',
-              style: GoogleFonts.poppins(fontSize: 14),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(
-              'Batal',
-              style: GoogleFonts.poppins(color: Colors.grey[600]),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color.fromARGB(255, 21, 145, 137),
-              foregroundColor: Colors.white,
-            ),
-            child: Text(
-              'Bayar Sekarang',
-              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
+      );
+      return;
+    }
+
+    // Convert to invoice format for PaymentMethodScreen
+    final invoices = pendingPayments.map((payment) {
+      final invoice = payment['invoice'] as Map<String, dynamic>?;
+      return {
+        'id': invoice?['id'] ?? payment['id'],
+        'invoice_number': invoice?['invoice_number'] ?? 'Invoice',
+        'total_amount': payment['amount'] ?? 0,
+        'status': 'unpaid',
+      };
+    }).toList();
+
+    // Navigate to PaymentMethodScreen
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PaymentMethodScreen(invoices: invoices),
       ),
     );
 
-    if (confirm == true) {
-      // Show loading
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          content: Row(
-            children: [
-              const CircularProgressIndicator(
-                color: Color.fromARGB(255, 21, 145, 137),
-              ),
-              const SizedBox(width: 20),
-              Text(
-                'Memproses pembayaran...',
-                style: GoogleFonts.poppins(),
-              ),
-            ],
-          ),
-        ),
-      );
-
-      // Proses pembayaran
-      final success = await RiwayatPembayaranService.bayarSemuaTagihanBulanIni();
-
-      if (mounted) {
-        Navigator.pop(context); // Close loading dialog
-
-        if (success) {
-          // Kirim notifikasi pembayaran berhasil
-          await _kirimNotifikasiPembayaranBerhasil();
-          
-          // Reload data
-          await _loadRiwayatPembayaran();
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Pembayaran berhasil! Semua tagihan telah lunas.',
-                style: GoogleFonts.poppins(),
-              ),
-              backgroundColor: Colors.green,
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Pembayaran gagal. Silakan coba lagi.',
-                style: GoogleFonts.poppins(),
-              ),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    }
-  }
-
-  Future<void> _kirimNotifikasiPembayaranBerhasil() async {
-    try {
-      final totalFormatted = RiwayatPembayaranService.formatCurrency(_totalTagihanPending);
-      final message = 'Pembayaran berhasil! Anda telah membayar $_jumlahTagihanPending tagihan dengan total $totalFormatted';
-      
-      final prefs = await SharedPreferences.getInstance();
-      final notifications = prefs.getStringList('notifications') ?? [];
-      
-      final notificationData = {
-        'id': DateTime.now().millisecondsSinceEpoch.toString(),
-        'message': message,
-        'time': DateTime.now().toIso8601String(),
-        'isRead': false,
-        'type': 'pembayaran_berhasil',
-      };
-      
-      notifications.insert(0, jsonEncode(notificationData));
-      await prefs.setStringList('notifications', notifications);
-    } catch (e) {
-      print('Error sending payment success notification: $e');
+    // Refresh if payment was made
+    if (result == true || mounted) {
+      await _loadRiwayatPembayaran();
     }
   }
 
@@ -750,7 +678,132 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
   }
 
   Widget _buildRiwayatItem(Map<String, dynamic> riwayat, int index) {
-    final tanggal = DateTime.parse(riwayat['tanggalPengambilan']);
+    // Check if this is a payment from API or waste pickup from local storage
+    final bool isPayment = riwayat.containsKey('order_id');
+    
+    if (isPayment) {
+      return _buildPaymentItem(riwayat, index);
+    } else {
+      return _buildWastePickupItem(riwayat, index);
+    }
+  }
+
+  Widget _buildPaymentItem(Map<String, dynamic> payment, int index) {
+    final tanggal = DateTime.parse(payment['created_at']);
+    final invoice = payment['invoice'] as Map<String, dynamic>?;
+    final status = payment['status'] ?? 'pending';
+    final amount = (payment['amount'] ?? 0) as num;
+    
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _showPaymentDetailDialog(payment),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color.fromARGB(255, 21, 145, 137).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.payment,
+                        color: Color.fromARGB(255, 21, 145, 137),
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            invoice != null ? (invoice['invoice_number'] ?? 'Invoice') : 'Pembayaran Tagihan',
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 16,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            RiwayatPembayaranService.formatDate(tanggal),
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          RiwayatPembayaranService.formatCurrency(amount.toDouble()),
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: const Color.fromARGB(255, 21, 145, 137),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: _getPaymentStatusColor(status).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            _getPaymentStatusText(status),
+                            style: GoogleFonts.poppins(
+                              fontSize: 10,
+                              color: _getPaymentStatusColor(status),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  '${payment['payment_channel']?.toUpperCase() ?? 'MIDTRANS'} - ${payment['payment_type']?.toUpperCase() ?? 'PAYMENT'}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWastePickupItem(Map<String, dynamic> riwayat, int index) {
+    final tanggal = DateTime.parse(riwayat['tanggalPengambilan'] ?? DateTime.now().toIso8601String());
     final items = List<Map<String, dynamic>>.from(riwayat['items'] ?? []);
     
     return Container(
@@ -1192,5 +1245,35 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
         ],
       ),
     );
+  }
+
+  Color _getPaymentStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'success': return Colors.green;
+      case 'pending': return Colors.orange;
+      case 'failed':
+      case 'expired': return Colors.red;
+      default: return Colors.grey;
+    }
+  }
+
+  String _getPaymentStatusText(String status) {
+    switch (status.toLowerCase()) {
+      case 'success': return 'Lunas';
+      case 'pending': return 'Pending';
+      case 'failed': return 'Gagal';
+      case 'expired': return 'Kadaluarsa';
+      default: return status;
+    }
+  }
+
+  void _showPaymentDetailDialog(Map<String, dynamic> payment) {
+    final invoice = payment['invoice'] as Map<String, dynamic>?;
+    // final tanggal = DateTime.parse(payment['created_at']);
+    showDialog(context: context, builder: (context) => Dialog(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), child: Column(mainAxisSize: MainAxisSize.min, children: [Container(padding: const EdgeInsets.all(20), decoration: const BoxDecoration(color: Color.fromARGB(255, 21, 145, 137), borderRadius: BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16))), child: Row(children: [const Icon(Icons.payment, color: Colors.white), const SizedBox(width: 12), Text('Detail Pembayaran', style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white))])), SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [_buildPaymentDetailRow('Order ID', payment['order_id'] ?? '-'), const SizedBox(height: 12), _buildPaymentDetailRow('Invoice', invoice?['invoice_number'] ?? '-'), const Divider(height: 30), Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('Total', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold)), Text(RiwayatPembayaranService.formatCurrency(((payment['amount'] ?? 0) as num).toDouble()), style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold, color: const Color.fromARGB(255, 21, 145, 137)))])])), Container(padding: const EdgeInsets.all(20), child: ElevatedButton(onPressed: () => Navigator.pop(context), style: ElevatedButton.styleFrom(backgroundColor: const Color.fromARGB(255, 21, 145, 137)), child: Text('Tutup', style: GoogleFonts.poppins(fontWeight: FontWeight.w600))))])));
+  }
+
+  Widget _buildPaymentDetailRow(String label, String value) {
+    return Row(children: [SizedBox(width: 120, child: Text(label, style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]))), const Text(': '), Expanded(child: Text(value, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500)))]);
   }
 }

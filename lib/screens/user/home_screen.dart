@@ -7,7 +7,7 @@ import 'package:intl/intl.dart';
 import 'notification_service.dart';
 import 'notification_screen.dart';
 import 'tips_detail_screen.dart';
-import 'payment_detail_screen.dart';
+import 'payment_method_screen.dart';
 import '../../services/invoice_service.dart';
 import '../../services/service_account_service.dart';
 import '../../services/notification_helper.dart';
@@ -2089,9 +2089,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             final result = await Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => PaymentDetailScreen(
+                                builder: (context) => PaymentMethodScreen(
                                   invoices: _unpaidInvoices,
-                                  totalAmount: _totalUnpaidAmount,
                                 ),
                               ),
                             );

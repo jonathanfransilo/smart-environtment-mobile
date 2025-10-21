@@ -1,10 +1,40 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:dio/dio.dart';
+import '../../services/api_client.dart';
 
 class RiwayatPembayaranService {
   static const String _keyRiwayatPembayaran = 'riwayat_pembayaran';
+  final Dio _dio = ApiClient.instance.dio;
 
-  /// Model data untuk riwayat pembayaran
+  /// Get payment history from API
+  Future<List<Map<String, dynamic>>> getPaymentHistory({int page = 1, int perPage = 15}) async {
+    try {
+      final response = await _dio.get(
+        '/mobile/resident/payments',
+        queryParameters: {
+          'page': page,
+          'per_page': perPage,
+        },
+      );
+
+      if (response.statusCode == 200 && response.data['success'] == true) {
+        final List<dynamic> data = response.data['data'];
+        return data.map((item) => item as Map<String, dynamic>).toList();
+      }
+
+      throw Exception('Failed to load payment history');
+    } on DioException catch (e) {
+      if (e.response != null) {
+        throw Exception(e.response!.data['message'] ?? 'Failed to load payment history');
+      }
+      throw Exception('Network error: ${e.message}');
+    } catch (e) {
+      throw Exception('Error loading payment history: $e');
+    }
+  }
+
+  /// Model data untuk riwayat pembayaran (legacy - untuk sampah)
   static Map<String, dynamic> createRiwayatPembayaran({
     required String id,
     required String namaKolektor,
@@ -170,50 +200,6 @@ class RiwayatPembayaranService {
       return total;
     } catch (e) {
       return 0;
-    }
-  }
-
-  /// Bayar semua tagihan bulan ini sekaligus
-  static Future<bool> bayarSemuaTagihanBulanIni() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final data = prefs.getStringList(_keyRiwayatPembayaran) ?? [];
-      final now = DateTime.now();
-      
-      List<String> updatedData = [];
-      bool adaPembayaran = false;
-
-      for (final itemStr in data) {
-        try {
-          final item = jsonDecode(itemStr) as Map<String, dynamic>;
-          final tanggal = DateTime.parse(item['tanggalPengambilan']);
-          
-          // Jika tagihan bulan ini dan status pending
-          if (tanggal.year == now.year && 
-              tanggal.month == now.month && 
-              item['status'] == 'Menunggu Pembayaran') {
-            
-            // Update status menjadi Lunas
-            item['status'] = 'Lunas';
-            item['metodePembayaran'] = 'Transfer Bank';
-            item['tanggalPembayaran'] = DateTime.now().toIso8601String();
-            adaPembayaran = true;
-          }
-          
-          updatedData.add(jsonEncode(item));
-        } catch (e) {
-          // Keep original if decode fails
-          updatedData.add(itemStr);
-        }
-      }
-
-      if (adaPembayaran) {
-        await prefs.setStringList(_keyRiwayatPembayaran, updatedData);
-      }
-
-      return adaPembayaran;
-    } catch (e) {
-      return false;
     }
   }
 
