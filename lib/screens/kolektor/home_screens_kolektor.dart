@@ -25,6 +25,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
   bool _isLoadingHistory = false;
   String? _errorMessage;
   int _unreadNotifCount = 0;
+  bool _hasShownWelcomeMessage = false;
 
   @override
   void initState() {
@@ -274,6 +275,44 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
 
   @override
   Widget build(BuildContext context) {
+    // Tampilkan welcome message jika ada dari login
+    if (!_hasShownWelcomeMessage && !_isLoadingPickups) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final args = ModalRoute.of(context)?.settings.arguments;
+        if (args is Map && args['welcomeMessage'] != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      args['welcomeMessage'],
+                      style: GoogleFonts.poppins(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.green.shade600,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              margin: const EdgeInsets.all(16),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+          setState(() {
+            _hasShownWelcomeMessage = true;
+          });
+        }
+      });
+    }
+    
     final Color primaryColor = const Color(0xFF009688);
     final TextStyle titleStyle = GoogleFonts.poppins(
       fontSize: 18,

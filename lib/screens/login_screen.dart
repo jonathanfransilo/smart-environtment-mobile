@@ -43,19 +43,46 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _loading = false);
 
     if (ok) {
+      // Ambil nama user dari UserStorage
+      final userName = await UserStorage.getUserName() ?? 'User';
+      
       // Redirect berdasarkan role
       final isCollector = await UserStorage.isCollector();
       
       if (!mounted) return;
       
       if (isCollector) {
-        Navigator.of(context).pushNamedAndRemoveUntil('/home-kolektor', (route) => false);
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          '/home-kolektor',
+          (route) => false,
+          arguments: {'welcomeMessage': 'Selamat datang, $userName!'},
+        );
       } else {
-        Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          '/home',
+          (route) => false,
+          arguments: {'welcomeMessage': 'Selamat datang, $userName!'},
+        );
       }
     } else {
+      // Tampilkan error dengan styling merah
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message ?? 'Login gagal')),
+        SnackBar(
+          content: Text(
+            message ?? 'Email atau password salah',
+            style: GoogleFonts.poppins(
+              color: Colors.white,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          backgroundColor: Colors.red.shade600,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          margin: const EdgeInsets.all(16),
+          duration: const Duration(seconds: 3),
+        ),
       );
     }
   }

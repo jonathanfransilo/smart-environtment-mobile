@@ -32,6 +32,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // untuk deteksi penambahan akun baru (hindari notifikasi saat initial load)
   bool _hasLoadedAkunOnce = false;
+  
+  // Flag untuk menampilkan welcome message hanya sekali
+  bool _hasShownWelcomeMessage = false;
 
   // unread notification counter
   int _unreadNotifCount = 0;
@@ -622,6 +625,44 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Tampilkan welcome message jika ada dari login
+    if (!_hasShownWelcomeMessage && !_isLoading) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final args = ModalRoute.of(context)?.settings.arguments;
+        if (args is Map && args['welcomeMessage'] != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      args['welcomeMessage'],
+                      style: GoogleFonts.poppins(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.green.shade600,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              margin: const EdgeInsets.all(16),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+          setState(() {
+            _hasShownWelcomeMessage = true;
+          });
+        }
+      });
+    }
+    
     return Scaffold(
       appBar: AppBar(
         elevation: 0,
@@ -1673,7 +1714,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 4),
-                            // Alamat dengan icon
+                            // Kelurahan dengan icon
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -1686,11 +1727,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                 Expanded(
                                   child: Text(
                                     _selectedAkun != null &&
-                                            _selectedAkun!['alamat'] != null
-                                        ? _selectedAkun!['alamat']
+                                            _selectedAkun!['kelurahan'] != null
+                                        ? _selectedAkun!['kelurahan']
                                         : _akunList.isNotEmpty &&
-                                              _akunList.first['alamat'] != null
-                                        ? _akunList.first['alamat']
+                                              _akunList.first['kelurahan'] != null
+                                        ? _akunList.first['kelurahan']
                                         : '',
                                     style: GoogleFonts.poppins(
                                       fontSize: 10,

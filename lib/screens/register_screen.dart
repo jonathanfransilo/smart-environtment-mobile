@@ -136,7 +136,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       }),
                       validator: (v) {
                         if (v == null || v.isEmpty) return "Password wajib diisi";
-                        if (v.length < 6) return "Minimal 6 karakter";
+                        if (v.length < 8) return "Minimal 8 karakter";
                         return null;
                       },
                     ),
@@ -152,6 +152,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       }),
                       validator: (v) {
                         if (v == null || v.isEmpty) return "Konfirmasi wajib diisi";
+                        if (v.length < 8) return "Minimal 8 karakter";
                         if (v != _passwordController.text) {
                           return "Konfirmasi password tidak sama";
                         }

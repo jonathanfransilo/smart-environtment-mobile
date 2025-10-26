@@ -50,11 +50,21 @@ class AuthService {
       String msg = 'Terjadi kesalahan jaringan';
       if (e.response?.data is Map) {
         final body = e.response!.data as Map;
-        msg = body['errors']?['message']?.toString() ?? msg;
+        final errorMsg = body['errors']?['message']?.toString() ?? '';
+        // Ubah "Invalid credentials" menjadi "Email atau password salah"
+        if (errorMsg.toLowerCase().contains('invalid credentials') || 
+            errorMsg.toLowerCase().contains('invalid') ||
+            e.response?.statusCode == 401) {
+          msg = 'Email atau password salah';
+        } else {
+          msg = errorMsg.isNotEmpty ? errorMsg : msg;
+        }
+      } else if (e.response?.statusCode == 401) {
+        msg = 'Email atau password salah';
       }
       return (false, msg, null);
     } catch (e) {
-      return (false, 'Error: $e', null);
+      return (false, 'Terjadi kesalahan: $e', null);
     }
   }
 

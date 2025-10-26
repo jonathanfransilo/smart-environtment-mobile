@@ -540,14 +540,26 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
               ),
               const SizedBox(height: 16),
               _buildLabel('Nomor Telepon'),
-              _buildTextFormField(
+              TextFormField(
                 controller: _teleponController,
-                hintText: 'Contoh: 0812xxxxxxxx',
                 keyboardType: TextInputType.phone,
-                validatorMessage: 'Nomor telepon wajib diisi',
                 inputFormatters: [
                   FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(13), // Maksimal 13 digit
                 ],
+                decoration: _inputDecoration(hintText: 'Contoh: 0812xxxxxxxx'),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Nomor telepon wajib diisi';
+                  }
+                  if (value.length < 11) {
+                    return 'Nomor telepon minimal 11 angka';
+                  }
+                  if (value.length > 13) {
+                    return 'Nomor telepon maksimal 13 angka';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 16),
               _buildLabel('Kota/Kabupaten'),
