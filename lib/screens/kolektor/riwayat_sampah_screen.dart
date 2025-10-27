@@ -13,6 +13,15 @@ class RiwayatSampahScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final List<Map<String, dynamic>> items = List<Map<String, dynamic>>.from(pickupData['items'] ?? []);
     
+    // Get photo URL and convert to full URL if needed
+    var photoUrl = pickupData['image'] as String?;
+    print('📷 [RiwayatSampah] Original photo URL: $photoUrl');
+    
+    if (photoUrl != null && photoUrl.isNotEmpty && !photoUrl.startsWith('http') && !photoUrl.startsWith('assets')) {
+      photoUrl = 'https://smart-environment-web.citiasiainc.id$photoUrl';
+      print('🔄 [RiwayatSampah] Converted to full URL: $photoUrl');
+    }
+    
     // Group items by category
     Map<String, List<Map<String, dynamic>>> groupedItems = {};
     for (var item in items) {
@@ -87,33 +96,10 @@ class RiwayatSampahScreen extends StatelessWidget {
               height: 200,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
+                color: Colors.grey[200],
               ),
               clipBehavior: Clip.antiAlias,
-              child: pickupData['image'] != null && pickupData['image'].toString().startsWith('http')
-                ? Image.network(
-                    pickupData['image'],
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Image.asset(
-                        'assets/images/dummy.jpg',
-                        fit: BoxFit.cover,
-                      );
-                    },
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return Center(
-                        child: CircularProgressIndicator(
-                          value: loadingProgress.expectedTotalBytes != null
-                              ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                              : null,
-                        ),
-                      );
-                    },
-                  )
-                : Image.asset(
-                    pickupData['image'] ?? 'assets/images/dummy.jpg',
-                    fit: BoxFit.cover,
-                  ),
+              child: _buildPhotoWidget(photoUrl),
             ),
             
             // Address and ID
@@ -272,6 +258,100 @@ class RiwayatSampahScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+  
+  Widget _buildPhotoWidget(String? photoUrl) {
+    print('🖼️ [RiwayatSampah] Building photo widget with URL: $photoUrl');
+    
+    if (photoUrl == null || photoUrl.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.image, size: 50, color: Colors.grey),
+            SizedBox(height: 8),
+            Text(
+              'Tidak ada foto',
+              style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
+    
+    // Check if it's an asset image
+    if (photoUrl.startsWith('assets/')) {
+      return Image.asset(
+        photoUrl,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (context, error, stackTrace) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.broken_image, size: 50, color: Colors.grey),
+                SizedBox(height: 8),
+                Text(
+                  'Foto tidak ditemukan',
+                  style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    }
+    
+    // Network image
+    return Image.network(
+      photoUrl,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) {
+          print('✅ [RiwayatSampah] Image loaded successfully');
+          return child;
+        }
+        return Center(
+          child: CircularProgressIndicator(
+            value: loadingProgress.expectedTotalBytes != null
+                ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                : null,
+          ),
+        );
+      },
+      errorBuilder: (context, error, stackTrace) {
+        print('❌ [RiwayatSampah] Image load error: $error');
+        print('❌ [RiwayatSampah] URL was: $photoUrl');
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.broken_image, size: 50, color: Colors.grey),
+              SizedBox(height: 8),
+              Text(
+                'Gagal memuat foto',
+                style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600]),
+              ),
+              SizedBox(height: 4),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  error.toString(),
+                  style: GoogleFonts.poppins(fontSize: 10, color: Colors.grey[500]),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
   

@@ -17,6 +17,7 @@ class PengambilanSampahScreen extends StatefulWidget {
   final String time;
   final double latitude;
   final double longitude;
+  final String status; // Tambahkan parameter status
 
   const PengambilanSampahScreen({
     super.key,
@@ -29,6 +30,7 @@ class PengambilanSampahScreen extends StatefulWidget {
     required this.time,
     required this.latitude,
     required this.longitude,
+    this.status = 'pending', // Default ke pending
   });
 
   @override
@@ -46,8 +48,13 @@ class _PengambilanSampahScreenState extends State<PengambilanSampahScreen>
   bool _isConfirmed = false; // Status konfirmasi pengambilan
 
   Future<void> _openGoogleMaps(double lat, double lng) async {
+    // Format URL dengan query parameter yang lebih jelas untuk navigasi
     final Uri googleMapsUrl =
-        Uri.parse('https://www.google.com/maps?q=$lat,$lng');
+        Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
+    
+    print('🗺️ Opening Google Maps with coordinates: $lat, $lng');
+    print('🔗 URL: $googleMapsUrl');
+    
     if (!await launchUrl(googleMapsUrl,
         mode: LaunchMode.externalApplication)) {
       if (mounted) {
@@ -277,6 +284,11 @@ class _PengambilanSampahScreenState extends State<PengambilanSampahScreen>
     _markerScale =
         CurvedAnimation(parent: _animController, curve: Curves.easeOutBack);
     _animController.forward();
+    
+    // Cek status - jika sudah on_progress, set _isConfirmed = true
+    if (widget.status == 'on_progress') {
+      _isConfirmed = true;
+    }
   }
 
   @override
@@ -575,26 +587,6 @@ class _PengambilanSampahScreenState extends State<PengambilanSampahScreen>
                               color: Colors.grey[800])),
                     ],
                   ),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.green[50],
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(widget.time,
-                      style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.green[700])),
-                  Text(widget.distance,
-                      style: GoogleFonts.poppins(
-                          fontSize: 11, color: Colors.green[600])),
                 ],
               ),
             ),

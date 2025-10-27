@@ -12,6 +12,7 @@ import '../../services/invoice_service.dart';
 import '../../services/service_account_service.dart';
 import '../../services/notification_helper.dart';
 import '../../services/resident_pickup_service.dart';
+import '../../services/user_storage.dart';
 import '../../models/service_account.dart';
 import 'layanan_sampah_screen.dart';
 import 'riwayat_pengambilan_screen.dart';
@@ -77,6 +78,23 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Refresh data ketika screen menjadi visible lagi (misalnya setelah kembali dari screen detail)
+    // Ini akan memastikan jadwal selalu update
+    if (mounted && _hasLoadedAkunOnce) {
+      _refreshAllData();
+    }
+  }
+
+  /// Refresh semua data dari API
+  Future<void> _refreshAllData() async {
+    await _loadAkunLayanan(selectLastIfNotFound: false);
+    await _loadNextPickupSchedule();
+    await _loadUnpaidInvoices();
   }
 
   @override
@@ -155,6 +173,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// Load next pickup schedule untuk akun yang dipilih
+  /// Prioritas: API upcoming pickups > hari_pengangkutan dari service account
   Future<void> _loadNextPickupSchedule() async {
     if (!mounted) return;
     setState(() {
@@ -188,9 +207,13 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       }
 
-      // Fetch upcoming pickups dari API
+      print('🔄 [HomeScreen] Loading pickup schedule for account: $serviceAccountId');
+
+      // Fetch upcoming pickups dari API - ini yang terbaru dari database
       final (success, message, pickups) = await _pickupService
           .getUpcomingPickups(serviceAccountId: serviceAccountId);
+
+      print('📡 [HomeScreen] API Response - Success: $success, Pickups count: ${pickups?.length}');
 
       if (success && pickups != null && pickups.isNotEmpty) {
         // Ambil pickup pertama (yang paling dekat)
@@ -199,18 +222,24 @@ class _HomeScreenState extends State<HomeScreen> {
             nextPickup['schedule_info'] as Map<String, dynamic>?;
         final dayName = nextPickup['day_name'] as String? ?? '';
 
+        print('📅 [HomeScreen] Next pickup day: $dayName, schedule_info: $scheduleInfo');
+
         if (scheduleInfo != null) {
           final timeStart = scheduleInfo['time_start'] as String? ?? '';
           final timeEnd = scheduleInfo['time_end'] as String? ?? '';
+          final dayOfWeek = scheduleInfo['day_of_week'] as String? ?? '';
 
+          // Gunakan day_name dari pickup (sudah diformat dalam bahasa Indonesia oleh API)
           // Format jadwal: "Senin • 08:00-10:00" atau "Senin • 08:00"
-          String scheduleText = dayName;
+          String scheduleText = dayName.isNotEmpty ? dayName : dayOfWeek;
           if (timeStart.isNotEmpty) {
             scheduleText += ' • $timeStart';
             if (timeEnd.isNotEmpty && timeEnd != timeStart) {
               scheduleText += '-$timeEnd';
             }
           }
+
+          print('✅ [HomeScreen] Formatted schedule: $scheduleText');
 
           if (!mounted) return;
           setState(() {
@@ -220,6 +249,7 @@ class _HomeScreenState extends State<HomeScreen> {
           return;
         } else if (dayName.isNotEmpty) {
           // Jika tidak ada schedule_info, gunakan day_name saja
+          print('✅ [HomeScreen] Using day_name only: $dayName');
           if (!mounted) return;
           setState(() {
             _nextPickupSchedule = dayName;
@@ -229,8 +259,16 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
 
-      // Fallback: Gunakan hari_pengangkutan dari akun jika tidak ada pickup
-      final hariPengangkutan = currentAccount['hari_pengangkutan']?.toString();
+      // Fallback: Reload service account untuk mendapatkan hari_pengangkutan terbaru
+      print('⚠️ [HomeScreen] No upcoming pickups, reloading service account data');
+      await _loadAkunLayanan(selectLastIfNotFound: false);
+      
+      final updatedAccount =
+          _selectedAkun ?? (_akunList.isNotEmpty ? _akunList.first : null);
+      final hariPengangkutan = updatedAccount?['hari_pengangkutan']?.toString();
+      
+      print('📊 [HomeScreen] Hari pengangkutan from account: $hariPengangkutan');
+      
       if (hariPengangkutan != null && hariPengangkutan.isNotEmpty) {
         if (!mounted) return;
         setState(() {
@@ -239,6 +277,7 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       } else {
         // Tidak ada jadwal sama sekali
+        print('❌ [HomeScreen] No schedule available');
         if (!mounted) return;
         setState(() {
           _nextPickupSchedule = null;
@@ -246,41 +285,51 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
     } catch (e) {
-      debugPrint('Error loading pickup schedule: $e');
+      debugPrint('💥 [HomeScreen] Error loading pickup schedule: $e');
 
-      // Fallback ke hari_pengangkutan jika terjadi error
-      final currentAccount =
-          _selectedAkun ?? (_akunList.isNotEmpty ? _akunList.first : null);
-      final hariPengangkutan = currentAccount?['hari_pengangkutan']?.toString();
+      // Fallback: Reload dan gunakan hari_pengangkutan jika terjadi error
+      try {
+        await _loadAkunLayanan(selectLastIfNotFound: false);
+        final currentAccount =
+            _selectedAkun ?? (_akunList.isNotEmpty ? _akunList.first : null);
+        final hariPengangkutan = currentAccount?['hari_pengangkutan']?.toString();
 
-      if (!mounted) return;
-      setState(() {
-        _nextPickupSchedule = hariPengangkutan;
-        _isLoadingSchedule = false;
-      });
+        if (!mounted) return;
+        setState(() {
+          _nextPickupSchedule = hariPengangkutan;
+          _isLoadingSchedule = false;
+        });
+      } catch (e2) {
+        debugPrint('💥 [HomeScreen] Error in fallback: $e2');
+        if (!mounted) return;
+        setState(() {
+          _nextPickupSchedule = null;
+          _isLoadingSchedule = false;
+        });
+      }
     }
   }
 
   // Initial loader (name + shimmer)
   Future<void> _loadUser() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedName = prefs.getString("name") ?? "User";
+    // Gunakan UserStorage untuk mendapatkan nama user yang tersimpan saat login
+    final savedName = await UserStorage.getUserName();
 
     await Future.delayed(const Duration(milliseconds: 300));
     if (!mounted) return;
     setState(() {
-      _username = savedName;
+      _username = savedName ?? "User";
       _isLoading = false;
     });
   }
 
   // Refresh nama user
   Future<void> _refreshUser() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedName = prefs.getString("name") ?? "User";
+    // Gunakan UserStorage untuk mendapatkan nama user terbaru
+    final savedName = await UserStorage.getUserName();
     if (!mounted) return;
     setState(() {
-      _username = savedName;
+      _username = savedName ?? "User";
     });
   }
 
@@ -733,7 +782,7 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () async {
               await Navigator.pushNamed(context, '/profile');
               await _refreshUser();
-              await _loadAkunLayanan();
+              await _refreshAllData(); // Refresh semua data termasuk jadwal
             },
             icon: const Icon(Icons.person, color: Colors.black),
           ),
@@ -744,12 +793,20 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildHomeContent() {
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+    return RefreshIndicator(
+      onRefresh: () async {
+        // Pull to refresh - reload semua data
+        await _refreshAllData();
+        await _loadUnreadNotif();
+        await _checkAutomaticNotifications();
+      },
+      child: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          physics: const AlwaysScrollableScrollPhysics(), // Pastikan bisa di-scroll untuk pull to refresh
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             // ===== Card 1: Akun Layanan Sampah =====
             _buildServiceAccountCard(),
 
@@ -1219,7 +1276,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
 
             const SizedBox(height: 24),
-          ],
+            ],
+          ),
         ),
       ),
     );

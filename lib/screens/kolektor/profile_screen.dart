@@ -3,7 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
-import '../login_screen.dart';  // Ubah path ini jika login_screen tidak di folder auth
+import '../login_screen.dart';
+import '../../services/user_storage.dart';
 
 class ProfileScreen extends StatefulWidget {
   final Function(String) onProfileUpdated;
@@ -19,7 +20,8 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   String _profileImagePath = '';
-  String _profileName = 'Raka Juliandra';
+  String _profileName = 'Kolektor Sampah';
+  String _profileEmail = 'kolektor@email.com';
   String _profileAddress = 'Menteng, Jakarta Pusat';
   final ImagePicker _picker = ImagePicker();
 
@@ -30,10 +32,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _loadProfileData() async {
+    // Load data dari UserStorage (data user yang login)
+    final name = await UserStorage.getUserName();
+    final email = await UserStorage.getUserEmail();
+    
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _profileImagePath = prefs.getString('profile_image_path') ?? '';
-      _profileName = prefs.getString('profile_name') ?? 'Raka Juliandra';
+      _profileName = name ?? 'Kolektor Sampah';
+      _profileEmail = email ?? 'kolektor@email.com';
       _profileAddress = prefs.getString('profile_address') ?? 'Menteng, Jakarta Pusat';
     });
   }
@@ -338,13 +345,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Kolektor Sampah',
+                    _profileEmail,
                     style: GoogleFonts.poppins(
-                      fontSize: 14,
+                      fontSize: 13,
                       color: Colors.grey[600],
                     ),
                   ),
                   const SizedBox(height: 8),
+                  Text(
+                    'Kolektor Sampah',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(

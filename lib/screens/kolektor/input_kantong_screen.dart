@@ -156,7 +156,7 @@ class _InputKantongScreenState extends State<InputKantongScreen> {
     double total = 0;
     _sampahCategories.forEach((category, items) {
       for (var item in items) {
-        total += (item['quantity'] as int) * (item['price'] as int);
+        total += (item['quantity'] as int) * (item['price'] as double);
       }
     });
     return total;
@@ -585,107 +585,120 @@ class _InputKantongScreenState extends State<InputKantongScreen> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: Column(
+      body: Stack(
         children: [
-          // Progress Stepper
-          Container(
-            color: Colors.white,
-            child: _buildProgressStepper(),
+          // Scrollable content
+          Column(
+            children: [
+              // Progress Stepper
+              Container(
+                color: Colors.white,
+                child: _buildProgressStepper(),
+              ),
+              
+              // Search Field
+              _buildSearchField(),
+              
+              // Category Tabs
+              _buildCategoryTabs(),
+              
+              const SizedBox(height: 16),
+              
+              // Sampah List
+              _buildSampahList(),
+              
+              // Padding untuk bottom button
+              const SizedBox(height: 120),
+            ],
           ),
           
-          // Search Field
-          _buildSearchField(),
-          
-          // Category Tabs
-          _buildCategoryTabs(),
-          
-          const SizedBox(height: 16),
-          
-          // Sampah List
-          _buildSampahList(),
-          
-          // Bottom Section with Total and Button
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 8,
-                  offset: const Offset(0, -2),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                // Total Info
-                if (_getTotalItems() > 0) ...[
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.green[50],
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.green[200]!),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Total Item: ${_getTotalItems()} kantong',
-                              style: GoogleFonts.poppins(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.green[700],
-                              ),
-                            ),
-                            Text(
-                              'Estimasi: Rp ${_getTotalPrice().toInt()}',
-                              style: GoogleFonts.poppins(
-                                fontSize: 12,
-                                color: Colors.green[600],
-                              ),
-                            ),
-                          ],
-                        ),
-                        Icon(
-                          Icons.check_circle,
-                          color: Colors.green[600],
-                          size: 24,
-                        ),
-                      ],
-                    ),
+          // Bottom Section with Total and Button (Fixed at bottom)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, -2),
                   ),
-                  const SizedBox(height: 16),
                 ],
-                
-                // Lanjutkan Button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _lanjutkan,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
+              ),
+              child: Column(
+                children: [
+                  // Total Info
+                  if (_getTotalItems() > 0) ...[
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.green[50],
                         borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.green[200]!),
                       ),
-                      elevation: 0,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Total Item: ${_getTotalItems()} kantong',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.green[700],
+                                ),
+                              ),
+                              Text(
+                                'Estimasi: Rp ${_getTotalPrice().toInt()}',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  color: Colors.green[600],
+                                ),
+                              ),
+                            ],
+                          ),
+                          Icon(
+                            Icons.check_circle,
+                            color: Colors.green[600],
+                            size: 24,
+                          ),
+                        ],
+                      ),
                     ),
-                    child: Text(
-                      'Lanjutkan',
-                      style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                    const SizedBox(height: 16),
+                  ],
+                  
+                  // Lanjutkan Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _lanjutkan,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: Text(
+                        'Lanjutkan',
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],

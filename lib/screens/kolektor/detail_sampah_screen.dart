@@ -29,11 +29,22 @@ class DetailSampahScreen extends StatefulWidget {
 
 class _DetailSampahScreenState extends State<DetailSampahScreen> {
   int _currentStep = 2; // Still in Input Kantong Progress
+  late Map<String, List<Map<String, dynamic>>> _editableSelectedSampah;
+
+  @override
+  void initState() {
+    super.initState();
+    // Make a deep copy of selectedSampah to make it editable
+    _editableSelectedSampah = {};
+    widget.selectedSampah.forEach((category, items) {
+      _editableSelectedSampah[category] = items.map((item) => Map<String, dynamic>.from(item)).toList();
+    });
+  }
 
   List<Map<String, dynamic>> _getSelectedItems() {
     List<Map<String, dynamic>> selectedItems = [];
     
-    widget.selectedSampah.forEach((category, items) {
+    _editableSelectedSampah.forEach((category, items) {
       for (var item in items) {
         if ((item['quantity'] as int) > 0) {
           selectedItems.add({
@@ -41,7 +52,7 @@ class _DetailSampahScreenState extends State<DetailSampahScreen> {
             'name': item['name'],
             'quantity': item['quantity'],
             'price': item['price'],
-            'total': (item['quantity'] as int) * (item['price'] as int),
+            'total': (item['quantity'] as int) * (item['price'] as double),
             'waste_id': item['waste_id'],
             'pocket_size_id': item['pocket_size_id'],
           });
@@ -52,13 +63,158 @@ class _DetailSampahScreenState extends State<DetailSampahScreen> {
     return selectedItems;
   }
 
+  void _editItem(Map<String, dynamic> item, int itemIndex) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        int tempQuantity = item['quantity'] as int;
+        
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Text(
+                'Edit Jumlah',
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    item['name'],
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Decrease button
+                      IconButton(
+                        onPressed: () {
+                          if (tempQuantity > 1) {
+                            setDialogState(() {
+                              tempQuantity--;
+                            });
+                          }
+                        },
+                        icon: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[200],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.remove,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ),
+                      
+                      // Quantity display
+                      Container(
+                        width: 80,
+                        alignment: Alignment.center,
+                        child: Text(
+                          '$tempQuantity',
+                          style: GoogleFonts.poppins(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+                      
+                      // Increase button
+                      IconButton(
+                        onPressed: () {
+                          setDialogState(() {
+                            tempQuantity++;
+                          });
+                        },
+                        icon: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF009688),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.add,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Total: Rp ${(tempQuantity * (item['price'] as double)).toStringAsFixed(0)}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF009688),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    'Batal',
+                    style: GoogleFonts.poppins(
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      // Update quantity in the editable data
+                      String category = item['category'];
+                      _editableSelectedSampah[category]!
+                          .firstWhere((i) => i['waste_id'] == item['waste_id'] && i['pocket_size_id'] == item['pocket_size_id'])['quantity'] = tempQuantity;
+                    });
+                    Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF009688),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: Text(
+                    'Simpan',
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
 
 
   double _getTotalPrice() {
     double total = 0;
     List<Map<String, dynamic>> items = _getSelectedItems();
     for (var item in items) {
-      total += item['total'] as int;
+      total += item['total'] as double;
     }
     return total;
   }
@@ -127,6 +283,7 @@ class _DetailSampahScreenState extends State<DetailSampahScreen> {
       );
       
       print('✅ [DetailSampah] API Response - Success: $success, Message: $message');
+      print('📷 [DetailSampah] Photo URL from API: ${data?['photo_url']}');
 
       // Close loading
       if (mounted) Navigator.of(context).pop();
@@ -134,6 +291,30 @@ class _DetailSampahScreenState extends State<DetailSampahScreen> {
       if (success) {
         // Navigate to Pembayaran screen with API response data
         if (mounted) {
+          // Parse total_amount safely - handle both int, double, and String
+          double totalAmount;
+          if (data?['total_amount'] != null) {
+            final totalValue = data!['total_amount'];
+            if (totalValue is int) {
+              totalAmount = totalValue.toDouble();
+            } else if (totalValue is double) {
+              totalAmount = totalValue;
+            } else if (totalValue is String) {
+              totalAmount = double.tryParse(totalValue) ?? _getTotalPrice();
+            } else {
+              totalAmount = _getTotalPrice();
+            }
+          } else {
+            totalAmount = _getTotalPrice();
+          }
+          
+          // Convert photo URL to full URL if needed
+          var photoUrl = data?['photo_url'] as String?;
+          if (photoUrl != null && photoUrl.isNotEmpty && !photoUrl.startsWith('http')) {
+            photoUrl = 'https://smart-environment-web.citiasiainc.id$photoUrl';
+            print('🔄 [DetailSampah] Converted photo URL to: $photoUrl');
+          }
+          
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -142,8 +323,9 @@ class _DetailSampahScreenState extends State<DetailSampahScreen> {
                 address: widget.address,
                 idPengambilan: widget.idPengambilan,
                 selectedItems: selectedItems,
-                totalPrice: data?['total_amount'] as double? ?? _getTotalPrice(),
-                photoUrl: data?['photo_url'] as String?,
+                totalPrice: totalAmount,
+                photoUrl: photoUrl,
+                imageFile: widget.imageFile,
               ),
             ),
           );
@@ -300,26 +482,13 @@ class _DetailSampahScreenState extends State<DetailSampahScreen> {
           Container(
             width: double.infinity,
             padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Jenis Sampah',
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                ),
-                Text(
-                  'Tambah',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xFF009688),
-                  ),
-                ),
-              ],
+            child: Text(
+              'Jenis Sampah',
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
             ),
           ),
           
@@ -392,12 +561,15 @@ class _DetailSampahScreenState extends State<DetailSampahScreen> {
                       ),
                       
                       // Edit Button
-                      Text(
-                        'Edit',
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF009688),
+                      GestureDetector(
+                        onTap: () => _editItem(item, index),
+                        child: Text(
+                          'Edit',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF009688),
+                          ),
                         ),
                       ),
                       
@@ -408,7 +580,7 @@ class _DetailSampahScreenState extends State<DetailSampahScreen> {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(
-                            'Rp ${(item['price'] as int)} / kantong',
+                            'Rp ${(item['price'] as double).toStringAsFixed(0)} / kantong',
                             style: GoogleFonts.poppins(
                               fontSize: 12,
                               color: Colors.grey[600],
@@ -423,7 +595,7 @@ class _DetailSampahScreenState extends State<DetailSampahScreen> {
                             ),
                           ),
                           Text(
-                            'Rp ${item['total']}',
+                            'Rp ${(item['total'] as double).toStringAsFixed(0)}',
                             style: GoogleFonts.poppins(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,

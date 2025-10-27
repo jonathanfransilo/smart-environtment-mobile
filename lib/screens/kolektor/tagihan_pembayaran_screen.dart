@@ -1,7 +1,11 @@
 import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../services/pickup_service.dart';
 
 class TagihanPembayaranScreen extends StatefulWidget {
@@ -11,6 +15,7 @@ class TagihanPembayaranScreen extends StatefulWidget {
   final List<Map<String, dynamic>> selectedItems;
   final double totalPrice;
   final String? photoUrl;
+  final XFile? imageFile;
 
   const TagihanPembayaranScreen({
     super.key,
@@ -20,18 +25,95 @@ class TagihanPembayaranScreen extends StatefulWidget {
     required this.selectedItems,
     required this.totalPrice,
     this.photoUrl,
+    this.imageFile,
   });
 
   @override
-  State<TagihanPembayaranScreen> createState() => _TagihanPembayaranScreenState();
+  State<TagihanPembayaranScreen> createState() =>
+      _TagihanPembayaranScreenState();
 }
 
 class _TagihanPembayaranScreenState extends State<TagihanPembayaranScreen> {
   int _currentStep = 3; // Selesai
 
+  // Build image widget for both web and mobile
+  Widget _buildPhotoWidget() {
+    print('🖼️ [TagihanPembayaran] Building photo widget...');
+    print('🖼️ [TagihanPembayaran] imageFile: ${widget.imageFile?.name ?? "null"}');
+    print('🖼️ [TagihanPembayaran] photoUrl: ${widget.photoUrl ?? "null"}');
+    
+    if (widget.imageFile != null) {
+      // Use imageFile first (from camera/gallery)
+      print('✅ [TagihanPembayaran] Using imageFile (original photo)');
+      if (kIsWeb) {
+        // For Web - use Network.memory from bytes
+        return FutureBuilder<List<int>>(
+          future: widget.imageFile!.readAsBytes().then(
+            (bytes) => bytes.toList(),
+          ),
+          builder: (context, snapshot) {
+            if (snapshot.hasData) {
+              return Image.memory(
+                Uint8List.fromList(snapshot.data!),
+                fit: BoxFit.cover,
+                width: double.infinity,
+                height: double.infinity,
+              );
+            }
+            return Center(child: CircularProgressIndicator());
+          },
+        );
+      } else {
+        // For Mobile - use File
+        return Image.file(
+          File(widget.imageFile!.path),
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+        );
+      }
+    } else if (widget.photoUrl != null && widget.photoUrl!.isNotEmpty) {
+      // Fallback to photoUrl from API
+      return Image.network(
+        widget.photoUrl!,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (context, error, stackTrace) {
+          return Center(
+            child: Icon(
+              Icons.image_not_supported,
+              size: 50,
+              color: Colors.grey,
+            ),
+          );
+        },
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Center(child: CircularProgressIndicator());
+        },
+      );
+    } else {
+      // No image available
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.image, size: 50, color: Colors.grey),
+            SizedBox(height: 8),
+            Text(
+              'Tidak ada foto',
+              style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
   Map<String, List<Map<String, dynamic>>> _groupItemsByCategory() {
     Map<String, List<Map<String, dynamic>>> groupedItems = {};
-    
+
     for (var item in widget.selectedItems) {
       String category = item['category'];
       if (!groupedItems.containsKey(category)) {
@@ -39,7 +121,7 @@ class _TagihanPembayaranScreenState extends State<TagihanPembayaranScreen> {
       }
       groupedItems[category]!.add(item);
     }
-    
+
     return groupedItems;
   }
 
@@ -81,15 +163,15 @@ class _TagihanPembayaranScreenState extends State<TagihanPembayaranScreen> {
     try {
       // Buat tagihan untuk user (bukan pembayaran langsung)
       await _buatTagihan();
-      
+
       // Close loading
       if (mounted) Navigator.pop(context);
-      
+
       // Show success dialog
       if (mounted) {
         await _showSuccessDialog();
       }
-      
+
       // Navigate back to home and refresh
       // Langsung ke home-kolektor tanpa melalui splash
       if (mounted) {
@@ -101,7 +183,7 @@ class _TagihanPembayaranScreenState extends State<TagihanPembayaranScreen> {
     } catch (e) {
       // Close loading
       if (mounted) Navigator.pop(context);
-      
+
       // Show error
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -122,9 +204,7 @@ class _TagihanPembayaranScreenState extends State<TagihanPembayaranScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -154,10 +234,7 @@ class _TagihanPembayaranScreenState extends State<TagihanPembayaranScreen> {
             SizedBox(height: 8),
             Text(
               'Tagihan telah dikirim ke ${widget.userName}',
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
+              style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]),
               textAlign: TextAlign.center,
             ),
             SizedBox(height: 12),
@@ -200,10 +277,7 @@ class _TagihanPembayaranScreenState extends State<TagihanPembayaranScreen> {
                         ),
                       ),
                       Text(
-                        'Rp ${widget.totalPrice.toStringAsFixed(0).replaceAllMapped(
-                          RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
-                          (Match m) => '${m[1]}.',
-                        )}',
+                        'Rp ${widget.totalPrice.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}',
                         style: GoogleFonts.poppins(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
@@ -262,12 +336,13 @@ class _TagihanPembayaranScreenState extends State<TagihanPembayaranScreen> {
       idPengambilan: widget.idPengambilan,
       selectedItems: widget.selectedItems,
       totalPrice: widget.totalPrice,
-      imagePath: widget.photoUrl ?? 'assets/images/dummy.jpg',
+      imagePath:
+          widget.photoUrl ?? '', // Gunakan empty string jika tidak ada foto
     );
 
     // Buat tagihan untuk user (BUKAN pembayaran langsung)
     await _buatTagihanUntukUser();
-    
+
     // Kirim notifikasi tagihan baru ke user
     await _kirimNotifikasiTagihan();
   }
@@ -284,16 +359,18 @@ class _TagihanPembayaranScreenState extends State<TagihanPembayaranScreen> {
         'tanggalPengambilan': DateTime.now().toIso8601String(),
         'status': 'Menunggu Pembayaran', // STATUS PENDING!
         'metodePembayaran': null, // Belum dibayar
-        'tanggalJatuhTempo': DateTime.now().add(Duration(days: 30)).toIso8601String(), // 30 hari dari sekarang
+        'tanggalJatuhTempo': DateTime.now()
+            .add(Duration(days: 30))
+            .toIso8601String(), // 30 hari dari sekarang
         'createdAt': DateTime.now().toIso8601String(),
       };
-      
+
       // Simpan sebagai tagihan pending
       final prefs = await SharedPreferences.getInstance();
       final existingTagihan = prefs.getStringList('riwayat_pembayaran') ?? [];
       existingTagihan.insert(0, jsonEncode(tagihanData));
       await prefs.setStringList('riwayat_pembayaran', existingTagihan);
-      
+
       print('Tagihan berhasil dibuat untuk user: ${widget.idPengambilan}');
     } catch (e) {
       print('Error creating tagihan: $e');
@@ -302,17 +379,16 @@ class _TagihanPembayaranScreenState extends State<TagihanPembayaranScreen> {
 
   Future<void> _kirimNotifikasiTagihan() async {
     try {
-      final totalFormatted = 'Rp ${widget.totalPrice.toStringAsFixed(0).replaceAllMapped(
-        RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
-        (Match m) => '${m[1]}.',
-      )}';
-      
-      final message = 'Tagihan baru dari kolektor sebesar $totalFormatted. ID: ${widget.idPengambilan}. Silakan bayar sebelum akhir bulan.';
-      
+      final totalFormatted =
+          'Rp ${widget.totalPrice.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}';
+
+      final message =
+          'Tagihan baru dari kolektor sebesar $totalFormatted. ID: ${widget.idPengambilan}. Silakan bayar sebelum akhir bulan.';
+
       // Kirim notifikasi tagihan baru (BUKAN pembayaran selesai)
       final prefs = await SharedPreferences.getInstance();
       final notifications = prefs.getStringList('notifications') ?? [];
-      
+
       final notificationData = {
         'id': DateTime.now().millisecondsSinceEpoch.toString(),
         'message': message,
@@ -320,10 +396,10 @@ class _TagihanPembayaranScreenState extends State<TagihanPembayaranScreen> {
         'isRead': false,
         'type': 'tagihan_baru', // Type khusus untuk tagihan
       };
-      
+
       notifications.insert(0, jsonEncode(notificationData));
       await prefs.setStringList('notifications', notifications);
-      
+
       print('Notifikasi tagihan berhasil dikirim');
     } catch (e) {
       print('Error sending tagihan notification: $e');
@@ -350,7 +426,7 @@ class _TagihanPembayaranScreenState extends State<TagihanPembayaranScreen> {
   Widget _buildStepItem(int step, String title, String status) {
     Color circleColor;
     Color textColor;
-    
+
     if (step < _currentStep) {
       circleColor = const Color(0xFF009688);
       textColor = const Color(0xFF009688);
@@ -361,16 +437,13 @@ class _TagihanPembayaranScreenState extends State<TagihanPembayaranScreen> {
       circleColor = Colors.grey[300]!;
       textColor = Colors.grey[500]!;
     }
-    
+
     return Column(
       children: [
         Container(
           width: 24,
           height: 24,
-          decoration: BoxDecoration(
-            color: circleColor,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: circleColor, shape: BoxShape.circle),
           child: step < _currentStep
               ? const Icon(Icons.check, color: Colors.white, size: 16)
               : Center(
@@ -395,10 +468,7 @@ class _TagihanPembayaranScreenState extends State<TagihanPembayaranScreen> {
         ),
         Text(
           status,
-          style: GoogleFonts.poppins(
-            fontSize: 10,
-            color: Colors.grey[600],
-          ),
+          style: GoogleFonts.poppins(fontSize: 10, color: Colors.grey[600]),
         ),
       ],
     );
@@ -406,7 +476,7 @@ class _TagihanPembayaranScreenState extends State<TagihanPembayaranScreen> {
 
   Widget _buildStepLine(int step) {
     bool isCompleted = step < _currentStep;
-    
+
     return Expanded(
       child: Container(
         height: 2,
@@ -444,11 +514,8 @@ class _TagihanPembayaranScreenState extends State<TagihanPembayaranScreen> {
       body: Column(
         children: [
           // Progress Stepper (Selesai/Complete)
-          Container(
-            color: Colors.white,
-            child: _buildProgressStepper(),
-          ),
-          
+          Container(color: Colors.white, child: _buildProgressStepper()),
+
           // Success Icon and Title
           Container(
             padding: const EdgeInsets.all(20),
@@ -461,11 +528,7 @@ class _TagihanPembayaranScreenState extends State<TagihanPembayaranScreen> {
                     color: Colors.green,
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(
-                    Icons.check,
-                    color: Colors.white,
-                    size: 30,
-                  ),
+                  child: Icon(Icons.check, color: Colors.white, size: 30),
                 ),
                 SizedBox(height: 12),
                 Text(
@@ -479,23 +542,21 @@ class _TagihanPembayaranScreenState extends State<TagihanPembayaranScreen> {
               ],
             ),
           ),
-          
+
           // Photo Container
           Container(
             margin: EdgeInsets.symmetric(horizontal: 20),
-            height: 120,
+            height: 200,
             decoration: BoxDecoration(
               color: Colors.grey[200],
               borderRadius: BorderRadius.circular(12),
-              image: DecorationImage(
-                image: AssetImage('assets/images/dummy.jpg'),
-                fit: BoxFit.cover,
-              ),
             ),
+            clipBehavior: Clip.antiAlias,
+            child: _buildPhotoWidget(),
           ),
-          
+
           SizedBox(height: 16),
-          
+
           // Address and ID
           Container(
             padding: EdgeInsets.symmetric(horizontal: 20),
@@ -519,9 +580,9 @@ class _TagihanPembayaranScreenState extends State<TagihanPembayaranScreen> {
               ],
             ),
           ),
-          
+
           SizedBox(height: 20),
-          
+
           // Waktu Pengambilan
           Container(
             padding: EdgeInsets.symmetric(horizontal: 20),
@@ -546,9 +607,9 @@ class _TagihanPembayaranScreenState extends State<TagihanPembayaranScreen> {
               ],
             ),
           ),
-          
+
           SizedBox(height: 20),
-          
+
           // Sampah List
           Expanded(
             child: Container(
@@ -565,7 +626,7 @@ class _TagihanPembayaranScreenState extends State<TagihanPembayaranScreen> {
                     ),
                   ),
                   SizedBox(height: 12),
-                  
+
                   // Sampah Items
                   for (var entry in groupedItems.entries) ...[
                     Column(
@@ -587,9 +648,9 @@ class _TagihanPembayaranScreenState extends State<TagihanPembayaranScreen> {
                             ],
                           ),
                         ),
-                        
+
                         // Items in category
-                        for (var item in entry.value) 
+                        for (var item in entry.value)
                           Container(
                             padding: EdgeInsets.symmetric(vertical: 4),
                             child: Row(
@@ -612,12 +673,12 @@ class _TagihanPembayaranScreenState extends State<TagihanPembayaranScreen> {
                               ],
                             ),
                           ),
-                        
+
                         SizedBox(height: 12),
                       ],
                     ),
                   ],
-                  
+
                   // Total
                   Container(
                     padding: EdgeInsets.symmetric(vertical: 8),
@@ -647,7 +708,7 @@ class _TagihanPembayaranScreenState extends State<TagihanPembayaranScreen> {
               ),
             ),
           ),
-          
+
           // Lanjutkan Button
           Container(
             padding: EdgeInsets.all(20),

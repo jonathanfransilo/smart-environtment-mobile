@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../services/auth_service.dart';
+import '../../services/user_storage.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -26,11 +27,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _loadProfile() async {
+    // Gunakan UserStorage untuk mendapatkan data user yang tersimpan saat login
+    final name = await UserStorage.getUserName();
+    final email = await UserStorage.getUserEmail();
+    
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      // konsisten sama HomeScreen (pakai key "nama" & "email")
-      _name = prefs.getString("nama") ?? "User";
-      _email = prefs.getString("email") ?? "user@email.com";
+      _name = name ?? "User";
+      _email = email ?? "user@email.com";
       _profileImagePath = prefs.getString("profile_image");
     });
   }

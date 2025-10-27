@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'pengambilan_sampah_screen.dart';
+import 'ambil_foto_screen.dart';
 import '../../services/pickup_service.dart';
 import '../../services/kolektor_notification_service.dart';
+import '../../services/user_storage.dart';
 import 'profile_screen.dart';
 import 'riwayat_sampah_screen.dart';
 import '../user/notification_screen.dart';
@@ -21,6 +23,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
   List<Map<String, dynamic>> pengambilanList = [];
   List<Map<String, dynamic>> todayPickups = [];
   String _profileImagePath = '';
+  String _userName = 'Kolektor';
   bool _isLoadingPickups = false;
   bool _isLoadingHistory = false;
   String? _errorMessage;
@@ -35,6 +38,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
 
   /// Initialize semua data dan trigger notifikasi otomatis
   Future<void> _initializeData() async {
+    await _loadUserData();
     await _loadTodayPickups();
     await _loadPengambilanData();
     await _loadProfileImage();
@@ -44,6 +48,16 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
 
     // Load unread notification count
     await _loadUnreadNotifCount();
+  }
+
+  /// Load user data dari UserStorage
+  Future<void> _loadUserData() async {
+    final name = await UserStorage.getUserName();
+    if (mounted) {
+      setState(() {
+        _userName = name ?? 'Kolektor';
+      });
+    }
   }
 
   /// Check dan trigger notifikasi otomatis
@@ -142,6 +156,8 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
 
   /// Build image widget dengan handling untuk berbagai tipe path
   Widget _buildPickupImage(String imagePath) {
+    print('📷 [HomeKolektor] Building pickup image: $imagePath');
+    
     // Placeholder widget jika image kosong
     if (imagePath.isEmpty) {
       return Container(
@@ -156,23 +172,49 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
       );
     }
 
+    // Convert relative URL to full URL if needed (from API)
+    String finalImagePath = imagePath;
+    if (!imagePath.startsWith('http') && !imagePath.startsWith('assets/') && imagePath.startsWith('/')) {
+      finalImagePath = 'https://smart-environment-web.citiasiainc.id$imagePath';
+      print('🔄 [HomeKolektor] Converted to full URL: $finalImagePath');
+    }
+
     // HTTP/HTTPS URL - gunakan Image.network
-    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    if (finalImagePath.startsWith('http://') || finalImagePath.startsWith('https://')) {
+      print('🌐 [HomeKolektor] Loading network image: $finalImagePath');
       return Image.network(
-        imagePath,
+        finalImagePath,
         height: 180,
         width: 100,
         fit: BoxFit.cover,
         errorBuilder: (context, error, stackTrace) {
+          print('❌ [HomeKolektor] Image load error: $error');
           return Container(
             height: 180,
             width: 100,
             color: Colors.grey[300],
-            child: const Icon(Icons.broken_image, color: Colors.grey, size: 40),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.broken_image, color: Colors.grey, size: 40),
+                const SizedBox(height: 4),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Text(
+                    'Gagal memuat',
+                    style: GoogleFonts.poppins(fontSize: 9, color: Colors.grey),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
+            ),
           );
         },
         loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
+          if (loadingProgress == null) {
+            print('✅ [HomeKolektor] Image loaded successfully');
+            return child;
+          }
           return Container(
             height: 180,
             width: 100,
@@ -190,9 +232,9 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
       );
     }
 
-    // File path lokal (dimulai dengan / atau berisi path lengkap)
-    if (imagePath.startsWith('/') || imagePath.contains('storagePickups')) {
-      final file = File(imagePath);
+    // File path lokal (dimulai dengan / atau berisi path lengkap) - hanya untuk file lokal sebenarnya
+    if (finalImagePath.startsWith('/') || finalImagePath.contains('storagePickups')) {
+      final file = File(finalImagePath);
 
       // Cek apakah file exists
       if (!file.existsSync()) {
@@ -240,7 +282,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
 
     // Asset path (fallback - untuk backward compatibility)
     return Image.asset(
-      imagePath,
+      finalImagePath,
       height: 180,
       width: 100,
       fit: BoxFit.cover,
@@ -341,17 +383,20 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
                       children: [
                         CircleAvatar(
                           radius: 22,
-                          backgroundImage: _profileImagePath.isNotEmpty
+                          backgroundImage: _profileImagePath.isNotEmpty && File(_profileImagePath).existsSync()
                               ? FileImage(File(_profileImagePath))
-                              : const AssetImage("assets/images/dummy.jpg")
-                                    as ImageProvider,
+                              : null,
+                          child: _profileImagePath.isEmpty || !File(_profileImagePath).existsSync()
+                              ? const Icon(Icons.person, color: Colors.grey)
+                              : null,
+                          backgroundColor: Colors.grey[300],
                         ),
                         const SizedBox(width: 12),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              "Raka Juliandra",
+                              _userName,
                               style: GoogleFonts.poppins(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
@@ -803,62 +848,49 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
                       final houseInfo =
                           pickupData['house_info'] as Map<String, dynamic>?;
 
-                      // Jika status on_progress, cari di mana user terakhir berhenti
+                      // Jika status on_progress, langsung ke halaman Ambil Foto
                       if (status == 'on_progress') {
-                        // TODO: Implementasi logika untuk melanjutkan ke halaman yang sesuai
-                        // Untuk sementara, tampilkan dialog
-                        showDialog(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: Text(
-                              'Lanjutkan Pengambilan',
-                              style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.w600,
-                              ),
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => AmbilFotoScreen(
+                              pickupId: pickupData['id'] as int,
+                              userName: pickupData['user_name'] as String? ?? name,
+                              address: address,
+                              idPengambilan: pickupId,
                             ),
-                            content: Text(
-                              'Fitur lanjutkan sedang dalam pengembangan. Silakan pilih pickup lain atau hubungi admin.',
-                              style: GoogleFonts.poppins(fontSize: 14),
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context),
-                                child: Text(
-                                  'OK',
-                                  style: GoogleFonts.poppins(
-                                    color: primaryColor,
-                                  ),
-                                ),
-                              ),
-                            ],
                           ),
-                        );
+                        ).then((_) {
+                          // Refresh data setelah kembali dari foto screen
+                          _loadTodayPickups();
+                          _loadPengambilanData();
+                        });
                         return;
                       }
 
-                      // Untuk status lainnya (pending/scheduled), navigasi normal
+                      // Untuk status pending/scheduled, navigasi ke PengambilanSampahScreen
                       Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => PengambilanSampahScreen(
                             pickupId: pickupData['id'] as int,
-                            userName: name,
-                            userPhone:
-                                houseInfo?['phone_number']?.toString() ?? '+62',
+                            userName: pickupData['user_name'] as String? ??
+                                name,
+                            userPhone: houseInfo?['phone'] as String? ?? '-',
                             address: address,
-                            idPengambilan: '#${pickupId}',
-                            distance: '0 Km', // Will be calculated based on GPS
-                            time: 'Hari ini',
-                            latitude: latitude,
-                            longitude: longitude,
+                            idPengambilan: pickupId,
+                            distance: '0.5 km',
+                            time: '5 min',
+                            latitude: houseInfo?['latitude'] as double? ?? 0.0,
+                            longitude:
+                                houseInfo?['longitude'] as double? ?? 0.0,
+                            status: status, // Tambahkan parameter status
                           ),
                         ),
-                      ).then((_) async {
-                        // Refresh data when returning
-                        await _loadTodayPickups();
-                        await _loadPengambilanData();
-                        // Refresh notification count
-                        await _loadUnreadNotifCount();
+                      ).then((_) {
+                        // Refresh list setelah kembali
+                        _loadTodayPickups();
+                        _loadPengambilanData();
                       });
                     },
               style: ElevatedButton.styleFrom(

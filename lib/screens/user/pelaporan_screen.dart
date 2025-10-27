@@ -1,8 +1,10 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/notification_helper.dart';
 
 // Fungsi utama untuk menjalankan aplikasi
@@ -42,7 +44,7 @@ class Laporan {
   final String ciriCiri;
   final File? imageFile;
   final bool isAsset;
-  final DateTime createdAt; 
+  final DateTime createdAt;
 
   Laporan({
     required this.kota,
@@ -52,12 +54,39 @@ class Laporan {
     required this.ciriCiri,
     this.imageFile,
     required this.isAsset,
-  }) : id = DateTime.now().microsecondsSinceEpoch
-           .toString(), 
+  }) : id = DateTime.now().microsecondsSinceEpoch.toString(),
        createdAt = DateTime.now();
 
   // Helper untuk mendapatkan deskripsi singkat
   String get shortDescription => "$kategori di $lokasi";
+
+  // Convert to JSON (untuk penyimpanan)
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'kota': kota,
+      'kategori': kategori,
+      'lokasi': lokasi,
+      'waktuPelanggaran': waktuPelanggaran,
+      'ciriCiri': ciriCiri,
+      'imagePath': imageFile?.path,
+      'isAsset': isAsset,
+      'createdAt': createdAt.toIso8601String(),
+    };
+  }
+
+  // Create from JSON (untuk load data)
+  factory Laporan.fromJson(Map<String, dynamic> json) {
+    return Laporan(
+      kota: json['kota'] as String,
+      kategori: json['kategori'] as String,
+      lokasi: json['lokasi'] as String,
+      waktuPelanggaran: json['waktuPelanggaran'] as String,
+      ciriCiri: json['ciriCiri'] as String,
+      imageFile: json['imagePath'] != null ? File(json['imagePath'] as String) : null,
+      isAsset: json['isAsset'] as bool? ?? false,
+    );
+  }
 }
 
 // ====================================================================
@@ -236,24 +265,9 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Tentukan widget gambar yang akan ditampilkan (Image.file atau Image.asset)
+    // Tentukan widget gambar yang akan ditampilkan
     Widget imageWidget;
-    if (widget.isAsset) {
-      // Menggunakan Image.asset untuk dummy image (asumsi file ada di assets/images/dummy.jpg)
-      imageWidget = Image.asset(
-        "assets/images/dummy.jpg",
-        fit: BoxFit.cover,
-        height: 200,
-        width: double.infinity,
-        errorBuilder: (context, error, stackTrace) => Container(
-          height: 200,
-          color: Colors.grey.shade300,
-          child: const Center(
-            child: Text("Error: Asset dummy.jpg tidak ditemukan"),
-          ),
-        ),
-      );
-    } else if (widget.imageFile != null) {
+    if (widget.imageFile != null) {
       // Menggunakan Image.file untuk gambar dari galeri/kamera
       imageWidget = Image.file(
         widget.imageFile!,
@@ -261,13 +275,39 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
         width: double.infinity,
         height: 200,
       );
+    } else if (widget.isAsset) {
+      // Fallback jika ada flag isAsset (seharusnya tidak digunakan lagi)
+      imageWidget = Container(
+        width: double.infinity,
+        height: 200,
+        color: Colors.grey.shade300,
+        child: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.image, size: 50, color: Colors.grey),
+              SizedBox(height: 8),
+              Text("Tidak ada gambar"),
+            ],
+          ),
+        ),
+      );
     } else {
       // Kasus fallback
       imageWidget = Container(
         width: double.infinity,
         height: 200,
         color: Colors.grey.shade300,
-        child: const Center(child: Text("Tidak ada gambar")),
+        child: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.image, size: 50, color: Colors.grey),
+              SizedBox(height: 8),
+              Text("Tidak ada gambar"),
+            ],
+          ),
+        ),
       );
     }
 
@@ -724,35 +764,47 @@ class DetailLaporanScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Tentukan widget gambar yang akan ditampilkan (Image.file atau Image.asset)
+    // Tentukan widget gambar yang akan ditampilkan
     Widget imageWidget;
-    if (isAsset) {
-      imageWidget = Image.asset(
-        "assets/images/dummy.jpg",
-        fit: BoxFit.cover,
-        height: 200,
-        width: double.infinity,
-        errorBuilder: (context, error, stackTrace) => Container(
-          height: 200,
-          color: Colors.grey.shade300,
-          child: const Center(
-            child: Text("Error: Asset dummy.jpg tidak ditemukan"),
-          ),
-        ),
-      );
-    } else if (imageFile != null) {
+    if (imageFile != null) {
       imageWidget = Image.file(
         imageFile!,
         fit: BoxFit.cover,
         height: 200,
         width: double.infinity,
       );
+    } else if (isAsset) {
+      // Fallback jika ada flag isAsset (tidak digunakan lagi)
+      imageWidget = Container(
+        height: 200,
+        width: double.infinity,
+        color: Colors.grey.shade300,
+        child: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.image, size: 50, color: Colors.grey),
+              SizedBox(height: 8),
+              Text("Tidak ada gambar"),
+            ],
+          ),
+        ),
+      );
     } else {
       imageWidget = Container(
         height: 200,
         width: double.infinity,
         color: Colors.grey.shade300,
-        child: const Center(child: Text("Tidak ada gambar")),
+        child: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.image, size: 50, color: Colors.grey),
+              SizedBox(height: 8),
+              Text("Tidak ada gambar"),
+            ],
+          ),
+        ),
       );
     }
 
@@ -869,33 +921,45 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     // Tentukan widget gambar yang akan ditampilkan
     Widget imageWidget;
-    if (laporan.isAsset) {
-      imageWidget = Image.asset(
-        "assets/images/dummy.jpg",
-        fit: BoxFit.cover,
-        height: 200,
-        width: double.infinity,
-        errorBuilder: (context, error, stackTrace) => Container(
-          height: 200,
-          color: Colors.grey.shade300,
-          child: const Center(
-            child: Text("Error: Asset dummy.jpg tidak ditemukan"),
-          ),
-        ),
-      );
-    } else if (laporan.imageFile != null) {
+    if (laporan.imageFile != null) {
       imageWidget = Image.file(
         laporan.imageFile!,
         fit: BoxFit.cover,
         height: 200,
         width: double.infinity,
       );
+    } else if (laporan.isAsset) {
+      // Fallback jika ada flag isAsset
+      imageWidget = Container(
+        height: 200,
+        width: double.infinity,
+        color: Colors.grey.shade300,
+        child: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.image, size: 50, color: Colors.grey),
+              SizedBox(height: 8),
+              Text("Tidak ada gambar"),
+            ],
+          ),
+        ),
+      );
     } else {
       imageWidget = Container(
         height: 200,
         width: double.infinity,
         color: Colors.grey.shade300,
-        child: const Center(child: Text("Tidak ada gambar")),
+        child: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.image, size: 50, color: Colors.grey),
+              SizedBox(height: 8),
+              Text("Tidak ada gambar"),
+            ],
+          ),
+        ),
       );
     }
 
@@ -1033,6 +1097,58 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
   final List<Laporan> _submittedReports = [];
 
   static const Color primaryColor = Color.fromARGB(255, 21, 145, 137);
+  static const String _storageKey = 'submitted_reports';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedReports();
+  }
+
+  /// 🔹 Load laporan yang tersimpan dari SharedPreferences
+  Future<void> _loadSavedReports() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String? reportsJson = prefs.getString(_storageKey);
+      
+      if (reportsJson != null && reportsJson.isNotEmpty) {
+        final List<dynamic> decoded = json.decode(reportsJson);
+        final List<Laporan> loadedReports = decoded
+            .map((item) => Laporan.fromJson(item as Map<String, dynamic>))
+            .toList();
+        
+        setState(() {
+          _submittedReports.clear();
+          _submittedReports.addAll(loadedReports);
+        });
+        
+        print('✅ Loaded ${loadedReports.length} reports from storage');
+      }
+    } catch (e) {
+      print('❌ Error loading reports: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal memuat data laporan: $e'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+  }
+
+  /// 🔹 Simpan laporan ke SharedPreferences
+  Future<void> _saveReports() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final List<Map<String, dynamic>> reportsJson = 
+          _submittedReports.map((report) => report.toJson()).toList();
+      final String encoded = json.encode(reportsJson);
+      
+      await prefs.setString(_storageKey, encoded);
+      print('✅ Saved ${_submittedReports.length} reports to storage');
+    } catch (e) {
+      print('❌ Error saving reports: $e');
+    }
+  }
 
   /// 🔹 Fungsi navigasi ke halaman Buat Laporan
   void _goToBuatLaporan() {
@@ -1061,6 +1177,8 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
                   newReport,
                 ); // Tambahkan di awal daftar
               });
+              // Simpan ke SharedPreferences
+              _saveReports();
               // SnackBar sudah ditangani di DetailLaporanScreen
             }
           });
@@ -1070,7 +1188,7 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
     }
   }
 
-  /// 🔹 Fungsi ambil gambar dengan fallback ke dummy image
+  /// 🔹 Fungsi ambil gambar dari kamera atau galeri
   Future<void> _pickImage(ImageSource source) async {
     try {
       final pickedFile = await _picker.pickImage(source: source);
@@ -1080,32 +1198,22 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
           _isDummyImage = false;
         });
       } else {
-        // Jika tidak ada gambar dipilih -> pakai dummy asset
-        setState(() {
-          _isDummyImage = true;
-          _selectedImageFile = null;
-        });
+        // Jika tidak ada gambar dipilih, beri tahu user
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("Tidak ada gambar, menggunakan dummy image."),
+            content: Text("Tidak ada gambar yang dipilih."),
+            backgroundColor: Colors.orange,
           ),
         );
       }
     } catch (e) {
-      // Jika error -> fallback ke dummy asset
-      setState(() {
-        _isDummyImage = true;
-        _selectedImageFile = null;
-      });
+      // Jika error, beri tahu user
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Error mengambil gambar, menggunakan dummy image."),
+        SnackBar(
+          content: Text("Error mengambil gambar: $e"),
+          backgroundColor: Colors.red,
         ),
       );
-    }
-    // Langsung pindah ke form jika gambar sudah berhasil dipilih/diganti dengan dummy
-    if (_selectedImageFile != null || _isDummyImage) {
-      _goToBuatLaporan();
     }
   }
 
@@ -1165,7 +1273,7 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
     );
   }
 
-  /// 🔹 Widget untuk menampilkan gambar (File atau Asset)
+  /// 🔹 Widget untuk menampilkan gambar (File atau daftar laporan)
   Widget _imageDisplayWidget() {
     // 1. Jika ada gambar dari perangkat
     if (_selectedImageFile != null) {
@@ -1175,25 +1283,8 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
         height: 280,
         fit: BoxFit.cover,
       );
-      // 2. Jika harus menampilkan dummy asset
-    } else if (_isDummyImage) {
-      return Image.asset(
-        "assets/images/dummy.jpg",
-        width: 280,
-        height: 280,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => Container(
-          width: 280,
-          height: 280,
-          color: Colors.grey.shade300,
-          child: const Center(
-            child: Text("Error: Asset dummy.jpg tidak ditemukan"),
-          ),
-        ),
-      );
-      // 3. Jika tidak ada gambar (Empty State/List)
     } else {
-      // ⭐️ Tampilkan daftar laporan jika ada
+      // 2. Jika tidak ada gambar, tampilkan daftar laporan atau empty state
       if (_submittedReports.isNotEmpty) {
         return _ReportList(reports: _submittedReports);
       }
