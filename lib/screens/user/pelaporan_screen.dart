@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../services/notification_helper.dart';
 import '../../services/complaint_service.dart';
 import '../../models/complaint.dart';
+import '../../config/api_config.dart';
 import '../../utils/file.dart' as custom_file;
 import '../../utils/file.dart'; // Import untuk createFileFromBytes
 import '../../utils/image_builder.dart';
@@ -44,7 +45,9 @@ class Laporan {
   final String lokasi;
   final String waktuPelanggaran;
   final String ciriCiri;
+  final String? serviceAccount; // Service account yang dilaporkan
   final custom_file.File? imageFile;
+  final String? photoUrl; // URL foto dari API
   final bool isAsset;
   final DateTime createdAt;
 
@@ -54,7 +57,9 @@ class Laporan {
     required this.lokasi,
     required this.waktuPelanggaran,
     required this.ciriCiri,
+    this.serviceAccount,
     this.imageFile,
+    this.photoUrl,
     required this.isAsset,
   }) : id = DateTime.now().microsecondsSinceEpoch.toString(),
        createdAt = DateTime.now();
@@ -71,7 +76,9 @@ class Laporan {
       'lokasi': lokasi,
       'waktuPelanggaran': waktuPelanggaran,
       'ciriCiri': ciriCiri,
+      'serviceAccount': serviceAccount,
       'imagePath': imageFile?.path,
+      'photoUrl': photoUrl,
       'isAsset': isAsset,
       'createdAt': createdAt.toIso8601String(),
     };
@@ -85,9 +92,11 @@ class Laporan {
       lokasi: json['lokasi'] as String,
       waktuPelanggaran: json['waktuPelanggaran'] as String,
       ciriCiri: json['ciriCiri'] as String,
+      serviceAccount: json['serviceAccount'] as String?,
       imageFile: json['imagePath'] != null
           ? custom_file.File(json['imagePath'] as String)
           : null,
+      photoUrl: json['photoUrl'] as String?,
       isAsset: json['isAsset'] as bool? ?? false,
     );
   }
@@ -114,6 +123,8 @@ class BuatLaporanScreen extends StatefulWidget {
 class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
   // Controller untuk mengelola input text
   final TextEditingController _deskripsiController = TextEditingController();
+  final TextEditingController _serviceAccountController =
+      TextEditingController();
 
   // Pilihan Kategori sesuai API Documentation
   static const List<Map<String, String>> _types = [
@@ -137,6 +148,7 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
   @override
   void dispose() {
     _deskripsiController.dispose();
+    _serviceAccountController.dispose();
     super.dispose();
   }
 
@@ -160,10 +172,16 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
       // Debug print
       print('🔍 _selectedType: $_selectedType');
       print('🔍 _deskripsiController.text: ${_deskripsiController.text}');
+      print(
+        '🔍 _serviceAccountController.text: ${_serviceAccountController.text}',
+      );
 
       // Ambil data dari state dan controller
       final reportData = <String, String>{
         'type': _selectedType ?? '', // API field: type - dengan fallback
+        'serviceAccount': _serviceAccountController.text.isNotEmpty
+            ? _serviceAccountController.text
+            : 'Tidak ada service account', // Service account field
         'deskripsi': _deskripsiController.text.isNotEmpty
             ? _deskripsiController.text
             : 'Tidak ada deskripsi', // API field: description - dengan fallback
@@ -349,6 +367,23 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
               ),
               const SizedBox(height: 16),
 
+              // Service Account
+              TextFormField(
+                controller: _serviceAccountController,
+                decoration: InputDecoration(
+                  labelText: "Service Account",
+                  hintText: "Masukkan nama service account...",
+                  prefixIcon: const Icon(Icons.account_circle),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                validator: (value) => value == null || value.isEmpty
+                    ? 'Service Account wajib diisi.'
+                    : null,
+              ),
+              const SizedBox(height: 16),
+
               // Deskripsi
               TextFormField(
                 controller: _deskripsiController,
@@ -454,11 +489,14 @@ class DetailLaporanScreen extends StatelessWidget {
       print('📤 Sending complaint to API...');
       print('  Type: ${reportData['type']}');
       print('  Description: ${reportData['deskripsi']}');
+      print('  Service Account: ${reportData['serviceAccount']}');
       print('  Has Image: ${imageFile != null}');
 
       final (success, message, data) = await ComplaintService.createComplaint(
         type: reportData['type']!, // Langsung dari dropdown value
         description: reportData['deskripsi']!,
+        serviceAccountId:
+            reportData['serviceAccount'], // Kirim service account ke API
         image: imageFile,
       );
 
@@ -504,6 +542,7 @@ class DetailLaporanScreen extends StatelessWidget {
           ciriCiri:
               reportData['deskripsi'] ??
               'Tidak ada deskripsi', // Fallback jika null
+          serviceAccount: reportData['serviceAccount'], // Ambil dari form
           imageFile: imageFile,
           isAsset: isAsset,
         );
@@ -792,6 +831,10 @@ class DetailLaporanScreen extends StatelessWidget {
                   : 'Tidak ada kategori',
             ),
             _buildDetailRow(
+              "Service Account",
+              reportData['serviceAccount'] ?? 'Tidak ada service account',
+            ),
+            _buildDetailRow(
               "Deskripsi",
               reportData['deskripsi'] ?? 'Tidak ada deskripsi',
             ),
@@ -871,7 +914,71 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     // Tentukan widget gambar yang akan ditampilkan
     Widget imageWidget;
-    if (laporan.imageFile != null) {
+    if (laporan.photoUrl != null) {
+      // Prioritaskan foto dari URL (API)
+      print('🖼️ Loading image from URL: ${laporan.photoUrl}');
+      imageWidget = Image.network(
+        laporan.photoUrl!,
+        fit: BoxFit.cover,
+        height: 200,
+        width: double.infinity,
+        errorBuilder: (context, error, stackTrace) {
+          print('❌ Image load error: $error');
+          print('   URL: ${laporan.photoUrl}');
+          return Container(
+            height: 200,
+            width: double.infinity,
+            color: Colors.grey.shade300,
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.broken_image, size: 50, color: Colors.grey),
+                  SizedBox(height: 8),
+                  Text(
+                    "Gagal memuat gambar",
+                    style: GoogleFonts.poppins(fontSize: 12),
+                  ),
+                  SizedBox(height: 4),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      laporan.photoUrl ?? '',
+                      style: GoogleFonts.poppins(
+                        fontSize: 10,
+                        color: Colors.grey.shade600,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) {
+            print('✅ Image loaded successfully');
+            return child;
+          }
+          return Container(
+            height: 200,
+            width: double.infinity,
+            color: Colors.grey.shade200,
+            child: Center(
+              child: CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                          loadingProgress.expectedTotalBytes!
+                    : null,
+              ),
+            ),
+          );
+        },
+      );
+    } else if (laporan.imageFile != null) {
       imageWidget = buildPlatformImage(
         laporan.imageFile!,
         fit: BoxFit.cover,
@@ -931,37 +1038,10 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Area Foto dengan overlay "UBAH FOTO"
-            Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: imageWidget,
-                ),
-                // Overlay "UBAH FOTO" (hanya untuk tampilan, tidak fungsional)
-                Positioned(
-                  bottom: 16,
-                  left: 16,
-                  right: 16,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.7),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Center(
-                      child: Text(
-                        "UBAH FOTO",
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+            // Area Foto (tanpa overlay)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: imageWidget,
             ),
             const SizedBox(height: 24),
 
@@ -1015,9 +1095,11 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
             // Detail Data
             _buildDetailRow("Kota", laporan.kota),
             _buildDetailRow("Kategori", laporan.kategori),
-            _buildDetailRow("Lokasi", laporan.lokasi),
+            if (laporan.serviceAccount != null &&
+                laporan.serviceAccount!.isNotEmpty)
+              _buildDetailRow("Service Account", laporan.serviceAccount!),
             _buildDetailRow("Waktu Pelanggaran", laporan.waktuPelanggaran),
-            _buildDetailRow("Ciri-ciri Pelaku", laporan.ciriCiri),
+            _buildDetailRow("Deskripsi", laporan.ciriCiri),
 
             const SizedBox(height: 32),
           ],
@@ -1117,13 +1199,37 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
       'dd MMMM yyyy HH:mm',
     ).format(complaint.createdAt);
 
+    // Ambil URL foto pertama jika ada
+    String? photoUrl;
+    if (complaint.photos.isNotEmpty) {
+      photoUrl = complaint.photos.first.url;
+      print('📷 Original Photo URL from API: $photoUrl');
+
+      // Jika URL relatif (dimulai dengan /), tambahkan base URL
+      if (photoUrl.isNotEmpty && photoUrl.startsWith('/')) {
+        // Ambil base URL tanpa /api/v1
+        final baseUrlWithoutApi = ApiConfig.baseUrl.replaceAll('/api/v1', '');
+        photoUrl = '$baseUrlWithoutApi$photoUrl';
+        print('📷 Full Photo URL: $photoUrl');
+      } else if (photoUrl.isNotEmpty && !photoUrl.startsWith('http')) {
+        // Jika relatif tanpa slash awal
+        final baseUrlWithoutApi = ApiConfig.baseUrl.replaceAll('/api/v1', '');
+        photoUrl = '$baseUrlWithoutApi/$photoUrl';
+        print('📷 Full Photo URL: $photoUrl');
+      }
+    } else {
+      print('📷 No photos available for this complaint');
+    }
+
     return Laporan(
       kota: kota,
       kategori: complaint.typeText, // Gunakan getter typeText untuk display
       lokasi: '', // Tidak ada lagi di API
       waktuPelanggaran: waktuPelanggaran,
       ciriCiri: complaint.description,
+      serviceAccount: complaint.serviceAccountId, // Service account dari API
       imageFile: null, // API returns URL, bukan File
+      photoUrl: photoUrl, // Simpan URL foto
       isAsset: complaint.photos.isNotEmpty, // Ada foto dari API
     );
   }
@@ -1318,15 +1424,6 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
           "Pelaporan",
           style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
         ),
-        actions: [
-          // Tombol refresh untuk reload data dari API
-          if (!showImagePreview)
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: _isLoading ? null : _loadSavedReports,
-              tooltip: 'Refresh',
-            ),
-        ],
       ),
       // Gunakan Stack/Center hanya jika menampilkan Preview Gambar,
       // jika menampilkan List, gunakan Column/Expanded dengan RefreshIndicator
@@ -1426,41 +1523,246 @@ class _ReportList extends StatelessWidget {
             itemCount: reports.length,
             itemBuilder: (context, index) {
               final report = reports[index];
-              return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: ListTile(
-                  leading: const Icon(
-                    Icons.check_circle_outline,
-                    color: Colors.green,
-                  ),
-                  title: Text(
-                    report.shortDescription,
-                    style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
-                  ),
-                  subtitle: Text(
-                    "Dikirim: ${DateFormat('dd MMM yyyy HH:mm').format(report.createdAt)}",
-                    style: GoogleFonts.poppins(fontSize: 12),
-                  ),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {
-                    // Navigasi ke detail laporan yang sudah terkirim
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (ctx) =>
-                            DetailLaporanTerkirimScreen(laporan: report),
-                      ),
-                    );
-                  },
-                ),
+              return _ReportCard(
+                report: report,
+                onTap: () {
+                  // Navigasi ke detail laporan yang sudah terkirim
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (ctx) =>
+                          DetailLaporanTerkirimScreen(laporan: report),
+                    ),
+                  );
+                },
               );
             },
           ),
         ),
       ],
+    );
+  }
+}
+
+// Widget Card untuk setiap laporan (sesuai desain Figma)
+class _ReportCard extends StatelessWidget {
+  final Laporan report;
+  final VoidCallback onTap;
+
+  const _ReportCard({required this.report, required this.onTap});
+
+  static const Color primaryColor = Color.fromARGB(255, 21, 145, 137);
+
+  // Fungsi untuk mendapatkan warna badge berdasarkan kategori
+  Color _getBadgeColor() {
+    final kategoriLower = report.kategori.toLowerCase();
+    if (kategoriLower.contains('tidak diangkut') ||
+        kategoriLower.contains('tidak remah')) {
+      return Colors.red.shade100;
+    } else if (kategoriLower.contains('menumpuk')) {
+      return primaryColor.withOpacity(0.2);
+    } else if (kategoriLower.contains('progress')) {
+      return Colors.blue.shade100;
+    }
+    return Colors.green.shade100;
+  }
+
+  // Fungsi untuk mendapatkan text color badge
+  Color _getBadgeTextColor() {
+    final kategoriLower = report.kategori.toLowerCase();
+    if (kategoriLower.contains('tidak diangkut') ||
+        kategoriLower.contains('tidak remah')) {
+      return Colors.red.shade700;
+    } else if (kategoriLower.contains('menumpuk')) {
+      return primaryColor;
+    } else if (kategoriLower.contains('progress')) {
+      return Colors.blue.shade700;
+    }
+    return Colors.green.shade700;
+  }
+
+  // Fungsi untuk mendapatkan status text
+  String _getStatusText() {
+    final kategoriLower = report.kategori.toLowerCase();
+    if (kategoriLower.contains('tidak diangkut')) {
+      return 'Tidak Remah';
+    } else if (kategoriLower.contains('menumpuk')) {
+      return 'Keterlambatan';
+    }
+    return 'On Progress';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              // Thumbnail Image
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  width: 80,
+                  height: 80,
+                  color: Colors.grey.shade200,
+                  child: report.photoUrl != null
+                      ? Image.network(
+                          report.photoUrl!,
+                          fit: BoxFit.cover,
+                          width: 80,
+                          height: 80,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Icon(
+                              Icons.broken_image,
+                              size: 40,
+                              color: Colors.grey.shade400,
+                            );
+                          },
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Center(
+                              child: CircularProgressIndicator(
+                                value:
+                                    loadingProgress.expectedTotalBytes != null
+                                    ? loadingProgress.cumulativeBytesLoaded /
+                                          loadingProgress.expectedTotalBytes!
+                                    : null,
+                                strokeWidth: 2,
+                              ),
+                            );
+                          },
+                        )
+                      : report.imageFile != null
+                      ? buildPlatformImage(
+                          report.imageFile!,
+                          fit: BoxFit.cover,
+                          width: 80,
+                          height: 80,
+                        )
+                      : Icon(
+                          Icons.image_outlined,
+                          size: 40,
+                          color: Colors.grey.shade400,
+                        ),
+                ),
+              ),
+              const SizedBox(width: 12),
+
+              // Content
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Status Badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _getBadgeColor(),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        _getStatusText(),
+                        style: GoogleFonts.poppins(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: _getBadgeTextColor(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+
+                    // Title
+                    Text(
+                      report.kategori.isNotEmpty
+                          ? report.kategori
+                          : 'Sampah belum diambil',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+
+                    // Date
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.access_time,
+                          size: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            'Dikirim: ${DateFormat('dd MMM yyyy HH:mm').format(report.createdAt)}',
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              color: Colors.grey.shade600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    // Lokasi jika ada
+                    if (report.lokasi.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.location_on_outlined,
+                            size: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              report.lokasi,
+                              style: GoogleFonts.poppins(
+                                fontSize: 11,
+                                color: Colors.grey.shade600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
+              // Arrow Icon
+              Icon(Icons.chevron_right, color: Colors.grey.shade400, size: 24),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
