@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
 import '../login_screen.dart';
 import '../../services/user_storage.dart';
+import 'edit_akun_screen.dart';
+import 'change_password_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final Function(String) onProfileUpdated;
@@ -157,63 +159,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _navigateToEditProfile() async {
-    // Sementara tampilkan dialog bahwa fitur belum tersedia
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'Edit Profile',
-          style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
-        ),
-        content: Text(
-          'Fitur Edit Profile akan segera tersedia',
-          style: GoogleFonts.poppins(fontSize: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'OK',
-              style: GoogleFonts.poppins(
-                color: Color(0xFF009688),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
+    // Navigate ke halaman edit akun
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const EditAkunScreen()),
     );
-  }
 
-  void _navigateToRiwayatPengambilan() {
-    // Sementara tampilkan dialog bahwa fitur belum tersedia
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'Riwayat Pengambilan',
-          style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
-        ),
-        content: Text(
-          'Fitur Riwayat Pengambilan akan segera tersedia',
-          style: GoogleFonts.poppins(fontSize: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'OK',
-              style: GoogleFonts.poppins(
-                color: Color(0xFF009688),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+    // Reload profile jika data berhasil diupdate
+    if (result == true) {
+      _loadProfileData();
+    }
   }
 
   Widget _buildProfileImage() {
@@ -382,7 +337,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             const SizedBox(height: 24),
 
-            // Menu Options (removed notification)
+            // Menu Options
             Container(
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -398,30 +353,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Column(
                 children: [
                   _buildMenuItem(
-                    icon: Icons.person_outline,
-                    title: 'Edit Profile',
+                    icon: Icons.edit,
+                    title: 'Edit Akun',
                     onTap: _navigateToEditProfile,
                   ),
                   _buildDivider(),
                   _buildMenuItem(
-                    icon: Icons.history,
-                    title: 'Riwayat Pengambilan',
-                    onTap: _navigateToRiwayatPengambilan,
-                  ),
-                  _buildDivider(),
-                  _buildMenuItem(
-                    icon: Icons.help_outline,
-                    title: 'Bantuan',
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Fitur bantuan akan segera hadir',
-                            style: GoogleFonts.poppins(fontSize: 14),
-                          ),
-                          backgroundColor: const Color(0xFF009688),
+                    icon: Icons.lock,
+                    title: 'Password',
+                    onTap: () async {
+                      // Navigate ke halaman ubah password
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ChangePasswordScreen(),
                         ),
                       );
+
+                      // Reload profile jika password berhasil diupdate
+                      if (result == true) {
+                        _loadProfileData();
+                      }
                     },
                   ),
                 ],

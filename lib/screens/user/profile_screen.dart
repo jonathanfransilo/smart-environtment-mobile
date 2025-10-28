@@ -6,6 +6,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../services/auth_service.dart';
 import '../../services/user_storage.dart';
+import 'edit_akun_screen.dart';
+import 'change_password_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -30,7 +32,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // Gunakan UserStorage untuk mendapatkan data user yang tersimpan saat login
     final name = await UserStorage.getUserName();
     final email = await UserStorage.getUserEmail();
-    
+
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _name = name ?? "User";
@@ -354,12 +356,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 children: [
-                  _menuItem(Icons.settings, "Pengaturan", onTap: () {}),
-                  _menuItem(Icons.help, "Bantuan", onTap: () {}),
                   _menuItem(
-                    Icons.privacy_tip,
-                    "Kebijakan Privasi",
-                    onTap: () {},
+                    Icons.edit,
+                    "Edit Akun",
+                    onTap: () async {
+                      // Navigate ke halaman edit akun
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const EditAkunScreen(),
+                        ),
+                      );
+
+                      // Reload profile jika data berhasil diupdate
+                      if (result == true) {
+                        _loadProfile();
+                      }
+                    },
+                  ),
+                  _menuItem(
+                    Icons.lock,
+                    "Password",
+                    onTap: () async {
+                      // Navigate ke halaman ubah password
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ChangePasswordScreen(),
+                        ),
+                      );
+
+                      // Reload profile jika password berhasil diupdate
+                      if (result == true) {
+                        _loadProfile();
+                      }
+                    },
                   ),
 
                   const SizedBox(height: 30),
