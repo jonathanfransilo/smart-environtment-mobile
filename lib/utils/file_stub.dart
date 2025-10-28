@@ -15,11 +15,11 @@ class File {
       'File operations without bytes are not supported on web',
     );
   }
+}
 
-  // Factory untuk create dari bytes (untuk web)
-  static File fromBytes(String path, Uint8List bytes) {
-    return File(path, bytes);
-  }
+// Helper function untuk create File dari bytes (untuk web)
+File createFileFromBytes(String path, Uint8List bytes) {
+  return File(path, bytes);
 }
 
 // Stub for SocketException (untuk web compatibility)

@@ -6,6 +6,7 @@ import '../../services/notification_helper.dart';
 import '../../services/complaint_service.dart';
 import '../../models/complaint.dart';
 import '../../utils/file.dart' as custom_file;
+import '../../utils/file.dart'; // Import untuk createFileFromBytes
 import '../../utils/image_builder.dart';
 
 // Fungsi utama untuk menjalankan aplikasi
@@ -1167,10 +1168,7 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
         final bytes = await pickedFile.readAsBytes();
         setState(() {
           // Buat File dengan bytes agar bisa digunakan di web
-          _selectedImageFile = custom_file.File.fromBytes(
-            pickedFile.path,
-            bytes,
-          );
+          _selectedImageFile = createFileFromBytes(pickedFile.path, bytes);
           _isDummyImage = false;
         });
       } else {

@@ -8,6 +8,7 @@ import 'screens/user/layanan_sampah_screen.dart';
 import 'screens/user/profile_screen.dart';
 import 'screens/forgot_password_screen.dart';
 import 'screens/user/artikel_screen.dart';
+import 'screens/user/artikel_detail_screen.dart';
 import 'screens/user/pelaporan_screen.dart';
 import 'screens/user/riwayat_pembayaran_screen.dart';
 import 'screens/kolektor/home_screens_kolektor.dart';
@@ -57,8 +58,22 @@ class SirkularApp extends StatelessWidget {
 
         // --- ROUTE KOLEKTOR ---
         '/home-kolektor': (context) => const HomeScreensKolektor(),
-        
+
         // Note: PengambilanSampahScreen, AmbilFotoScreen, dll sekarang diakses via Navigator.push dengan parameter dinamis
+      },
+
+      // Custom route handler for routes with parameters
+      onGenerateRoute: (settings) {
+        // Handle artikel-detail route with ID parameter
+        if (settings.name == '/artikel-detail') {
+          final artikelId = settings.arguments as int?;
+          if (artikelId != null) {
+            return MaterialPageRoute(
+              builder: (context) => ArtikelDetailScreen(articleId: artikelId),
+            );
+          }
+        }
+        return null;
       },
 
       // 🔹 Handling kalau route tidak ditemukan
