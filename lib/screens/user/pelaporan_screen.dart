@@ -1,11 +1,12 @@
-import 'dart:io';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/notification_helper.dart';
+import '../../services/complaint_service.dart';
+import '../../models/complaint.dart';
+import '../../utils/file.dart' as custom_file;
+import '../../utils/image_builder.dart';
 
 // Fungsi utama untuk menjalankan aplikasi
 void main() {
@@ -42,7 +43,7 @@ class Laporan {
   final String lokasi;
   final String waktuPelanggaran;
   final String ciriCiri;
-  final File? imageFile;
+  final custom_file.File? imageFile;
   final bool isAsset;
   final DateTime createdAt;
 
@@ -83,7 +84,9 @@ class Laporan {
       lokasi: json['lokasi'] as String,
       waktuPelanggaran: json['waktuPelanggaran'] as String,
       ciriCiri: json['ciriCiri'] as String,
-      imageFile: json['imagePath'] != null ? File(json['imagePath'] as String) : null,
+      imageFile: json['imagePath'] != null
+          ? custom_file.File(json['imagePath'] as String)
+          : null,
       isAsset: json['isAsset'] as bool? ?? false,
     );
   }
@@ -94,7 +97,7 @@ class Laporan {
 // ====================================================================
 
 class BuatLaporanScreen extends StatefulWidget {
-  final File? imageFile;
+  final custom_file.File? imageFile;
   final bool isAsset;
 
   const BuatLaporanScreen({
@@ -108,121 +111,44 @@ class BuatLaporanScreen extends StatefulWidget {
 }
 
 class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
-  // Controller untuk mengelola input text dari TextField
-  final TextEditingController _lokasiController = TextEditingController();
-  final TextEditingController _waktuController = TextEditingController();
-  final TextEditingController _jamController = TextEditingController();
-  final TextEditingController _ciriCiriController = TextEditingController();
+  // Controller untuk mengelola input text
+  final TextEditingController _deskripsiController = TextEditingController();
 
-  // State untuk menyimpan tanggal yang dipilih (opsional, untuk logika)
-  DateTime? _selectedDate;
-  TimeOfDay? _selectedTime;
-
-  // Pilihan Data Dropdown
-  static const String _fixedCity = 'Jakarta'; // Kota tetap Jakarta
-
-  static const List<String> _categories = [
-    'Sampah Liar',
-    'Fasilitas Rusak',
-    'Tempat Sampah Penuh',
-    'Pengambilan sampah tidak sesuai SOP',
-    'Warga buang sampah sembarangan',
-    'Warga merusak fasilitas',
-    'Petugas tidak ramah',
-    'Lainnya',
+  // Pilihan Kategori sesuai API Documentation
+  static const List<Map<String, String>> _types = [
+    {'value': 'sampah_tidak_diangkut', 'label': 'Sampah Tidak Diangkut'},
+    {'value': 'sampah_menumpuk', 'label': 'Sampah Menumpuk'},
+    {'value': 'jadwal_tidak_sesuai', 'label': 'Jadwal Tidak Sesuai'},
+    {'value': 'pelayanan_buruk', 'label': 'Pelayanan Buruk'},
+    {'value': 'petugas_tidak_datang', 'label': 'Petugas Tidak Datang'},
+    {'value': 'lainnya', 'label': 'Lainnya'},
   ];
 
-  // State untuk menyimpan nilai yang dipilih
-  String? _selectedCategory;
+  // State untuk menyimpan tipe yang dipilih
+  String? _selectedType;
 
   // Kunci form untuk validasi
   final _formKey = GlobalKey<FormState>();
 
-  // Warna Utama (digunakan untuk tombol dan ikon, dll.)
+  // Warna Utama
   static const Color primaryColor = Color.fromARGB(255, 21, 145, 137);
 
   @override
   void dispose() {
-    _lokasiController.dispose();
-    _waktuController.dispose();
-    _jamController.dispose();
-    _ciriCiriController.dispose();
+    _deskripsiController.dispose();
     super.dispose();
-  }
-
-  // Fungsi untuk menghasilkan DropdownMenuItem dari List<String>
-  List<DropdownMenuItem<String>> _buildDropdownItems(List<String> options) {
-    return options.map((String value) {
-      return DropdownMenuItem<String>(
-        value: value,
-        child: Text(value, overflow: TextOverflow.ellipsis),
-      );
-    }).toList();
-  }
-
-  // Fungsi untuk menampilkan Date Picker (Kalender)
-  Future<void> _selectDate(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate ?? DateTime.now(),
-      firstDate: DateTime(2000),
-      lastDate:
-          DateTime.now(), // Hanya bisa memilih tanggal hari ini atau sebelumnya
-      helpText: 'Pilih Tanggal Pelanggaran',
-      cancelText: 'BATAL',
-      confirmText: 'PILIH',
-    );
-    if (picked != null && picked != _selectedDate) {
-      setState(() {
-        _selectedDate = picked;
-        // Format tanggal ke String dan masukkan ke controller
-        _waktuController.text = DateFormat('dd MMMM yyyy').format(picked);
-      });
-    }
-  }
-
-  // Fungsi untuk menampilkan Time Picker (Jam)
-  Future<void> _selectTime(BuildContext context) async {
-    final TimeOfDay? picked = await showTimePicker(
-      context: context,
-      initialTime: _selectedTime ?? TimeOfDay.now(),
-      helpText: 'Pilih Jam Pelanggaran',
-      cancelText: 'BATAL',
-      confirmText: 'PILIH',
-      builder: (BuildContext context, Widget? child) {
-        return Theme(
-          data: ThemeData.light().copyWith(
-            primaryColor: primaryColor,
-            colorScheme: ColorScheme.light(primary: primaryColor),
-            buttonTheme: ButtonThemeData(
-              colorScheme: ColorScheme.light(primary: primaryColor),
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-    if (picked != null && picked != _selectedTime) {
-      setState(() {
-        _selectedTime = picked;
-        // Format jam ke String dan masukkan ke controller
-        final hour = picked.hour.toString().padLeft(2, '0');
-        final minute = picked.minute.toString().padLeft(2, '0');
-        _jamController.text = '$hour:$minute';
-      });
-    }
   }
 
   // Fungsi Navigasi ke DetailLaporanScreen
   void _submitReport() {
     if (_formKey.currentState!.validate()) {
-      // Pastikan semua dropdown terisi
-      if (_selectedCategory == null) {
+      // Pastikan dropdown terisi
+      if (_selectedType == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: Colors.red,
             content: Text(
-              "Mohon lengkapi semua field yang wajib diisi.",
+              "Mohon pilih kategori laporan.",
               style: GoogleFonts.poppins(),
             ),
           ),
@@ -230,19 +156,21 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
         return;
       }
 
-      // Ambil semua data dari state dan controller
-      final waktuLengkap =
-          '${_waktuController.text}${_jamController.text.isNotEmpty ? ' pukul ${_jamController.text}' : ''}';
-      final reportData = {
-        'kota': _fixedCity,
-        'kategori': _selectedCategory!,
-        'lokasi': _lokasiController.text,
-        'waktu_pelanggaran': waktuLengkap,
-        'ciri_ciri': _ciriCiriController.text,
+      // Debug print
+      print('🔍 _selectedType: $_selectedType');
+      print('🔍 _deskripsiController.text: ${_deskripsiController.text}');
+
+      // Ambil data dari state dan controller
+      final reportData = <String, String>{
+        'type': _selectedType ?? '', // API field: type - dengan fallback
+        'deskripsi': _deskripsiController.text.isNotEmpty
+            ? _deskripsiController.text
+            : 'Tidak ada deskripsi', // API field: description - dengan fallback
       };
 
+      print('🔍 reportData: $reportData');
+
       // Navigasi ke DetailLaporanScreen
-      // ⭐️ BuatLaporanScreen menunggu hasil dari DetailLaporanScreen
       Navigator.of(context)
           .push(
             MaterialPageRoute<Laporan>(
@@ -254,9 +182,9 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
             ),
           )
           .then((newReport) {
-            // Jika DetailLaporanScreen me-return objek Laporan (artinya dikonfirmasi)
+            // Jika DetailLaporanScreen me-return objek Laporan
             if (newReport is Laporan) {
-              // Kirim objek Laporan ini kembali ke PelaporanScreen (pop dua kali)
+              // Kirim objek Laporan kembali ke PelaporanScreen
               Navigator.of(context).pop(newReport);
             }
           });
@@ -268,8 +196,8 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
     // Tentukan widget gambar yang akan ditampilkan
     Widget imageWidget;
     if (widget.imageFile != null) {
-      // Menggunakan Image.file untuk gambar dari galeri/kamera
-      imageWidget = Image.file(
+      // Menggunakan buildPlatformImage untuk cross-platform compatibility
+      imageWidget = buildPlatformImage(
         widget.imageFile!,
         fit: BoxFit.cover,
         width: double.infinity,
@@ -388,69 +316,30 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
               ),
               const SizedBox(height: 24),
 
-              // --- FORM FIELDS ---
+              // --- FORM FIELDS YANG DIPERLUKAN API ---
 
-              // KOTA TETAP (Jakarta)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 18,
-                ),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade400),
-                  borderRadius: BorderRadius.circular(8),
-                  color: Colors.grey.shade50,
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.location_city, color: primaryColor, size: 20),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Kota',
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          _fixedCity,
-                          style: GoogleFonts.poppins(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.black87,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Spacer(),
-                    Icon(
-                      Icons.check_circle,
-                      color: Colors.green.shade600,
-                      size: 20,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Dropdown KATEGORI
+              // Dropdown KATEGORI/TYPE
               DropdownButtonFormField<String>(
-                value: _selectedCategory,
+                value: _selectedType,
                 decoration: InputDecoration(
                   labelText: "Kategori",
+                  prefixIcon: const Icon(Icons.category),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                items: _buildDropdownItems(_categories),
+                items: _types.map((type) {
+                  return DropdownMenuItem<String>(
+                    value: type['value'],
+                    child: Text(
+                      type['label']!,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  );
+                }).toList(),
                 onChanged: (value) {
                   setState(() {
-                    _selectedCategory = value;
+                    _selectedType = value;
                   });
                 },
                 hint: const Text('Pilih Kategori'),
@@ -459,94 +348,15 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Lokasi
+              // Deskripsi
               TextFormField(
-                controller: _lokasiController,
+                controller: _deskripsiController,
+                maxLines: 5,
+                maxLength: 1000, // Sesuai validasi API
                 decoration: InputDecoration(
-                  labelText: "Lokasi",
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                validator: (value) => value!.isEmpty
-                    ? 'Lokasi wajib diisi.'
-                    : null, // Tambahkan validasi
-              ),
-              const SizedBox(height: 16),
-
-              // Waktu Pelanggaran (MENGGUNAKAN DATE PICKER)
-              TextFormField(
-                controller: _waktuController,
-                readOnly: true, // Agar keyboard tidak muncul saat diklik
-                onTap: () => _selectDate(context), // Panggil kalender
-                decoration: InputDecoration(
-                  labelText: "Tanggal Pelanggaran",
-                  hintText: _selectedDate == null ? 'Pilih Tanggal' : null,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  prefixIcon: const Icon(
-                    Icons.calendar_today,
-                    color: primaryColor,
-                  ),
-                  filled: true,
-                  fillColor: Colors.grey.shade50,
-                ),
-                validator: (value) =>
-                    value!.isEmpty ? 'Tanggal Pelanggaran wajib diisi.' : null,
-              ),
-              const SizedBox(height: 16),
-
-              // Jam Pelanggaran (MENGGUNAKAN TIME PICKER)
-              TextFormField(
-                controller: _jamController,
-                readOnly: true, // Agar keyboard tidak muncul saat diklik
-                onTap: () => _selectTime(context), // Panggil time picker
-                decoration: InputDecoration(
-                  labelText: "Jam Pelanggaran (Opsional)",
-                  hintText: "Ketuk untuk memilih jam",
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  prefixIcon: Container(
-                    padding: const EdgeInsets.all(12),
-                    child: Container(
-                      width: 24,
-                      height: 24,
-                      decoration: BoxDecoration(
-                        color: primaryColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Icon(
-                        Icons.access_time,
-                        color: primaryColor,
-                        size: 16,
-                      ),
-                    ),
-                  ),
-                  filled: true,
-                  fillColor: Colors.blue.shade50,
-                  suffixIcon: _jamController.text.isNotEmpty
-                      ? IconButton(
-                          icon: Icon(Icons.clear, color: Colors.grey.shade600),
-                          onPressed: () {
-                            setState(() {
-                              _jamController.clear();
-                              _selectedTime = null;
-                            });
-                          },
-                        )
-                      : Icon(Icons.schedule, color: Colors.grey.shade400),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Ciri-ciri
-              TextFormField(
-                controller: _ciriCiriController,
-                maxLines: 3,
-                decoration: InputDecoration(
-                  labelText: "Ciri-ciri",
+                  labelText: "Deskripsi",
+                  hintText: "Jelaskan detail keluhan Anda...",
+                  prefixIcon: const Icon(Icons.description),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -593,7 +403,7 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
 
 class DetailLaporanScreen extends StatelessWidget {
   final Map<String, String> reportData;
-  final File? imageFile;
+  final custom_file.File? imageFile;
   final bool isAsset;
 
   const DetailLaporanScreen({
@@ -605,134 +415,271 @@ class DetailLaporanScreen extends StatelessWidget {
 
   static const Color primaryColor = Color.fromARGB(255, 21, 145, 137);
 
-  // Fungsi: Menampilkan modal konfirmasi dan mengembalikan objek Laporan
+  // Type mapping untuk mendapatkan label dari value
+  static const List<Map<String, String>> _types = [
+    {'value': 'sampah_tidak_diangkut', 'label': 'Sampah Tidak Diangkut'},
+    {'value': 'sampah_menumpuk', 'label': 'Sampah Menumpuk'},
+    {'value': 'jadwal_tidak_sesuai', 'label': 'Jadwal Tidak Sesuai'},
+    {'value': 'pelayanan_buruk', 'label': 'Pelayanan Buruk'},
+    {'value': 'petugas_tidak_datang', 'label': 'Petugas Tidak Datang'},
+    {'value': 'lainnya', 'label': 'Lainnya'},
+  ];
+
+  // Fungsi: Menampilkan modal konfirmasi dan mengirim laporan ke API
   void _confirmReport(BuildContext context) async {
-    // 1. Buat objek Laporan baru
-    final newReport = Laporan(
-      kota: reportData['kota']!,
-      kategori: reportData['kategori']!,
-      lokasi: reportData['lokasi']!,
-      waktuPelanggaran: reportData['waktu_pelanggaran']!,
-      ciriCiri: reportData['ciri_ciri']!,
-      imageFile: imageFile,
-      isAsset: isAsset,
-    );
-
-    // Trigger notifikasi pelaporan berhasil dibuat
-    final helper = NotificationHelper();
-    await helper.notifyReportCreated(
-      category: reportData['kategori']!,
-      location: reportData['lokasi']!,
-    );
-
-    // 2. Tampilkan Dialog "Pelaporan Selesai"
+    // Show loading dialog
     showDialog(
       context: context,
-      barrierDismissible: false, // Tidak bisa ditutup dengan tap di luar
+      barrierDismissible: false,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          // Menghilangkan padding default agar bisa mengisi seluruh lebar dialog
-          contentPadding: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const SizedBox(height: 32),
-              // Ikon Centang Hijau
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  color: Colors.green.shade200,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.check,
-                  size: 40,
-                  color: Colors.green.shade600,
-                ),
-              ),
-              const SizedBox(height: 24),
-              // Judul
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
               Text(
-                "Pelaporan Selesai",
-                style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black,
-                ),
+                "Mengirim laporan...",
+                style: GoogleFonts.poppins(fontSize: 14),
               ),
-              const SizedBox(height: 8),
-              // Subteks
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                child: Text(
-                  "Proses pelaporan telah selesai, pelaporan anda akan segera kami proses",
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 32),
-              // Tombol OK
-              SizedBox(
-                width: double.infinity,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                  child: ElevatedButton(
-                    onPressed: () {
-                      // 1. Tutup Dialog
-                      Navigator.of(dialogContext).pop();
-
-                      // 2. ⭐️ Kunci: Pop dari DetailLaporanScreen dan kirim objek Laporan
-                      // Objek Laporan ini akan diterima oleh BuatLaporanScreen
-                      Navigator.of(context).pop(newReport);
-
-                      // Pesan sukses:
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          backgroundColor: primaryColor,
-                          content: Text(
-                            "Laporan berhasil dikirim!",
-                            style: GoogleFonts.poppins(),
-                          ),
-                        ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color.fromARGB(
-                        255,
-                        68,
-                        180,
-                        219,
-                      ), // Warna biru muda sesuai gambar
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: Text(
-                      "OK",
-                      style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
             ],
           ),
         );
       },
     );
+
+    try {
+      // 🔹 Kirim ke API menggunakan ComplaintService
+      print('📤 Sending complaint to API...');
+      print('  Type: ${reportData['type']}');
+      print('  Description: ${reportData['deskripsi']}');
+      print('  Has Image: ${imageFile != null}');
+
+      final (success, message, data) = await ComplaintService.createComplaint(
+        type: reportData['type']!, // Langsung dari dropdown value
+        description: reportData['deskripsi']!,
+        image: imageFile,
+      );
+
+      print('📥 API Response - Success: $success, Message: $message');
+
+      // Tutup loading dialog
+      if (context.mounted) Navigator.of(context).pop();
+
+      if (success && data != null) {
+        // 1. Parse response menjadi Complaint object (optional - tidak critical untuk flow)
+        print('✅ API Success! Data: $data');
+        Complaint? complaint;
+        try {
+          complaint = Complaint.fromJson(data);
+          print('✅ Complaint parsed: ${complaint.id}');
+        } catch (e) {
+          print('⚠️ Warning: Could not parse Complaint: $e');
+          // Continue anyway, complaint parsing tidak critical
+        }
+
+        // 2. Buat objek Laporan untuk kompatibilitas UI (temporary mapping)
+        // Note: Laporan model masih menggunakan struktur lama untuk backward compatibility
+        print('📋 reportData: $reportData');
+
+        final String typeValue = reportData['type'] ?? 'lainnya';
+        print('📋 typeValue from reportData: $typeValue');
+
+        final typeLabel =
+            _types.firstWhere(
+              (t) => t['value'] == typeValue,
+              orElse: () => {'value': typeValue, 'label': 'Lainnya'},
+            )['label'] ??
+            'Lainnya';
+        print('✅ typeLabel: $typeLabel');
+
+        final newReport = Laporan(
+          kota: 'Jakarta', // Default
+          kategori: typeLabel, // Gunakan label untuk display
+          lokasi: '', // Tidak ada lagi
+          waktuPelanggaran: DateFormat(
+            'dd MMMM yyyy HH:mm',
+          ).format(DateTime.now()),
+          ciriCiri:
+              reportData['deskripsi'] ??
+              'Tidak ada deskripsi', // Fallback jika null
+          imageFile: imageFile,
+          isAsset: isAsset,
+        );
+        print('✅ newReport created: ${newReport.id}');
+
+        // 3. Trigger notifikasi pelaporan berhasil dibuat (optional - jangan block flow)
+        try {
+          final helper = NotificationHelper();
+          await helper.notifyReportCreated(
+            category: typeLabel,
+            location: 'Jakarta',
+          );
+        } catch (e) {
+          print('⚠️ Notifikasi gagal: $e');
+          // Ignore notification error, don't block the flow
+        }
+
+        // 4. Tampilkan Dialog "Pelaporan Selesai"
+        if (context.mounted) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (BuildContext dialogContext) {
+              return AlertDialog(
+                contentPadding: EdgeInsets.zero,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 32),
+                    // Ikon Centang Hijau
+                    Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade200,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.check,
+                        size: 40,
+                        color: Colors.green.shade600,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    // Judul
+                    Text(
+                      "Pelaporan Selesai",
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Subteks
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                      child: Text(
+                        "Proses pelaporan telah selesai, pelaporan anda akan segera kami proses",
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // ID Complaint (jika ada)
+                    if (complaint != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                        child: Text(
+                          "ID: ${complaint.id}",
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 32),
+                    // Tombol OK
+                    SizedBox(
+                      width: double.infinity,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                        child: ElevatedButton(
+                          onPressed: () {
+                            // 1. Tutup Dialog
+                            Navigator.of(dialogContext).pop();
+
+                            // 2. Pop dari DetailLaporanScreen dan kirim objek Laporan
+                            Navigator.of(context).pop(newReport);
+
+                            // Pesan sukses:
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                backgroundColor: primaryColor,
+                                content: Text(
+                                  "Laporan berhasil dikirim!",
+                                  style: GoogleFonts.poppins(),
+                                ),
+                              ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color.fromARGB(
+                              255,
+                              68,
+                              180,
+                              219,
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: Text(
+                            "OK",
+                            style: GoogleFonts.poppins(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              );
+            },
+          );
+        }
+      } else {
+        // Gagal mengirim ke API
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: Colors.red,
+              content: Text(message, style: GoogleFonts.poppins()),
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // Tutup loading dialog jika masih ada
+      if (context.mounted) Navigator.of(context).pop();
+
+      // Tampilkan error
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.red,
+            content: Text(
+              'Terjadi kesalahan: $e',
+              style: GoogleFonts.poppins(),
+            ),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    }
+  }
+
+  // Helper untuk mendapatkan label dari type value
+  String _getTypeLabel(String typeValue) {
+    final type = _types.firstWhere(
+      (t) => t['value'] == typeValue,
+      orElse: () => {'value': typeValue, 'label': typeValue},
+    );
+    return type['label'] ?? typeValue;
   }
 
   // Widget untuk menampilkan sepasang Label dan Value
@@ -767,7 +714,7 @@ class DetailLaporanScreen extends StatelessWidget {
     // Tentukan widget gambar yang akan ditampilkan
     Widget imageWidget;
     if (imageFile != null) {
-      imageWidget = Image.file(
+      imageWidget = buildPlatformImage(
         imageFile!,
         fit: BoxFit.cover,
         height: 200,
@@ -836,15 +783,17 @@ class DetailLaporanScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            // Detail Data
-            _buildDetailRow("Kota", reportData['kota'] ?? '-'),
-            _buildDetailRow("Kategori", reportData['kategori'] ?? '-'),
-            _buildDetailRow("Lokasi", reportData['lokasi'] ?? '-'),
+            // Detail Data - Hanya yang diperlukan API
             _buildDetailRow(
-              "Waktu Pelanggaran",
-              reportData['waktu_pelanggaran'] ?? '-',
+              "Kategori",
+              reportData['type'] != null
+                  ? _getTypeLabel(reportData['type']!)
+                  : 'Tidak ada kategori',
             ),
-            _buildDetailRow("Ciri-ciri Pelaku", reportData['ciri_ciri'] ?? '-'),
+            _buildDetailRow(
+              "Deskripsi",
+              reportData['deskripsi'] ?? 'Tidak ada deskripsi',
+            ),
 
             const SizedBox(height: 32),
 
@@ -922,7 +871,7 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
     // Tentukan widget gambar yang akan ditampilkan
     Widget imageWidget;
     if (laporan.imageFile != null) {
-      imageWidget = Image.file(
+      imageWidget = buildPlatformImage(
         laporan.imageFile!,
         fit: BoxFit.cover,
         height: 200,
@@ -1090,14 +1039,14 @@ class PelaporanScreen extends StatefulWidget {
 
 class _PelaporanScreenState extends State<PelaporanScreen> {
   final ImagePicker _picker = ImagePicker();
-  File? _selectedImageFile;
+  custom_file.File? _selectedImageFile;
   bool _isDummyImage = false;
+  bool _isLoading = false; // Loading state untuk API call
 
   // State untuk menyimpan daftar laporan yang sudah dikirim
   final List<Laporan> _submittedReports = [];
 
   static const Color primaryColor = Color.fromARGB(255, 21, 145, 137);
-  static const String _storageKey = 'submitted_reports';
 
   @override
   void initState() {
@@ -1105,49 +1054,77 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
     _loadSavedReports();
   }
 
-  /// 🔹 Load laporan yang tersimpan dari SharedPreferences
+  /// 🔹 Load laporan dari API
   Future<void> _loadSavedReports() async {
+    setState(() {
+      _isLoading = true;
+    });
+
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final String? reportsJson = prefs.getString(_storageKey);
-      
-      if (reportsJson != null && reportsJson.isNotEmpty) {
-        final List<dynamic> decoded = json.decode(reportsJson);
-        final List<Laporan> loadedReports = decoded
-            .map((item) => Laporan.fromJson(item as Map<String, dynamic>))
-            .toList();
-        
+      // Ambil data dari API
+      final (success, message, data) = await ComplaintService.getComplaints(
+        limit: 100, // Ambil maksimal 100 laporan
+      );
+
+      if (success && data != null) {
+        // Convert API response ke Laporan objects untuk kompatibilitas UI
+        final List<Laporan> loadedReports = data.map((item) {
+          final complaint = Complaint.fromJson(item);
+          return _convertComplaintToLaporan(complaint);
+        }).toList();
+
         setState(() {
           _submittedReports.clear();
           _submittedReports.addAll(loadedReports);
+          _isLoading = false;
         });
-        
-        print('✅ Loaded ${loadedReports.length} reports from storage');
+
+        print('✅ Loaded ${loadedReports.length} reports from API');
+      } else {
+        setState(() {
+          _isLoading = false;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(message), backgroundColor: Colors.orange),
+          );
+        }
       }
     } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+
       print('❌ Error loading reports: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gagal memuat data laporan: $e'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal memuat data laporan: $e'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
     }
   }
 
-  /// 🔹 Simpan laporan ke SharedPreferences
-  Future<void> _saveReports() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final List<Map<String, dynamic>> reportsJson = 
-          _submittedReports.map((report) => report.toJson()).toList();
-      final String encoded = json.encode(reportsJson);
-      
-      await prefs.setString(_storageKey, encoded);
-      print('✅ Saved ${_submittedReports.length} reports to storage');
-    } catch (e) {
-      print('❌ Error saving reports: $e');
-    }
+  /// Helper untuk convert Complaint (API) ke Laporan (UI model)
+  Laporan _convertComplaintToLaporan(Complaint complaint) {
+    // Default values karena Complaint API tidak punya field ini lagi
+    final kota = 'Jakarta'; // Default kota
+    final waktuPelanggaran = DateFormat(
+      'dd MMMM yyyy HH:mm',
+    ).format(complaint.createdAt);
+
+    return Laporan(
+      kota: kota,
+      kategori: complaint.typeText, // Gunakan getter typeText untuk display
+      lokasi: '', // Tidak ada lagi di API
+      waktuPelanggaran: waktuPelanggaran,
+      ciriCiri: complaint.description,
+      imageFile: null, // API returns URL, bukan File
+      isAsset: complaint.photos.isNotEmpty, // Ada foto dari API
+    );
   }
 
   /// 🔹 Fungsi navigasi ke halaman Buat Laporan
@@ -1169,16 +1146,9 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
             // Membersihkan gambar di layar ini
             _removeImage();
 
-            // Memeriksa dan menyimpan laporan baru
+            // Jika laporan berhasil dikirim, refresh list dari API
             if (newReport != null) {
-              setState(() {
-                _submittedReports.insert(
-                  0,
-                  newReport,
-                ); // Tambahkan di awal daftar
-              });
-              // Simpan ke SharedPreferences
-              _saveReports();
+              _loadSavedReports(); // Refresh data dari API
               // SnackBar sudah ditangani di DetailLaporanScreen
             }
           });
@@ -1193,8 +1163,14 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
     try {
       final pickedFile = await _picker.pickImage(source: source);
       if (pickedFile != null) {
+        // Untuk web, kita perlu read bytes dulu
+        final bytes = await pickedFile.readAsBytes();
         setState(() {
-          _selectedImageFile = File(pickedFile.path);
+          // Buat File dengan bytes agar bisa digunakan di web
+          _selectedImageFile = custom_file.File.fromBytes(
+            pickedFile.path,
+            bytes,
+          );
           _isDummyImage = false;
         });
       } else {
@@ -1277,14 +1253,34 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
   Widget _imageDisplayWidget() {
     // 1. Jika ada gambar dari perangkat
     if (_selectedImageFile != null) {
-      return Image.file(
+      return buildPlatformImage(
         _selectedImageFile!,
         width: 280,
         height: 280,
         fit: BoxFit.cover,
       );
     } else {
-      // 2. Jika tidak ada gambar, tampilkan daftar laporan atau empty state
+      // 2. Tampilkan loading indicator saat memuat data
+      if (_isLoading) {
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Memuat laporan...',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                color: Colors.grey.shade600,
+              ),
+            ),
+          ],
+        );
+      }
+
+      // 3. Jika tidak ada gambar, tampilkan daftar laporan atau empty state
       if (_submittedReports.isNotEmpty) {
         return _ReportList(reports: _submittedReports);
       }
@@ -1324,9 +1320,18 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
           "Pelaporan",
           style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
         ),
+        actions: [
+          // Tombol refresh untuk reload data dari API
+          if (!showImagePreview)
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: _isLoading ? null : _loadSavedReports,
+              tooltip: 'Refresh',
+            ),
+        ],
       ),
       // Gunakan Stack/Center hanya jika menampilkan Preview Gambar,
-      // jika menampilkan List, gunakan Column/Expanded
+      // jika menampilkan List, gunakan Column/Expanded dengan RefreshIndicator
       body: showImagePreview
           ? Center(
               child: Stack(
@@ -1372,12 +1377,16 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
                 ],
               ),
             )
-          : Center(
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: _imageDisplayWidget(),
+          : RefreshIndicator(
+              onRefresh: _loadSavedReports,
+              color: primaryColor,
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: _imageDisplayWidget(),
+                ),
               ),
-            ), // Tampilkan Empty State/List dengan Center
+            ), // Tampilkan Empty State/List dengan RefreshIndicator
 
       floatingActionButton: _buildFloatingActionButton(),
     );

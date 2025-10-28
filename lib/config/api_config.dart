@@ -45,4 +45,9 @@ class ApiConfig {
   static const String residentPickupsUpcoming = '/mobile/resident/pickups/upcoming';
   static const String residentPickupsHistory = '/mobile/resident/pickups/history';
   static const String residentPickupDetail = '/mobile/resident/pickups'; // /{id}
+  
+  // Article endpoints
+  static const String articles = '/mobile/resident/articles';
+  static const String articleDetail = '/mobile/resident/articles'; // /{id}
+  static const String articlesFeatured = '/mobile/resident/articles/featured';
 }

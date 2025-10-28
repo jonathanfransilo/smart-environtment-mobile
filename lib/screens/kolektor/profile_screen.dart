@@ -9,10 +9,7 @@ import '../../services/user_storage.dart';
 class ProfileScreen extends StatefulWidget {
   final Function(String) onProfileUpdated;
 
-  const ProfileScreen({
-    super.key,
-    required this.onProfileUpdated,
-  });
+  const ProfileScreen({super.key, required this.onProfileUpdated});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -35,13 +32,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // Load data dari UserStorage (data user yang login)
     final name = await UserStorage.getUserName();
     final email = await UserStorage.getUserEmail();
-    
+
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _profileImagePath = prefs.getString('profile_image_path') ?? '';
       _profileName = name ?? 'Kolektor Sampah';
       _profileEmail = email ?? 'kolektor@email.com';
-      _profileAddress = prefs.getString('profile_address') ?? 'Menteng, Jakarta Pusat';
+      _profileAddress =
+          prefs.getString('profile_address') ?? 'Menteng, Jakarta Pusat';
     });
   }
 
@@ -59,13 +57,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         maxHeight: 512,
         imageQuality: 85,
       );
-      
+
       if (image != null) {
         setState(() {
           _profileImagePath = image.path;
         });
         await _saveProfileImage(image.path);
-        
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -135,9 +133,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               child: Text(
                 'Keluar',
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w600,
-                ),
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
               ),
             ),
           ],
@@ -149,13 +145,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       // Clear user data (if any)
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
-      
+
       if (mounted) {
         // Navigate to login screen and clear all previous routes
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(
-            builder: (context) => const LoginScreen(),
-          ),
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
           (Route<dynamic> route) => false,
         );
       }
@@ -167,15 +161,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
           'Edit Profile',
-          style: GoogleFonts.poppins(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-          ),
+          style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
         ),
         content: Text(
           'Fitur Edit Profile akan segera tersedia',
@@ -202,15 +191,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
           'Riwayat Pengambilan',
-          style: GoogleFonts.poppins(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-          ),
+          style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
         ),
         content: Text(
           'Fitur Riwayat Pengambilan akan segera tersedia',
@@ -245,7 +229,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               border: Border.all(color: Colors.grey[300]!, width: 2),
             ),
             child: ClipOval(
-              child: _profileImagePath.isNotEmpty && File(_profileImagePath).existsSync()
+              child:
+                  _profileImagePath.isNotEmpty &&
+                      File(_profileImagePath).existsSync()
                   ? Image.file(
                       File(_profileImagePath),
                       fit: BoxFit.cover,
@@ -308,10 +294,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             color: Colors.black87,
           ),
         ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: false, // Hapus tombol back
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -362,7 +345,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(height: 12),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFF009688).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(20),
@@ -393,9 +379,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 24),
-            
+
             // Menu Options (removed notification)
             Container(
               decoration: BoxDecoration(
@@ -441,9 +427,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 24),
-            
+
             // Logout Button
             SizedBox(
               width: double.infinity,
@@ -474,14 +460,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 40),
           ],
         ),
       ),
     );
   }
-  
+
   Widget _buildMenuItem({
     required IconData icon,
     required String title,
@@ -501,11 +487,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 color: Colors.grey[100],
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(
-                icon,
-                color: const Color(0xFF009688),
-                size: 20,
-              ),
+              child: Icon(icon, color: const Color(0xFF009688), size: 20),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -518,16 +500,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ),
-            Icon(
-              Icons.chevron_right,
-              color: Colors.grey[400],
-            ),
+            Icon(Icons.chevron_right, color: Colors.grey[400]),
           ],
         ),
       ),
     );
   }
-  
+
   Widget _buildDivider() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),

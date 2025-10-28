@@ -9,7 +9,6 @@ import 'profile_screen.dart';
 import 'riwayat_sampah_screen.dart';
 import '../user/notification_screen.dart';
 import '../user/notification_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
 
 class HomeScreensKolektor extends StatefulWidget {
@@ -22,13 +21,14 @@ class HomeScreensKolektor extends StatefulWidget {
 class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
   List<Map<String, dynamic>> pengambilanList = [];
   List<Map<String, dynamic>> todayPickups = [];
-  String _profileImagePath = '';
   String _userName = 'Kolektor';
   bool _isLoadingPickups = false;
   bool _isLoadingHistory = false;
   String? _errorMessage;
   int _unreadNotifCount = 0;
   bool _hasShownWelcomeMessage = false;
+  int _selectedIndex = 0;
+  int _riwayatTabIndex = 0; // 0 = Pengambilan, 1 = Pengangkutan
 
   @override
   void initState() {
@@ -41,7 +41,6 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
     await _loadUserData();
     await _loadTodayPickups();
     await _loadPengambilanData();
-    await _loadProfileImage();
 
     // Trigger notifikasi otomatis setelah data dimuat
     await _checkAndTriggerNotifications();
@@ -138,26 +137,16 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
     }
   }
 
-  Future<void> _loadProfileImage() async {
-    final prefs = await SharedPreferences.getInstance();
-    final imagePath = prefs.getString('profile_image_path') ?? '';
-    if (mounted) {
-      setState(() {
-        _profileImagePath = imagePath;
-      });
-    }
-  }
-
-  void _onProfileUpdated(String imagePath) {
+  void _onNavItemTapped(int index) {
     setState(() {
-      _profileImagePath = imagePath;
+      _selectedIndex = index;
     });
   }
 
   /// Build image widget dengan handling untuk berbagai tipe path
   Widget _buildPickupImage(String imagePath) {
     print('📷 [HomeKolektor] Building pickup image: $imagePath');
-    
+
     // Placeholder widget jika image kosong
     if (imagePath.isEmpty) {
       return Container(
@@ -174,13 +163,16 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
 
     // Convert relative URL to full URL if needed (from API)
     String finalImagePath = imagePath;
-    if (!imagePath.startsWith('http') && !imagePath.startsWith('assets/') && imagePath.startsWith('/')) {
+    if (!imagePath.startsWith('http') &&
+        !imagePath.startsWith('assets/') &&
+        imagePath.startsWith('/')) {
       finalImagePath = 'https://smart-environment-web.citiasiainc.id$imagePath';
       print('🔄 [HomeKolektor] Converted to full URL: $finalImagePath');
     }
 
     // HTTP/HTTPS URL - gunakan Image.network
-    if (finalImagePath.startsWith('http://') || finalImagePath.startsWith('https://')) {
+    if (finalImagePath.startsWith('http://') ||
+        finalImagePath.startsWith('https://')) {
       print('🌐 [HomeKolektor] Loading network image: $finalImagePath');
       return Image.network(
         finalImagePath,
@@ -233,7 +225,8 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
     }
 
     // File path lokal (dimulai dengan / atau berisi path lengkap) - hanya untuk file lokal sebenarnya
-    if (finalImagePath.startsWith('/') || finalImagePath.contains('storagePickups')) {
+    if (finalImagePath.startsWith('/') ||
+        finalImagePath.contains('storagePickups')) {
       final file = File(finalImagePath);
 
       // Cek apakah file exists
@@ -354,7 +347,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
         }
       });
     }
-    
+
     final Color primaryColor = const Color(0xFF009688);
     final TextStyle titleStyle = GoogleFonts.poppins(
       fontSize: 18,
@@ -364,379 +357,711 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Container(
-                color: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 22,
-                          backgroundImage: _profileImagePath.isNotEmpty && File(_profileImagePath).existsSync()
-                              ? FileImage(File(_profileImagePath))
-                              : null,
-                          child: _profileImagePath.isEmpty || !File(_profileImagePath).existsSync()
-                              ? const Icon(Icons.person, color: Colors.grey)
-                              : null,
-                          backgroundColor: Colors.grey[300],
-                        ),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _userName,
-                              style: GoogleFonts.poppins(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Row(
-                              children: [
-                                Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFF009688),
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  "Menteng, Jakarta Pusat",
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 13,
-                                    color: Colors.black54,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        // Notification button dengan badge
-                        Stack(
-                          children: [
-                            IconButton(
-                              onPressed: () async {
-                                await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const NotificationScreen(
-                                          isKolektor: true,
-                                        ),
-                                  ),
-                                );
-                                // Refresh unread count setelah kembali dari notification screen
-                                await _loadUnreadNotifCount();
-                              },
-                              icon: const Icon(
-                                Icons.notifications_outlined,
-                                size: 26,
-                              ),
-                              color: Colors.black87,
-                            ),
-                            // Badge untuk unread notifications
-                            if (_unreadNotifCount > 0)
-                              Positioned(
-                                right: 8,
-                                top: 8,
-                                child: Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.red,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: Colors.white,
-                                      width: 1.5,
-                                    ),
-                                  ),
-                                  constraints: const BoxConstraints(
-                                    minWidth: 18,
-                                    minHeight: 18,
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      _unreadNotifCount > 9
-                                          ? '9+'
-                                          : _unreadNotifCount.toString(),
-                                      style: GoogleFonts.poppins(
-                                        color: Colors.white,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(width: 4),
-                        IconButton(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => ProfileScreen(
-                                  onProfileUpdated: _onProfileUpdated,
-                                ),
-                              ),
-                            );
-                          },
-                          icon: const Icon(Icons.person, size: 26),
-                          color: Colors.black87,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
+      body: _selectedIndex == 0
+          ? _buildBerandaPage(primaryColor, titleStyle)
+          : _selectedIndex == 1
+          ? _buildPengangkutanPage(primaryColor, titleStyle)
+          : _selectedIndex == 2
+          ? _buildRiwayatPage(primaryColor)
+          : ProfileScreen(onProfileUpdated: (_) {}),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: _onNavItemTapped,
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: primaryColor,
+        unselectedItemColor: Colors.grey,
+        selectedLabelStyle: GoogleFonts.poppins(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+        unselectedLabelStyle: GoogleFonts.poppins(
+          fontSize: 12,
+          fontWeight: FontWeight.w400,
+        ),
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home_outlined),
+            activeIcon: Icon(Icons.home),
+            label: 'Beranda',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.local_shipping_outlined),
+            activeIcon: Icon(Icons.local_shipping),
+            label: 'Pengangkutan',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.history),
+            activeIcon: Icon(Icons.history),
+            label: 'Riwayat',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_outline),
+            activeIcon: Icon(Icons.person),
+            label: 'Profil',
+          ),
+        ],
+      ),
+    );
+  }
 
-              const SizedBox(height: 16),
-
-              // Card Ringkasan
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [primaryColor, primaryColor.withOpacity(0.85)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: primaryColor.withOpacity(0.3),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Column(
+  Widget _buildBerandaPage(Color primaryColor, TextStyle titleStyle) {
+    return SafeArea(
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Container(
+              color: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        "Tugas Hari Ini",
+                        _userName,
                         style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          color: Colors.white.withOpacity(0.9),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _formatTodayDate(),
-                        style: GoogleFonts.poppins(
-                          fontSize: 20,
+                          fontSize: 16,
                           fontWeight: FontWeight.w600,
-                          color: Colors.white,
+                          color: Colors.black87,
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 16,
-                          horizontal: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                          children: [
-                            _statItem(todayPickups.length.toString(), "Total"),
-                            Container(
-                              width: 1,
-                              height: 40,
-                              color: Colors.grey[300],
-                            ),
-                            _statItem(
-                              _getCompletedCount().toString(),
-                              "Selesai",
-                            ),
-                            Container(
-                              width: 1,
-                              height: 40,
-                              color: Colors.grey[300],
-                            ),
-                            _statItem(_getPendingCount().toString(), "Belum"),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // Daftar Tugas
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text("Daftar Tugas", style: titleStyle),
-                    Text(
-                      "Lainnya",
-                      style: GoogleFonts.poppins(
-                        color: primaryColor,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              _isLoadingPickups
-                  ? const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(32.0),
-                        child: CircularProgressIndicator(),
-                      ),
-                    )
-                  : _errorMessage != null
-                  ? Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
+                      const SizedBox(height: 2),
+                      Row(
                         children: [
-                          Text(
-                            _errorMessage!,
-                            style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              color: Colors.red[600],
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF009688),
+                              shape: BoxShape.circle,
                             ),
-                            textAlign: TextAlign.center,
                           ),
-                          const SizedBox(height: 12),
-                          ElevatedButton(
-                            onPressed: _loadTodayPickups,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: primaryColor,
-                            ),
-                            child: Text(
-                              'Coba Lagi',
-                              style: GoogleFonts.poppins(),
+                          const SizedBox(width: 6),
+                          Text(
+                            "Menteng, Jakarta Pusat",
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              color: Colors.black54,
                             ),
                           ),
                         ],
                       ),
-                    )
-                  : todayPickups.isEmpty
-                  ? Padding(
-                      padding: const EdgeInsets.all(32.0),
-                      child: Center(
-                        child: Text(
-                          'Tidak ada tugas pickup hari ini',
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            color: Colors.grey[600],
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      // Notification button dengan badge
+                      Stack(
+                        children: [
+                          IconButton(
+                            onPressed: () async {
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const NotificationScreen(
+                                        isKolektor: true,
+                                      ),
+                                ),
+                              );
+                              // Refresh unread count setelah kembali dari notification screen
+                              await _loadUnreadNotifCount();
+                            },
+                            icon: const Icon(
+                              Icons.notifications_outlined,
+                              size: 26,
+                            ),
+                            color: Colors.black87,
                           ),
-                        ),
+                          // Badge untuk unread notifications
+                          if (_unreadNotifCount > 0)
+                            Positioned(
+                              right: 8,
+                              top: 8,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: Colors.red,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 1.5,
+                                  ),
+                                ),
+                                constraints: const BoxConstraints(
+                                  minWidth: 18,
+                                  minHeight: 18,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    _unreadNotifCount > 9
+                                        ? '9+'
+                                        : _unreadNotifCount.toString(),
+                                    style: GoogleFonts.poppins(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
-                    )
-                  : ListView.builder(
-                      itemCount: todayPickups.length,
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemBuilder: (context, index) {
-                        final pickup = todayPickups[index];
-                        final houseInfo =
-                            pickup['house_info'] as Map<String, dynamic>?;
-                        return _taskCard(
-                          houseInfo?['resident_name']?.toString() ?? 'N/A',
-                          houseInfo?['address']?.toString() ?? 'N/A',
-                          pickup['id']?.toString() ?? '',
-                          pickup['status']?.toString() ?? 'scheduled',
-                          houseInfo?['latitude'] as double? ?? 0.0,
-                          houseInfo?['longitude'] as double? ?? 0.0,
-                          primaryColor,
-                          context,
-                          pickup,
-                        );
-                      },
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Card Ringkasan
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [primaryColor, primaryColor.withOpacity(0.85)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: primaryColor.withOpacity(0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
                     ),
-
-              const SizedBox(height: 24),
-
-              // Pengambilan Terakhir
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  ],
+                ),
+                child: Column(
                   children: [
-                    Text("Pengambilan Terakhir", style: titleStyle),
                     Text(
-                      "Lainnya",
+                      "Tugas Hari Ini",
                       style: GoogleFonts.poppins(
-                        color: primaryColor,
                         fontSize: 14,
-                        fontWeight: FontWeight.w500,
+                        color: Colors.white.withOpacity(0.9),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _formatTodayDate(),
+                      style: GoogleFonts.poppins(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 16,
+                        horizontal: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          _statItem(todayPickups.length.toString(), "Total"),
+                          Container(
+                            width: 1,
+                            height: 40,
+                            color: Colors.grey[300],
+                          ),
+                          _statItem(_getCompletedCount().toString(), "Selesai"),
+                          Container(
+                            width: 1,
+                            height: 40,
+                            color: Colors.grey[300],
+                          ),
+                          _statItem(_getPendingCount().toString(), "Belum"),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 12),
+            ),
 
-              SizedBox(
-                height: 180,
-                child: _isLoadingHistory
-                    ? const Center(child: CircularProgressIndicator())
-                    : pengambilanList.isEmpty
-                    ? Center(
-                        child: Text(
-                          'Belum ada pengambilan sampah',
+            const SizedBox(height: 24),
+
+            // Daftar Tugas
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text("Daftar Tugas", style: titleStyle),
+                  Text(
+                    "Lainnya",
+                    style: GoogleFonts.poppins(
+                      color: primaryColor,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            _isLoadingPickups
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(32.0),
+                      child: CircularProgressIndicator(),
+                    ),
+                  )
+                : _errorMessage != null
+                ? Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      children: [
+                        Text(
+                          _errorMessage!,
                           style: GoogleFonts.poppins(
                             fontSize: 14,
-                            color: Colors.grey[600],
+                            color: Colors.red[600],
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 12),
+                        ElevatedButton(
+                          onPressed: _loadTodayPickups,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryColor,
+                          ),
+                          child: Text(
+                            'Coba Lagi',
+                            style: GoogleFonts.poppins(),
                           ),
                         ),
-                      )
-                    : ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: pengambilanList.length,
-                        itemBuilder: (context, index) {
-                          final item = pengambilanList[index];
-                          return _pickupCard(
-                            item["name"]?.toString() ?? "",
-                            item["address"]?.toString() ?? "",
-                            "Rp. ${(item["totalPrice"] as num?)?.toInt() ?? 0}",
+                      ],
+                    ),
+                  )
+                : todayPickups.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.all(32.0),
+                    child: Center(
+                      child: Text(
+                        'Tidak ada tugas pickup hari ini',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: todayPickups.length,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemBuilder: (context, index) {
+                      final pickup = todayPickups[index];
+                      final houseInfo =
+                          pickup['house_info'] as Map<String, dynamic>?;
+                      return _taskCard(
+                        houseInfo?['resident_name']?.toString() ?? 'N/A',
+                        houseInfo?['address']?.toString() ?? 'N/A',
+                        pickup['id']?.toString() ?? '',
+                        pickup['status']?.toString() ?? 'scheduled',
+                        houseInfo?['latitude'] as double? ?? 0.0,
+                        houseInfo?['longitude'] as double? ?? 0.0,
+                        primaryColor,
+                        context,
+                        pickup,
+                      );
+                    },
+                  ),
+
+            const SizedBox(height: 24),
+
+            // Pengambilan Terakhir
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text("Pengambilan Terakhir", style: titleStyle),
+                  Text(
+                    "Lainnya",
+                    style: GoogleFonts.poppins(
+                      color: primaryColor,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            SizedBox(
+              height: 180,
+              child: _isLoadingHistory
+                  ? const Center(child: CircularProgressIndicator())
+                  : pengambilanList.isEmpty
+                  ? Center(
+                      child: Text(
+                        'Belum ada pengambilan sampah',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: pengambilanList.length,
+                      itemBuilder: (context, index) {
+                        final item = pengambilanList[index];
+                        return _pickupCard(
+                          item["name"]?.toString() ?? "",
+                          item["address"]?.toString() ?? "",
+                          "Rp. ${(item["totalPrice"] as num?)?.toInt() ?? 0}",
+                          item["image"]?.toString() ??
+                              "assets/images/dummy.jpg",
+                          primaryColor,
+                          item, // Pass the full item data
+                        );
+                      },
+                    ),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPengangkutanPage(Color primaryColor, TextStyle titleStyle) {
+    return SafeArea(
+      child: Column(
+        children: [
+          // Header
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            child: Row(
+              children: [
+                Text(
+                  'Pengangkutan',
+                  style: GoogleFonts.poppins(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.construction,
+                    size: 100,
+                    color: Colors.grey[300],
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Fitur Belum Tersedia',
+                    style: GoogleFonts.poppins(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 40),
+                    child: Text(
+                      'Fitur pengangkutan sedang dalam pengembangan dan akan segera hadir',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRiwayatPage(Color primaryColor) {
+    return SafeArea(
+      child: Column(
+        children: [
+          // Header
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            child: Row(
+              children: [
+                Text(
+                  'Riwayat',
+                  style: GoogleFonts.poppins(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // Tab Bar
+          Container(
+            color: Colors.white,
+            child: Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _riwayatTabIndex = 0;
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      decoration: BoxDecoration(
+                        border: Border(
+                          bottom: BorderSide(
+                            color: _riwayatTabIndex == 0
+                                ? primaryColor
+                                : Colors.transparent,
+                            width: 3,
+                          ),
+                        ),
+                      ),
+                      child: Text(
+                        'Pengambilan',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: _riwayatTabIndex == 0
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                          color: _riwayatTabIndex == 0
+                              ? primaryColor
+                              : Colors.grey[600],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _riwayatTabIndex = 1;
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      decoration: BoxDecoration(
+                        border: Border(
+                          bottom: BorderSide(
+                            color: _riwayatTabIndex == 1
+                                ? primaryColor
+                                : Colors.transparent,
+                            width: 3,
+                          ),
+                        ),
+                      ),
+                      child: Text(
+                        'Pengangkutan',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: _riwayatTabIndex == 1
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                          color: _riwayatTabIndex == 1
+                              ? primaryColor
+                              : Colors.grey[600],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // Content based on selected tab
+          Expanded(
+            child: _riwayatTabIndex == 0
+                ? _buildRiwayatPengambilanContent(primaryColor)
+                : _buildRiwayatPengangkutanContent(primaryColor),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Riwayat Pengambilan Content
+  Widget _buildRiwayatPengambilanContent(Color primaryColor) {
+    return _isLoadingHistory
+        ? const Center(child: CircularProgressIndicator())
+        : pengambilanList.isEmpty
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.history, size: 80, color: Colors.grey[300]),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Belum ada riwayat pengambilan',
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            : ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: pengambilanList.length,
+                itemBuilder: (context, index) {
+                  final item = pengambilanList[index];
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.all(16),
+                      leading: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: SizedBox(
+                          width: 60,
+                          height: 60,
+                          child: _buildPickupImage(
                             item["image"]?.toString() ??
                                 "assets/images/dummy.jpg",
-                            primaryColor,
-                            item, // Pass the full item data
+                          ),
+                        ),
+                      ),
+                      title: Text(
+                        item["name"]?.toString() ?? "Unknown",
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 4),
+                          Text(
+                            item["address"]?.toString() ?? "",
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              color: Colors.grey[600],
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            "Rp. ${(item["totalPrice"] as num?)?.toInt() ?? 0}",
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: primaryColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                      trailing: TextButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  RiwayatSampahScreen(pickupData: item),
+                            ),
                           );
                         },
+                        child: Text(
+                          'Detail',
+                          style: GoogleFonts.poppins(
+                            color: primaryColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
-              ),
-              const SizedBox(height: 20),
-            ],
+                    ),
+                  );
+                },
+              );
+  }
+
+  // Riwayat Pengangkutan Content (Fitur belum tersedia)
+  Widget _buildRiwayatPengangkutanContent(Color primaryColor) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.local_shipping_outlined,
+            size: 100,
+            color: Colors.grey[300],
           ),
-        ),
+          const SizedBox(height: 24),
+          Text(
+            'Fitur Belum Tersedia',
+            style: GoogleFonts.poppins(
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40),
+            child: Text(
+              'Riwayat pengangkutan akan tersedia setelah fitur pengangkutan aktif',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -855,7 +1180,8 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
                           MaterialPageRoute(
                             builder: (context) => AmbilFotoScreen(
                               pickupId: pickupData['id'] as int,
-                              userName: pickupData['user_name'] as String? ?? name,
+                              userName:
+                                  pickupData['user_name'] as String? ?? name,
                               address: address,
                               idPengambilan: pickupId,
                             ),
@@ -874,8 +1200,8 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
                         MaterialPageRoute(
                           builder: (context) => PengambilanSampahScreen(
                             pickupId: pickupData['id'] as int,
-                            userName: pickupData['user_name'] as String? ??
-                                name,
+                            userName:
+                                pickupData['user_name'] as String? ?? name,
                             userPhone: houseInfo?['phone'] as String? ?? '-',
                             address: address,
                             idPengambilan: pickupId,

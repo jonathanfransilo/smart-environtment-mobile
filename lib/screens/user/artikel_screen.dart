@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:blur/blur.dart'; 
 import 'artikel_detail_screen.dart';
+import '../../models/artikel_model.dart';
+import '../../services/artikel_service.dart';
 
 class ArtikelScreen extends StatefulWidget {
   const ArtikelScreen({super.key});
@@ -12,32 +14,116 @@ class ArtikelScreen extends StatefulWidget {
 }
 
 class _ArtikelScreenState extends State<ArtikelScreen> {
-  final List<Map<String, String>> _articles = const [
-    {
-      "title": "Perpanjangan Tanggung Jawab Produsen dan Implementasi di Indonesia",
-      "image": "https://drive.google.com/uc?export=view&id=1qjMCUnULqvjAzzMtpd2v2jctliNJWi9G",
-      "content": "Extended Producer Responsibility (EPR) menekankan bahwa produsen bertanggung jawab atas seluruh siklus hidup produk mereka, termasuk tahap akhir (pembuangan dan daur ulang).",
-      "type": "artikel"
-    },
-    {
-      "title": "5 Hal yang Perlu Anda Ketahui Tentang Extended Producer Responsibility (EPR)",
-      "image": "https://drive.google.com/uc?export=view&id=1rcruFRS7rrGgQP5whXAonFPEQfz27mMq",
-      "content": "EPR adalah konsep yang memberikan tanggung jawab lebih besar kepada produsen untuk mengelola limbah kemasan yang mereka hasilkan, mendorong desain produk yang ramah lingkungan.",
-      "type": "artikel"
-    },
-    {
-      "title": "Tips Mengurangi Sampah Plastik di Kehidupan Sehari-hari",
-      "image": "https://drive.google.com/uc?export=view&id=1ZawfY_Ktp5ZVeQb4T1mVQ9qONZXVaKDO",
-      "content": "Kurangi penggunaan plastik sekali pakai dengan membawa tas belanja, botol minum, dan wadah makanan sendiri. Ini adalah langkah kecil dengan dampak besar.",
-      "type": "artikel"
-    },
-    {
-      "title": "Manfaat Daur Ulang bagi Lingkungan dan Ekonomi",
-      "image": "https://drive.google.com/uc?export=view&id=1DIdr3ulKtU5oagWsA4pufnTzhZ1S_9ge",
-      "content": "Daur ulang bukan hanya menyelamatkan lingkungan dari penumpukan limbah, tapi juga memberi manfaat ekonomi dengan menciptakan lapangan kerja dan mengurangi biaya produksi.",
-      "type": "artikel"
-    },
-  ];
+  final ArtikelService _artikelService = ArtikelService();
+  final ScrollController _scrollController = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
+  
+  List<ArtikelModel> _articles = [];
+  bool _isLoading = false;
+  bool _isLoadingMore = false;
+  bool _hasMore = true;
+  int _currentPage = 1;
+  String _searchQuery = '';
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadArticles();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+      if (!_isLoadingMore && _hasMore) {
+        _loadMoreArticles();
+      }
+    }
+  }
+
+  Future<void> _loadArticles({bool refresh = false}) async {
+    if (refresh) {
+      setState(() {
+        _currentPage = 1;
+        _hasMore = true;
+        _articles.clear();
+      });
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final response = await _artikelService.getArticles(
+        page: _currentPage,
+        perPage: 10,
+        search: _searchQuery.isNotEmpty ? _searchQuery : null,
+        sortBy: 'created_at',
+        sortOrder: 'desc',
+      );
+
+      setState(() {
+        _articles = response.data;
+        _hasMore = _currentPage < response.meta.lastPage;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = e.toString().replaceAll('Exception: ', '');
+      });
+    }
+  }
+
+  Future<void> _loadMoreArticles() async {
+    if (_isLoadingMore || !_hasMore) return;
+
+    setState(() {
+      _isLoadingMore = true;
+    });
+
+    try {
+      final response = await _artikelService.getArticles(
+        page: _currentPage + 1,
+        perPage: 10,
+        search: _searchQuery.isNotEmpty ? _searchQuery : null,
+        sortBy: 'created_at',
+        sortOrder: 'desc',
+      );
+
+      setState(() {
+        _currentPage++;
+        _articles.addAll(response.data);
+        _hasMore = _currentPage < response.meta.lastPage;
+        _isLoadingMore = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingMore = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memuat artikel: ${e.toString().replaceAll('Exception: ', '')}')),
+        );
+      }
+    }
+  }
+
+  void _onSearch(String query) {
+    setState(() {
+      _searchQuery = query;
+    });
+    _loadArticles(refresh: true);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,18 +138,140 @@ class _ArtikelScreenState extends State<ArtikelScreen> {
         ),
         backgroundColor: const Color.fromARGB(255, 21, 145, 137),
         elevation: 4,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(60),
+          child: Container(
+            color: Colors.white,
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Cari artikel...',
+                hintStyle: GoogleFonts.poppins(color: Colors.grey[400]),
+                prefixIcon: const Icon(Icons.search, color: Color(0xFF009688)),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, color: Colors.grey),
+                        onPressed: () {
+                          _searchController.clear();
+                          _onSearch('');
+                        },
+                      )
+                    : null,
+                filled: true,
+                fillColor: Colors.grey[100],
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+              onSubmitted: _onSearch,
+              onChanged: (value) {
+                setState(() {}); // Update UI for clear button
+              },
+            ),
+          ),
+        ),
       ),
-      body: ListView.builder(
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading && _articles.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_errorMessage != null && _articles.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'Gagal memuat artikel',
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Text(
+                _errorMessage!,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () => _loadArticles(refresh: true),
+              icon: const Icon(Icons.refresh),
+              label: Text('Coba Lagi', style: GoogleFonts.poppins()),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF009688),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_articles.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.article_outlined, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'Tidak ada artikel',
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: () => _loadArticles(refresh: true),
+      child: ListView.builder(
+        controller: _scrollController,
         padding: const EdgeInsets.all(16),
-        itemCount: _articles.length,
-        itemBuilder: (context, i) => FancyArtikelCard(article: _articles[i], index: i),
+        itemCount: _articles.length + (_hasMore ? 1 : 0),
+        itemBuilder: (context, i) {
+          if (i == _articles.length) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(16.0),
+                child: CircularProgressIndicator(),
+              ),
+            );
+          }
+          return FancyArtikelCard(article: _articles[i], index: i);
+        },
       ),
     );
   }
 }
 
 class FancyArtikelCard extends StatefulWidget {
-  final Map<String, String> article;
+  final ArtikelModel article;
   final int index;
 
   const FancyArtikelCard({super.key, required this.article, required this.index});
@@ -129,11 +337,14 @@ class _FancyArtikelCardState extends State<FancyArtikelCard> with SingleTickerPr
 }
 
 class ArtikelCard extends StatelessWidget {
-  final Map<String, String> article;
+  final ArtikelModel article;
   const ArtikelCard({super.key, required this.article});
 
   @override
   Widget build(BuildContext context) {
+    // Use imageUrl from API or fallback to placeholder
+    final imageUrl = article.imageUrl ?? 'https://via.placeholder.com/400x220?text=No+Image';
+    
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       height: 220,
@@ -146,7 +357,7 @@ class ArtikelCard extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(16),
             child: Image.network(
-              article['image']!,
+              imageUrl,
               width: double.infinity,
               height: double.infinity,
               fit: BoxFit.cover,
@@ -185,7 +396,7 @@ class ArtikelCard extends StatelessWidget {
             bottom: 50,
             right: 16,
             child: Text(
-              article['title']!,
+              article.title,
               style: GoogleFonts.poppins(
                 color: Colors.white,
                 fontSize: 18,
