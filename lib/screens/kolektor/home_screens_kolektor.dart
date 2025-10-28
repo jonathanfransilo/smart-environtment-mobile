@@ -21,6 +21,7 @@ class HomeScreensKolektor extends StatefulWidget {
 class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
   List<Map<String, dynamic>> pengambilanList = [];
   List<Map<String, dynamic>> todayPickups = [];
+  List<Map<String, dynamic>> pengangkutanList = []; // Riwayat pengangkutan
   String _userName = 'Kolektor';
   bool _isLoadingPickups = false;
   bool _isLoadingHistory = false;
@@ -746,6 +747,26 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
   }
 
   Widget _buildPengangkutanPage(Color primaryColor, TextStyle titleStyle) {
+    // Data TPS (Tempat Pembuangan Sampah)
+    final List<Map<String, dynamic>> tpsList = [
+      {
+        'name': 'TPS Bantar Gebang',
+        'location': 'Ciketing Udik, Bantar Gebang',
+        'distance': '50km',
+        'distanceValue': 60, // dalam menit
+        'image': 'assets/images/TPS 1.png',
+        'id': 'TPS001',
+      },
+      {
+        'name': 'TPS Bantar Gebang',
+        'location': 'Ciketing Udik, Bantar Gebang',
+        'distance': '50km',
+        'distanceValue': 60, // dalam menit
+        'image': 'assets/images/TPS 2.jpeg',
+        'id': 'TPS002',
+      },
+    ];
+
     return SafeArea(
       child: Column(
         children: [
@@ -756,7 +777,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
             child: Row(
               children: [
                 Text(
-                  'Pengangkutan',
+                  'Daftar TPS',
                   style: GoogleFonts.poppins(
                     fontSize: 20,
                     fontWeight: FontWeight.w600,
@@ -767,39 +788,25 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
             ),
           ),
           const SizedBox(height: 16),
+          
+          // List TPS
           Expanded(
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.construction,
-                    size: 100,
-                    color: Colors.grey[300],
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'Fitur Belum Tersedia',
-                    style: GoogleFonts.poppins(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 40),
-                    child: Text(
-                      'Fitur pengangkutan sedang dalam pengembangan dan akan segera hadir',
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        color: Colors.grey[600],
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ],
-              ),
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: tpsList.length,
+              itemBuilder: (context, index) {
+                final tps = tpsList[index];
+                return _buildTPSCard(
+                  tps['name'],
+                  tps['location'],
+                  tps['distance'],
+                  tps['distanceValue'],
+                  tps['image'],
+                  tps['id'],
+                  primaryColor,
+                  context,
+                );
+              },
             ),
           ),
         ],
@@ -1029,41 +1036,146 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
               );
   }
 
-  // Riwayat Pengangkutan Content (Fitur belum tersedia)
+  // Riwayat Pengangkutan Content
   Widget _buildRiwayatPengangkutanContent(Color primaryColor) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.local_shipping_outlined,
-            size: 100,
-            color: Colors.grey[300],
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'Fitur Belum Tersedia',
-            style: GoogleFonts.poppins(
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
+    return pengangkutanList.isEmpty
+        ? Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.local_shipping_outlined,
+                  size: 100,
+                  color: Colors.grey[300],
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Belum Ada Riwayat',
+                  style: GoogleFonts.poppins(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40),
+                  child: Text(
+                    'Riwayat pengangkutan akan muncul setelah Anda menyelesaikan tugas pengangkutan',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: Text(
-              'Riwayat pengangkutan akan tersedia setelah fitur pengangkutan aktif',
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ],
-      ),
-    );
+          )
+        : ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: pengangkutanList.length,
+            itemBuilder: (context, index) {
+              final item = pengangkutanList[index];
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.all(16),
+                  leading: Container(
+                    width: 50,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      Icons.local_shipping,
+                      color: Colors.green[600],
+                      size: 28,
+                    ),
+                  ),
+                  title: Text(
+                    item['tpsName'] ?? 'TPS',
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(Icons.calendar_today, 
+                            size: 14, 
+                            color: Colors.grey[600]
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            item['date'] ?? '',
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Icon(Icons.access_time, 
+                            size: 14, 
+                            color: Colors.grey[600]
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            item['time'] ?? '',
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          'Selesai',
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: Colors.green[700],
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  trailing: Icon(
+                    Icons.check_circle,
+                    color: Colors.green[600],
+                    size: 28,
+                  ),
+                ),
+              );
+            },
+          );
   }
 
   Widget _statItem(String value, String label) {
@@ -1349,6 +1461,407 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
           ),
         ],
       ),
+    );
+  }
+
+  // Widget untuk Card TPS
+  Widget _buildTPSCard(
+    String name,
+    String location,
+    String distance,
+    int distanceMinutes,
+    String imagePath,
+    String tpsId,
+    Color primaryColor,
+    BuildContext context,
+  ) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Gambar TPS
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+            child: Image.asset(
+              imagePath,
+              width: double.infinity,
+              height: 180,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return Container(
+                  width: double.infinity,
+                  height: 180,
+                  color: Colors.grey[300],
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.image_not_supported, 
+                        size: 50, 
+                        color: Colors.grey[600]
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Gambar tidak ditemukan',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          
+          // Info TPS
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Nama TPS
+                Text(
+                  name,
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                
+                // Lokasi
+                Row(
+                  children: [
+                    Icon(
+                      Icons.location_on,
+                      size: 16,
+                      color: Colors.grey[600],
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        location,
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                
+                // Jarak dan Waktu
+                Row(
+                  children: [
+                    // Jarak
+                    Icon(
+                      Icons.straighten,
+                      size: 16,
+                      color: Colors.grey[600],
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      distance,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    
+                    // Waktu tempuh
+                    Icon(
+                      Icons.access_time,
+                      size: 16,
+                      color: primaryColor,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${distanceMinutes}m',
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        color: primaryColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                
+                // Tombol Angkut Sampah
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => _handleAngkutSampah(context, name, tpsId),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: Text(
+                      'Angkut Sampah',
+                      style: GoogleFonts.poppins(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Handler untuk angkut sampah
+  void _handleAngkutSampah(BuildContext context, String tpsName, String tpsId) {
+    // Tampilkan dialog konfirmasi
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          contentPadding: const EdgeInsets.all(24),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Icon
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF009688).withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.local_shipping,
+                  size: 40,
+                  color: Color(0xFF009688),
+                ),
+              ),
+              const SizedBox(height: 24),
+              
+              // Title
+              Text(
+                'Konfirmasi Pengangkutan',
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              
+              // Message
+              Text(
+                'Apakah Anda yakin telah menyerahkan sampah ke $tpsName?',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+          actions: [
+            // Tombol Batal
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                'Batal',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ),
+            
+            // Tombol Konfirmasi
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                _confirmPengangkutan(context, tpsName, tpsId);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF009688),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                elevation: 0,
+              ),
+              child: Text(
+                'Ya, Serahkan',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Konfirmasi pengangkutan dan simpan ke riwayat
+  void _confirmPengangkutan(BuildContext context, String tpsName, String tpsId) {
+    // Simpan ke riwayat pengangkutan
+    final DateTime now = DateTime.now();
+    
+    // Buat data pengangkutan baru
+    final newPengangkutan = {
+      'id': 'ANG${now.millisecondsSinceEpoch}',
+      'tpsName': tpsName,
+      'tpsId': tpsId,
+      'timestamp': now.toIso8601String(),
+      'date': '${now.day}/${now.month}/${now.year}',
+      'time': '${now.hour}:${now.minute.toString().padLeft(2, '0')}',
+      'status': 'completed',
+    };
+    
+    // Tambahkan ke list riwayat
+    setState(() {
+      pengangkutanList.insert(0, newPengangkutan);
+    });
+    
+    // TODO: Simpan ke database/API untuk persistensi
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          contentPadding: const EdgeInsets.all(32),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Icon Success
+              Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.check_circle,
+                  size: 60,
+                  color: Colors.green,
+                ),
+              ),
+              const SizedBox(height: 24),
+              
+              // Title
+              Text(
+                'Selamat!',
+                style: GoogleFonts.poppins(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 12),
+              
+              // Message
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.green.withOpacity(0.2),
+                    width: 1,
+                  ),
+                ),
+                child: Text(
+                  'Anda telah menyelesaikan tugas pengangkutan hari ini',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    color: Colors.black87,
+                    height: 1.5,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 8),
+              
+              // Detail info
+              Text(
+                'Data telah disimpan ke riwayat pengangkutan',
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+          actions: [
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.of(dialogContext).pop();
+                  // Pindah ke tab Riwayat
+                  setState(() {
+                    _selectedIndex = 2; // Tab Riwayat
+                    _riwayatTabIndex = 1; // Tab Pengangkutan
+                  });
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF009688),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  elevation: 0,
+                ),
+                child: Text(
+                  'Lihat Riwayat',
+                  style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 

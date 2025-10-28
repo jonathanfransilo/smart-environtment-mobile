@@ -222,6 +222,47 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// Convert nama hari dari bahasa Inggris ke bahasa Indonesia
+  String _convertDayToIndonesian(String day) {
+    final dayLower = day.toLowerCase().trim();
+
+    // Map hari dalam bahasa Inggris ke Indonesia
+    const dayMap = {
+      'monday': 'Senin',
+      'tuesday': 'Selasa',
+      'wednesday': 'Rabu',
+      'thursday': 'Kamis',
+      'friday': 'Jumat',
+      'saturday': 'Sabtu',
+      'sunday': 'Minggu',
+      'mon': 'Senin',
+      'tue': 'Selasa',
+      'wed': 'Rabu',
+      'thu': 'Kamis',
+      'fri': 'Jumat',
+      'sat': 'Sabtu',
+      'sun': 'Minggu',
+    };
+
+    // Cek apakah sudah dalam bahasa Indonesia
+    const indonesianDays = [
+      'senin',
+      'selasa',
+      'rabu',
+      'kamis',
+      'jumat',
+      'sabtu',
+      'minggu',
+    ];
+    if (indonesianDays.contains(dayLower)) {
+      // Capitalize first letter
+      return day[0].toUpperCase() + day.substring(1).toLowerCase();
+    }
+
+    // Convert dari bahasa Inggris
+    return dayMap[dayLower] ?? day;
+  }
+
   /// Load next pickup schedule untuk akun yang dipilih
   /// Prioritas: API upcoming pickups > hari_pengangkutan dari service account
   Future<void> _loadNextPickupSchedule() async {
@@ -285,9 +326,13 @@ class _HomeScreenState extends State<HomeScreen> {
           final timeEnd = scheduleInfo['time_end'] as String? ?? '';
           final dayOfWeek = scheduleInfo['day_of_week'] as String? ?? '';
 
-          // Gunakan day_name dari pickup (sudah diformat dalam bahasa Indonesia oleh API)
+          // Convert hari ke bahasa Indonesia
+          String dayInIndonesian = dayName.isNotEmpty
+              ? _convertDayToIndonesian(dayName)
+              : _convertDayToIndonesian(dayOfWeek);
+
           // Format jadwal: "Senin • 08:00-10:00" atau "Senin • 08:00"
-          String scheduleText = dayName.isNotEmpty ? dayName : dayOfWeek;
+          String scheduleText = dayInIndonesian;
           if (timeStart.isNotEmpty) {
             scheduleText += ' • $timeStart';
             if (timeEnd.isNotEmpty && timeEnd != timeStart) {
@@ -304,11 +349,12 @@ class _HomeScreenState extends State<HomeScreen> {
           });
           return;
         } else if (dayName.isNotEmpty) {
-          // Jika tidak ada schedule_info, gunakan day_name saja
-          print('✅ [HomeScreen] Using day_name only: $dayName');
+          // Jika tidak ada schedule_info, gunakan day_name saja dengan konversi ke Indonesia
+          final dayInIndonesian = _convertDayToIndonesian(dayName);
+          print('✅ [HomeScreen] Using day_name only: $dayInIndonesian');
           if (!mounted) return;
           setState(() {
-            _nextPickupSchedule = dayName;
+            _nextPickupSchedule = dayInIndonesian;
             _isLoadingSchedule = false;
           });
           return;
@@ -330,9 +376,11 @@ class _HomeScreenState extends State<HomeScreen> {
       );
 
       if (hariPengangkutan != null && hariPengangkutan.isNotEmpty) {
+        // Convert hari pengangkutan ke bahasa Indonesia
+        final hariInIndonesian = _convertDayToIndonesian(hariPengangkutan);
         if (!mounted) return;
         setState(() {
-          _nextPickupSchedule = hariPengangkutan;
+          _nextPickupSchedule = hariInIndonesian;
           _isLoadingSchedule = false;
         });
       } else {
@@ -357,7 +405,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
         if (!mounted) return;
         setState(() {
-          _nextPickupSchedule = hariPengangkutan;
+          // Convert ke bahasa Indonesia jika ada
+          _nextPickupSchedule = hariPengangkutan != null
+              ? _convertDayToIndonesian(hariPengangkutan)
+              : null;
           _isLoadingSchedule = false;
         });
       } catch (e2) {
