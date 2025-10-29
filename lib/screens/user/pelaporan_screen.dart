@@ -179,13 +179,15 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
       // Ambil data dari state dan controller
       final reportData = <String, String>{
         'type': _selectedType ?? '', // API field: type - dengan fallback
-        'serviceAccount': _serviceAccountController.text.isNotEmpty
-            ? _serviceAccountController.text
-            : 'Tidak ada service account', // Service account field
         'deskripsi': _deskripsiController.text.isNotEmpty
             ? _deskripsiController.text
             : 'Tidak ada deskripsi', // API field: description - dengan fallback
       };
+
+      // Tambahkan service account hanya jika diisi
+      if (_serviceAccountController.text.isNotEmpty) {
+        reportData['serviceAccount'] = _serviceAccountController.text;
+      }
 
       print('🔍 reportData: $reportData');
 
@@ -367,20 +369,20 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Service Account
+              // Service Account (Opsional)
               TextFormField(
                 controller: _serviceAccountController,
                 decoration: InputDecoration(
-                  labelText: "Service Account",
-                  hintText: "Masukkan nama service account...",
+                  labelText: "Service Account (Opsional)",
+                  hintText: "Masukkan ID service account jika ada...",
                   prefixIcon: const Icon(Icons.account_circle),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
+                  helperText: "Kosongkan jika tidak tahu ID service account",
+                  helperMaxLines: 2,
                 ),
-                validator: (value) => value == null || value.isEmpty
-                    ? 'Service Account wajib diisi.'
-                    : null,
+                // Tidak ada validator - field ini opsional
               ),
               const SizedBox(height: 16),
 
@@ -830,10 +832,10 @@ class DetailLaporanScreen extends StatelessWidget {
                   ? _getTypeLabel(reportData['type']!)
                   : 'Tidak ada kategori',
             ),
-            _buildDetailRow(
-              "Service Account",
-              reportData['serviceAccount'] ?? 'Tidak ada service account',
-            ),
+            // Service Account - hanya tampilkan jika ada
+            if (reportData['serviceAccount'] != null &&
+                reportData['serviceAccount']!.isNotEmpty)
+              _buildDetailRow("Service Account", reportData['serviceAccount']!),
             _buildDetailRow(
               "Deskripsi",
               reportData['deskripsi'] ?? 'Tidak ada deskripsi',
