@@ -547,8 +547,8 @@ class DetailAkunLayananScreen extends StatelessWidget {
                   ],
 
                   // Nomor Telepon Kolektor
-                  if (collectorPhone != null && 
-                      collectorPhone != '-' && 
+                  if (collectorPhone != null &&
+                      collectorPhone != '-' &&
                       collectorPhone.isNotEmpty) ...[
                     _buildInfoRow(
                       icon: Icons.phone,
@@ -621,7 +621,9 @@ class DetailAkunLayananScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _nonaktifkanAkun(BuildContext context) async {
+  Future<void> _toggleStatusAkun(BuildContext context) async {
+    final isActive = akun.status.toLowerCase() == 'active';
+
     // Tampilkan loading dialog
     showDialog(
       context: context,
@@ -639,7 +641,7 @@ class DetailAkunLayananScreen extends StatelessWidget {
               const CircularProgressIndicator(),
               const SizedBox(height: 16),
               Text(
-                'Memeriksa tagihan...',
+                isActive ? 'Memeriksa tagihan...' : 'Mengaktifkan akun...',
                 style: GoogleFonts.poppins(fontSize: 14),
               ),
             ],
@@ -649,24 +651,33 @@ class DetailAkunLayananScreen extends StatelessWidget {
     );
 
     try {
-      // Check tagihan yang belum dibayar
-      final invoiceData = await _invoiceService.getUnpaidInvoices();
+      // Jika akun active, cek tagihan dulu sebelum nonaktifkan
+      if (isActive) {
+        // Check tagihan yang belum dibayar
+        final invoiceData = await _invoiceService.getUnpaidInvoices();
 
-      // Tutup loading dialog
-      if (!context.mounted) return;
-      Navigator.pop(context);
+        // Tutup loading dialog
+        if (!context.mounted) return;
+        Navigator.pop(context);
 
-      final invoices = invoiceData['unpaid_invoices'] as List<dynamic>?;
-      final totalAmount = invoiceData['total_amount'] as num? ?? 0;
+        final invoices = invoiceData['unpaid_invoices'] as List<dynamic>?;
+        final totalAmount = invoiceData['total_amount'] as num? ?? 0;
 
-      // Jika ada tagihan yang belum dibayar
-      if (invoices != null && invoices.isNotEmpty) {
-        _showTagihanBelumLunasDialog(context, invoices, totalAmount);
-        return;
+        // Jika ada tagihan yang belum dibayar
+        if (invoices != null && invoices.isNotEmpty) {
+          _showTagihanBelumLunasDialog(context, invoices, totalAmount);
+          return;
+        }
       }
 
-      // Jika tidak ada tagihan, lanjutkan nonaktifkan akun
-      await _serviceAccountService.deleteAccount(akun.id);
+      // Toggle status akun (active <-> inactive)
+      final newStatus = isActive ? 'inactive' : 'active';
+      await _serviceAccountService.updateAccountStatus(akun.id, newStatus);
+
+      // Tutup loading dialog jika masih ada
+      if (context.mounted) {
+        Navigator.pop(context);
+      }
 
       if (!context.mounted) return;
 
@@ -683,15 +694,21 @@ class DetailAkunLayananScreen extends StatelessWidget {
             children: [
               Container(
                 padding: const EdgeInsets.all(16),
-                decoration: const BoxDecoration(
-                  color: Color(0xFF4CAF50),
+                decoration: BoxDecoration(
+                  color: isActive ? Colors.orange : const Color(0xFF4CAF50),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.check, color: Colors.white, size: 48),
+                child: Icon(
+                  isActive ? Icons.cancel : Icons.check_circle,
+                  color: Colors.white,
+                  size: 48,
+                ),
               ),
               const SizedBox(height: 16),
               Text(
-                'Akun Berhasil Dinonaktifkan',
+                isActive
+                    ? 'Akun Berhasil Dinonaktifkan'
+                    : 'Akun Berhasil Diaktifkan',
                 style: GoogleFonts.poppins(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
@@ -699,7 +716,9 @@ class DetailAkunLayananScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Akun layanan telah dinonaktifkan. Anda dapat mengaktifkan kembali akun ini kapan saja.',
+                isActive
+                    ? 'Akun layanan telah dinonaktifkan. Anda dapat mengaktifkan kembali akun ini kapan saja.'
+                    : 'Akun layanan telah diaktifkan kembali dan siap digunakan.',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
                   fontSize: 14,
@@ -927,6 +946,8 @@ class DetailAkunLayananScreen extends StatelessWidget {
   }
 
   void _konfirmasiNonaktifkan(BuildContext context) {
+    final isActive = akun.status.toLowerCase() == 'active';
+
     showDialog(
       context: context,
       builder: (ctx) {
@@ -936,16 +957,21 @@ class DetailAkunLayananScreen extends StatelessWidget {
           ),
           title: Row(
             children: [
-              const Icon(Icons.block, color: Colors.orange),
+              Icon(
+                isActive ? Icons.block : Icons.check_circle,
+                color: isActive ? Colors.orange : const Color(0xFF4CAF50),
+              ),
               const SizedBox(width: 8),
               Text(
-                "Nonaktifkan Akun",
+                isActive ? "Nonaktifkan Akun" : "Aktifkan Akun",
                 style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
               ),
             ],
           ),
           content: Text(
-            "Apakah Anda yakin ingin menonaktifkan akun layanan ini? Akun yang dinonaktifkan dapat diaktifkan kembali kapan saja.",
+            isActive
+                ? "Apakah Anda yakin ingin menonaktifkan akun layanan ini? Akun yang dinonaktifkan dapat diaktifkan kembali kapan saja."
+                : "Apakah Anda yakin ingin mengaktifkan kembali akun layanan ini?",
             style: GoogleFonts.poppins(fontSize: 14),
           ),
           actions: [
@@ -959,16 +985,18 @@ class DetailAkunLayananScreen extends StatelessWidget {
             ElevatedButton(
               onPressed: () async {
                 Navigator.pop(ctx);
-                await _nonaktifkanAkun(context);
+                await _toggleStatusAkun(context);
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
+                backgroundColor: isActive
+                    ? Colors.orange
+                    : const Color(0xFF4CAF50),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
               child: Text(
-                "Nonaktifkan",
+                isActive ? "Nonaktifkan" : "Aktifkan",
                 style: GoogleFonts.poppins(
                   fontWeight: FontWeight.w600,
                   color: Colors.white,
@@ -1007,7 +1035,9 @@ class DetailAkunLayananScreen extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: akun.status.toLowerCase() == 'active'
+                    ? Colors.white
+                    : Colors.grey.shade200,
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
@@ -1021,11 +1051,15 @@ class DetailAkunLayananScreen extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: 30,
-                    backgroundColor: const Color(0xFF4CAF50).withAlpha(38),
-                    child: const Icon(
+                    backgroundColor: akun.status.toLowerCase() == 'active'
+                        ? const Color(0xFF4CAF50).withAlpha(38)
+                        : Colors.grey.shade400,
+                    child: Icon(
                       Icons.home,
                       size: 32,
-                      color: Color(0xFF4CAF50),
+                      color: akun.status.toLowerCase() == 'active'
+                          ? const Color(0xFF4CAF50)
+                          : Colors.grey.shade600,
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -1033,20 +1067,49 @@ class DetailAkunLayananScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          akun.name,
-                          style: GoogleFonts.poppins(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black,
-                          ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                akun.name,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                  color: akun.status.toLowerCase() == 'active'
+                                      ? Colors.black
+                                      : Colors.grey.shade600,
+                                ),
+                              ),
+                            ),
+                            if (akun.status.toLowerCase() != 'active')
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  'NONAKTIF',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                         const SizedBox(height: 4),
                         Text(
                           akun.address,
                           style: GoogleFonts.poppins(
                             fontSize: 14,
-                            color: Colors.grey[700],
+                            color: akun.status.toLowerCase() == 'active'
+                                ? Colors.grey[700]
+                                : Colors.grey.shade500,
                           ),
                         ),
                       ],
@@ -1126,15 +1189,25 @@ class DetailAkunLayananScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                // Tombol Nonaktifkan Akun
+                // Tombol Toggle Status Akun (Nonaktifkan/Aktifkan)
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: () => _konfirmasiNonaktifkan(context),
-                    icon: const Icon(Icons.block),
-                    label: const Text("Nonaktifkan Akun"),
+                    icon: Icon(
+                      akun.status.toLowerCase() == 'active'
+                          ? Icons.cancel
+                          : Icons.check_circle,
+                    ),
+                    label: Text(
+                      akun.status.toLowerCase() == 'active'
+                          ? "Nonaktifkan Akun"
+                          : "Aktifkan Akun",
+                    ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
+                      backgroundColor: akun.status.toLowerCase() == 'active'
+                          ? Colors.orange
+                          : const Color(0xFF4CAF50),
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(

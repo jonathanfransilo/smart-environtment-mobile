@@ -13,15 +13,15 @@ class ServiceAccountService {
     final response = await _dio.get(
       ApiConfig.mobileServiceAccounts,
       queryParameters: {
-        'page': {
-          'size': limit,
-        },
+        'page': {'size': limit},
       },
     );
 
     final Map<String, dynamic> body = response.data as Map<String, dynamic>;
     if (body['success'] != true) {
-      throw Exception(body['errors']?['message'] ?? 'Gagal memuat akun layanan');
+      throw Exception(
+        body['errors']?['message'] ?? 'Gagal memuat akun layanan',
+      );
     }
 
     final data = body['data'] as Map<String, dynamic>?;
@@ -71,5 +71,49 @@ class ServiceAccountService {
 
   Future<void> deleteAccount(String id) async {
     await _dio.delete('${ApiConfig.mobileServiceAccounts}/$id');
+  }
+
+  /// Update status akun (active/inactive)
+  Future<void> updateAccountStatus(String id, String status) async {
+    try {
+      print(
+        '🔄 [ServiceAccountService] Updating account $id to status: $status',
+      );
+
+      final response = await _dio.patch(
+        '${ApiConfig.mobileServiceAccounts}/$id',
+        data: {'status': status},
+      );
+
+      print(
+        '✅ [ServiceAccountService] Response status: ${response.statusCode}',
+      );
+      print('📦 [ServiceAccountService] Response data: ${response.data}');
+
+      final Map<String, dynamic> body = response.data as Map<String, dynamic>;
+      if (body['success'] != true) {
+        throw Exception(
+          body['errors']?['message'] ?? 'Gagal mengubah status akun',
+        );
+      }
+
+      print('✅ [ServiceAccountService] Status updated successfully');
+    } on DioException catch (e) {
+      print(
+        '❌ [ServiceAccountService] DioException: ${e.response?.statusCode}',
+      );
+      print('📦 [ServiceAccountService] Error data: ${e.response?.data}');
+
+      if (e.response?.statusCode == 404) {
+        throw Exception('Akun tidak ditemukan');
+      } else if (e.response?.statusCode == 400) {
+        final body = e.response?.data as Map<String, dynamic>?;
+        throw Exception(body?['errors']?['message'] ?? 'Data tidak valid');
+      }
+      throw Exception('Gagal mengubah status akun: ${e.message}');
+    } catch (e) {
+      print('❌ [ServiceAccountService] Unexpected error: $e');
+      throw Exception('Gagal mengubah status akun: $e');
+    }
   }
 }

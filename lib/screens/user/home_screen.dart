@@ -494,11 +494,63 @@ class _HomeScreenState extends State<HomeScreen> {
           _selectedAkun = null;
         } else {
           if (_selectedAkun != null) {
-            final idx = akunList.indexWhere(
-              (a) => a['id']?.toString() == _selectedAkun!['id']?.toString(),
-            );
+            // Try to find by id or id_akun
+            final selectedId =
+                _selectedAkun!['id']?.toString() ??
+                _selectedAkun!['id_akun']?.toString();
+            final idx = akunList.indexWhere((a) {
+              final accountId = a['id']?.toString() ?? a['id_akun']?.toString();
+              return accountId == selectedId;
+            });
             if (idx != -1) {
-              _selectedAkun = akunList[idx];
+              // Update dengan data terbaru dari API (termasuk status yang baru)
+              final updatedAccount = akunList[idx];
+              final isInactive =
+                  updatedAccount['status']?.toString().toLowerCase() ==
+                  'inactive';
+
+              print(
+                '🔄 [HomeScreen] Found account: ${updatedAccount['nama']}, status: ${updatedAccount['status']}',
+              );
+
+              if (isInactive) {
+                // Jika akun yang dipilih menjadi inactive, pindah ke akun aktif lain
+                print(
+                  '⚠️ [HomeScreen] Selected account became inactive, switching to active account...',
+                );
+
+                // Cari akun aktif pertama
+                final activeAccounts = akunList
+                    .where(
+                      (a) => a['status']?.toString().toLowerCase() == 'active',
+                    )
+                    .toList();
+
+                if (activeAccounts.isNotEmpty) {
+                  _selectedAkun = activeAccounts.first;
+                  print(
+                    '✅ [HomeScreen] Switched to active account: ${_selectedAkun!['nama']}, status: ${_selectedAkun!['status']}',
+                  );
+
+                  // Trigger refresh data untuk akun yang baru dipilih
+                  Future.microtask(() async {
+                    await _loadNextPickupSchedule();
+                    await _loadUnpaidInvoices();
+                  });
+                } else {
+                  // Tidak ada akun aktif, tetap di akun inactive tapi user tidak bisa akses
+                  _selectedAkun = updatedAccount;
+                  print(
+                    '⚠️ [HomeScreen] No active accounts found, keeping inactive account: ${_selectedAkun!['nama']}',
+                  );
+                }
+              } else {
+                // Akun masih aktif, update dengan data terbaru
+                _selectedAkun = updatedAccount;
+                print(
+                  '✅ [HomeScreen] Updated selected account: ${_selectedAkun!['nama']}, status: ${_selectedAkun!['status']}',
+                );
+              }
             } else {
               _selectedAkun = selectLastIfNotFound
                   ? akunList.last
@@ -544,7 +596,21 @@ class _HomeScreenState extends State<HomeScreen> {
               (a) => a['id']?.toString() == _selectedAkun!['id']?.toString(),
             );
             if (idx != -1) {
-              _selectedAkun = akunList[idx];
+              final updatedAccount = akunList[idx];
+              final isInactive =
+                  updatedAccount['status']?.toString().toLowerCase() ==
+                  'inactive';
+
+              if (isInactive) {
+                // Jika akun yang dipilih menjadi inactive, pindah ke akun aktif lain
+                final activeAccount = akunList.firstWhere(
+                  (a) => a['status']?.toString().toLowerCase() == 'active',
+                  orElse: () => updatedAccount,
+                );
+                _selectedAkun = activeAccount;
+              } else {
+                _selectedAkun = updatedAccount;
+              }
             } else {
               _selectedAkun = selectLastIfNotFound
                   ? akunList.last
@@ -581,103 +647,392 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 8),
-              Container(
-                height: 6,
-                width: 60,
-                decoration: BoxDecoration(
-                  color: const Color.fromARGB(255, 21, 145, 137),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  children: [
-                    Text(
-                      "Pilih Akun Layanan",
-                      style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 8),
+                  Container(
+                    height: 6,
+                    width: 60,
+                    decoration: BoxDecoration(
+                      color: const Color.fromARGB(255, 21, 145, 137),
+                      borderRadius: BorderRadius.circular(6),
                     ),
-                    const Spacer(),
-                    TextButton.icon(
-                      onPressed: () async {
-                        Navigator.pop(context);
-                        await _openLayananSampahAndRefresh();
-                      },
-                      icon: const Icon(Icons.add),
-                      label: Text("Tambah", style: GoogleFonts.poppins()),
+                  ),
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        Text(
+                          "Pilih Akun Layanan",
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const Spacer(),
+                        TextButton.icon(
+                          onPressed: () async {
+                            Navigator.pop(context);
+                            await _openLayananSampahAndRefresh();
+                          },
+                          icon: const Icon(Icons.add),
+                          label: Text("Tambah", style: GoogleFonts.poppins()),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              Flexible(
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  padding: const EdgeInsets.all(8),
-                  itemCount: _akunList.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final akun = _akunList[index];
-                    final isSelected =
-                        _selectedAkun != null &&
-                        akun['id']?.toString() ==
-                            _selectedAkun!['id']?.toString();
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: const Color.fromARGB(
-                          255,
-                          21,
-                          145,
-                          137,
-                        ).withAlpha(31),
-                        child: const Icon(
-                          Icons.home,
-                          color: Color.fromARGB(255, 21, 145, 137),
-                        ),
-                      ),
-                      title: Text(
-                        akun["nama"] ?? "Akun Layanan",
-                        style: GoogleFonts.poppins(
-                          fontWeight: isSelected
-                              ? FontWeight.w700
-                              : FontWeight.w600,
-                        ),
-                      ),
-                      subtitle: Text(
-                        akun["alamat lengkap"] ?? "-",
-                        style: GoogleFonts.poppins(fontSize: 13),
-                      ),
-                      trailing: isSelected
-                          ? const Icon(
-                              Icons.check_circle,
-                              color: Color.fromARGB(255, 21, 145, 137),
-                            )
-                          : null,
-                      onTap: () async {
-                        setState(() {
-                          _selectedAkun = akun;
-                        });
-                        Navigator.pop(context);
+                  ),
+                  const SizedBox(height: 8),
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.all(8),
+                      itemCount: _akunList.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final akun = _akunList[index];
+                        final isSelected =
+                            _selectedAkun != null &&
+                            akun['id']?.toString() ==
+                                _selectedAkun!['id']?.toString();
+                        final isInactive =
+                            akun['status']?.toString().toLowerCase() ==
+                            'inactive';
 
-                        // Reload invoices and schedule for selected account
-                        await _loadUnpaidInvoices();
-                        await _loadNextPickupSchedule();
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: isInactive
+                                ? Colors.grey.shade300
+                                : const Color.fromARGB(
+                                    255,
+                                    21,
+                                    145,
+                                    137,
+                                  ).withAlpha(31),
+                            child: Icon(
+                              Icons.home,
+                              color: isInactive
+                                  ? Colors.grey.shade600
+                                  : const Color.fromARGB(255, 21, 145, 137),
+                            ),
+                          ),
+                          title: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  akun["nama"] ?? "Akun Layanan",
+                                  style: GoogleFonts.poppins(
+                                    fontWeight: isSelected
+                                        ? FontWeight.w700
+                                        : FontWeight.w600,
+                                    color: isInactive
+                                        ? Colors.grey.shade600
+                                        : Colors.black,
+                                  ),
+                                ),
+                              ),
+                              if (isInactive)
+                                InkWell(
+                                  onTap: () async {
+                                    // Simpan BuildContext dan ScaffoldMessenger
+                                    final scaffoldMessenger =
+                                        ScaffoldMessenger.of(context);
+                                    final navigator = Navigator.of(context);
+                                    final accountId =
+                                        akun['id']?.toString() ?? '';
+                                    final accountName =
+                                        akun['nama'] ?? 'Akun Layanan';
+
+                                    // Tampilkan dialog konfirmasi
+                                    final confirmed = await showDialog<bool>(
+                                      context: context,
+                                      builder: (dialogContext) => AlertDialog(
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                        ),
+                                        title: Text(
+                                          'Aktifkan Akun?',
+                                          style: GoogleFonts.poppins(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        content: Text(
+                                          'Apakah Anda yakin ingin mengaktifkan kembali akun "$accountName"?',
+                                          style: GoogleFonts.poppins(),
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.of(
+                                              dialogContext,
+                                            ).pop(false),
+                                            child: Text(
+                                              'Batal',
+                                              style: GoogleFonts.poppins(),
+                                            ),
+                                          ),
+                                          ElevatedButton(
+                                            onPressed: () => Navigator.of(
+                                              dialogContext,
+                                            ).pop(true),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: const Color(
+                                                0xFF4CAF50,
+                                              ),
+                                            ),
+                                            child: Text(
+                                              'Aktifkan',
+                                              style: GoogleFonts.poppins(
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+
+                                    if (confirmed != true) return;
+
+                                    // Tutup bottom sheet
+                                    navigator.pop();
+
+                                    // Tampilkan loading di context yang valid
+                                    showDialog(
+                                      context: context,
+                                      barrierDismissible: false,
+                                      builder: (loadingContext) => WillPopScope(
+                                        onWillPop: () async => false,
+                                        child: Center(
+                                          child: Container(
+                                            padding: const EdgeInsets.all(20),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const CircularProgressIndicator(),
+                                                const SizedBox(height: 16),
+                                                Text(
+                                                  'Mengaktifkan akun...',
+                                                  style: GoogleFonts.poppins(
+                                                    fontSize: 14,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    );
+
+                                    try {
+                                      // Validasi ID akun
+                                      if (accountId.isEmpty) {
+                                        throw Exception('ID akun tidak valid');
+                                      }
+
+                                      print(
+                                        '🔄 [HomeScreen] Activating account: $accountId ($accountName)',
+                                      );
+
+                                      // Update status ke active via API
+                                      final serviceAccountService =
+                                          ServiceAccountService();
+
+                                      // Step 1: Update status via API
+                                      await serviceAccountService
+                                          .updateAccountStatus(
+                                            accountId,
+                                            'active',
+                                          );
+
+                                      print(
+                                        '✅ [HomeScreen] Account activated via API, waiting for sync...',
+                                      );
+
+                                      // Step 2: Tunggu sebentar agar API sync
+                                      await Future.delayed(
+                                        const Duration(milliseconds: 500),
+                                      );
+
+                                      // Step 3: Refresh data dari API
+                                      await _loadAkunLayanan(
+                                        selectLastIfNotFound: false,
+                                      );
+
+                                      print(
+                                        '📋 [HomeScreen] Accounts after refresh: ${_akunList.map((a) => "${a['nama']}: ${a['status']}").join(", ")}',
+                                      );
+
+                                      // Step 4: Temukan dan set akun yang baru diaktifkan
+                                      final updatedAkunIndex = _akunList
+                                          .indexWhere(
+                                            (a) =>
+                                                a['id']?.toString() ==
+                                                accountId,
+                                          );
+
+                                      if (updatedAkunIndex == -1) {
+                                        throw Exception(
+                                          'Akun tidak ditemukan setelah aktivasi',
+                                        );
+                                      }
+
+                                      final updatedAkun =
+                                          _akunList[updatedAkunIndex];
+
+                                      print(
+                                        '🔄 [HomeScreen] Setting selected account: ${updatedAkun["nama"]}, status: ${updatedAkun["status"]}',
+                                      );
+
+                                      // Step 5: Update selected account dengan setState
+                                      if (mounted) {
+                                        setState(() {
+                                          _selectedAkun = updatedAkun;
+                                          print(
+                                            '✅ [HomeScreen] setState called - Selected: ${_selectedAkun!['nama']}, Status: ${_selectedAkun!['status']}',
+                                          );
+                                        });
+                                      }
+
+                                      // Step 6: Refresh jadwal dan invoice dengan akun yang baru
+                                      await _loadNextPickupSchedule();
+                                      await _loadUnpaidInvoices();
+
+                                      // Step 6.5: Force rebuild dengan setState lagi
+                                      if (mounted) {
+                                        setState(() {
+                                          // Force rebuild UI
+                                          print(
+                                            '✅ [HomeScreen] Force UI rebuild',
+                                          );
+                                        });
+                                      }
+
+                                      print(
+                                        '✅ [HomeScreen] All data refreshed successfully',
+                                      );
+
+                                      // Step 7: Tutup loading
+                                      navigator.pop();
+
+                                      // Step 8: Tampilkan success message
+                                      scaffoldMessenger.showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Akun "$accountName" berhasil diaktifkan',
+                                            style: GoogleFonts.poppins(),
+                                          ),
+                                          backgroundColor: const Color(
+                                            0xFF4CAF50,
+                                          ),
+                                          duration: const Duration(seconds: 2),
+                                        ),
+                                      );
+                                    } catch (e) {
+                                      // Tutup loading jika error
+                                      navigator.pop();
+
+                                      // Parse error message untuk user-friendly message
+                                      String errorMessage = e.toString();
+                                      if (errorMessage.contains('Exception:')) {
+                                        errorMessage = errorMessage
+                                            .replaceAll('Exception:', '')
+                                            .trim();
+                                      }
+
+                                      // Tampilkan error
+                                      scaffoldMessenger.showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            errorMessage,
+                                            style: GoogleFonts.poppins(),
+                                          ),
+                                          backgroundColor: Colors.red,
+                                          duration: const Duration(seconds: 3),
+                                        ),
+                                      );
+                                    }
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 5,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF4CAF50),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(
+                                          Icons.check_circle,
+                                          size: 12,
+                                          color: Colors.white,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          'Aktifkan',
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 10,
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          subtitle: Text(
+                            akun["alamat lengkap"] ?? "-",
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              color: isInactive
+                                  ? Colors.grey.shade500
+                                  : Colors.black87,
+                            ),
+                          ),
+                          trailing: isSelected
+                              ? Icon(
+                                  Icons.check_circle,
+                                  color: isInactive
+                                      ? Colors.grey.shade500
+                                      : const Color.fromARGB(255, 21, 145, 137),
+                                )
+                              : null,
+                          enabled:
+                              !isInactive, // Disable tap untuk akun inactive
+                          onTap: isInactive
+                              ? null
+                              : () async {
+                                  setState(() {
+                                    _selectedAkun = akun;
+                                  });
+                                  Navigator.pop(context);
+
+                                  // Reload invoices and schedule for selected account
+                                  await _loadUnpaidInvoices();
+                                  await _loadNextPickupSchedule();
+                                },
+                        );
                       },
-                    );
-                  },
-                ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -1661,44 +2016,86 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // Badge: Tap untuk melihat semua akun
+                              // Badge: Tap untuk melihat semua akun + Status
                               Row(
                                 children: [
-                                  if (_akunList.length > 1)
+                                  // Badge status inactive (prioritas tinggi)
+                                  if (_selectedAkun != null &&
+                                      _selectedAkun!['status']
+                                              ?.toString()
+                                              .toLowerCase() ==
+                                          'inactive')
                                     Container(
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 8,
                                         vertical: 3,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: const Color.fromARGB(
-                                          255,
-                                          21,
-                                          145,
-                                          137,
-                                        ),
+                                        color: Colors.red.shade600,
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
+                                          const Icon(
+                                            Icons.warning,
+                                            color: Colors.white,
+                                            size: 12,
+                                          ),
+                                          const SizedBox(width: 4),
                                           Text(
-                                            "Tap untuk ganti akun",
+                                            "Akun Tidak Aktif",
                                             style: GoogleFonts.poppins(
                                               fontSize: 9,
                                               color: Colors.white,
                                               fontWeight: FontWeight.w600,
                                             ),
                                           ),
-                                          const SizedBox(width: 4),
-                                          const Icon(
-                                            Icons.keyboard_arrow_down,
-                                            color: Colors.white,
-                                            size: 12,
-                                          ),
                                         ],
                                       ),
                                     ),
+                                  if (_selectedAkun == null ||
+                                      _selectedAkun!['status']
+                                              ?.toString()
+                                              .toLowerCase() !=
+                                          'inactive')
+                                    if (_akunList.length > 1)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 3,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color.fromARGB(
+                                            255,
+                                            21,
+                                            145,
+                                            137,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              "Tap untuk ganti akun",
+                                              style: GoogleFonts.poppins(
+                                                fontSize: 9,
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            const Icon(
+                                              Icons.keyboard_arrow_down,
+                                              color: Colors.white,
+                                              size: 12,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
                                   if (_akunList.length == 1)
                                     Container(
                                       padding: const EdgeInsets.symmetric(
