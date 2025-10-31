@@ -264,7 +264,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// Load next pickup schedule untuk akun yang dipilih
-  /// Prioritas: API upcoming pickups > hari_pengangkutan dari service account
+  /// Prioritas: hari_pengangkutan dari service account (paling akurat) > API upcoming pickups
   Future<void> _loadNextPickupSchedule() async {
     if (!mounted) return;
     setState(() {
@@ -302,7 +302,31 @@ class _HomeScreenState extends State<HomeScreen> {
         '🔄 [HomeScreen] Loading pickup schedule for account: $serviceAccountId',
       );
 
-      // Fetch upcoming pickups dari API - ini yang terbaru dari database
+      // PRIORITAS 1: Gunakan hari_pengangkutan dari service account (data terbaru)
+      // Reload dulu untuk memastikan data terbaru
+      await _loadAkunLayanan(selectLastIfNotFound: false);
+
+      final updatedAccount =
+          _selectedAkun ?? (_akunList.isNotEmpty ? _akunList.first : null);
+      final hariPengangkutan = updatedAccount?['hari_pengangkutan']?.toString();
+
+      print(
+        '📊 [HomeScreen] Hari pengangkutan from account: $hariPengangkutan',
+      );
+
+      if (hariPengangkutan != null && hariPengangkutan.isNotEmpty) {
+        // Hari pengangkutan sudah dalam format lengkap dari database (misal: "Sabtu • 08:00")
+        // Atau bisa juga hanya nama hari saja
+        if (!mounted) return;
+        setState(() {
+          _nextPickupSchedule = hariPengangkutan;
+          _isLoadingSchedule = false;
+        });
+        print('✅ [HomeScreen] Using hari_pengangkutan: $hariPengangkutan');
+        return;
+      }
+
+      // PRIORITAS 2: Jika hari_pengangkutan kosong, coba dari API upcoming pickups
       final (success, message, pickups) = await _pickupService
           .getUpcomingPickups(serviceAccountId: serviceAccountId);
 
@@ -340,7 +364,7 @@ class _HomeScreenState extends State<HomeScreen> {
             }
           }
 
-          print('✅ [HomeScreen] Formatted schedule: $scheduleText');
+          print('✅ [HomeScreen] Formatted schedule from API: $scheduleText');
 
           if (!mounted) return;
           setState(() {
@@ -361,43 +385,18 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
 
-      // Fallback: Reload service account untuk mendapatkan hari_pengangkutan terbaru
-      print(
-        '⚠️ [HomeScreen] No upcoming pickups, reloading service account data',
-      );
-      await _loadAkunLayanan(selectLastIfNotFound: false);
-
-      final updatedAccount =
-          _selectedAkun ?? (_akunList.isNotEmpty ? _akunList.first : null);
-      final hariPengangkutan = updatedAccount?['hari_pengangkutan']?.toString();
-
-      print(
-        '📊 [HomeScreen] Hari pengangkutan from account: $hariPengangkutan',
-      );
-
-      if (hariPengangkutan != null && hariPengangkutan.isNotEmpty) {
-        // Convert hari pengangkutan ke bahasa Indonesia
-        final hariInIndonesian = _convertDayToIndonesian(hariPengangkutan);
-        if (!mounted) return;
-        setState(() {
-          _nextPickupSchedule = hariInIndonesian;
-          _isLoadingSchedule = false;
-        });
-      } else {
-        // Tidak ada jadwal sama sekali
-        print('❌ [HomeScreen] No schedule available');
-        if (!mounted) return;
-        setState(() {
-          _nextPickupSchedule = null;
-          _isLoadingSchedule = false;
-        });
-      }
+      // Tidak ada jadwal sama sekali
+      print('❌ [HomeScreen] No schedule available');
+      if (!mounted) return;
+      setState(() {
+        _nextPickupSchedule = null;
+        _isLoadingSchedule = false;
+      });
     } catch (e) {
       debugPrint('💥 [HomeScreen] Error loading pickup schedule: $e');
 
-      // Fallback: Reload dan gunakan hari_pengangkutan jika terjadi error
+      // Fallback: Gunakan hari_pengangkutan dari akun yang sudah ada di memory
       try {
-        await _loadAkunLayanan(selectLastIfNotFound: false);
         final currentAccount =
             _selectedAkun ?? (_akunList.isNotEmpty ? _akunList.first : null);
         final hariPengangkutan = currentAccount?['hari_pengangkutan']
@@ -405,12 +404,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
         if (!mounted) return;
         setState(() {
-          // Convert ke bahasa Indonesia jika ada
-          _nextPickupSchedule = hariPengangkutan != null
-              ? _convertDayToIndonesian(hariPengangkutan)
-              : null;
+          _nextPickupSchedule = hariPengangkutan;
           _isLoadingSchedule = false;
         });
+        print(
+          '⚠️ [HomeScreen] Fallback to existing hari_pengangkutan: $hariPengangkutan',
+        );
       } catch (e2) {
         debugPrint('💥 [HomeScreen] Error in fallback: $e2');
         if (!mounted) return;
@@ -568,13 +567,11 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  /// HIDDEN: Tampilkan bottom sheet untuk memilih akun (fitur multiple account)
-  /// Uncomment jika ingin enable multiple account
-  /* void _showAkunSelector() async {
+  /// Tampilkan bottom sheet untuk memilih akun (fitur multiple account)
+  void _showAkunSelector() async {
     if (_akunList.isEmpty) {
-      await Navigator.pushNamed(context, '/layanan-sampah');
-      final added = await _loadAkunLayanan(selectLastIfNotFound: true);
-      if (added) await _loadUnreadNotif();
+      // Jika belum ada akun, buka halaman tambah akun
+      await _openLayananSampahAndRefresh();
       return;
     }
 
@@ -613,11 +610,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     TextButton.icon(
                       onPressed: () async {
                         Navigator.pop(context);
-                        await Navigator.pushNamed(context, '/layanan-sampah');
-                        final added = await _loadAkunLayanan(
-                          selectLastIfNotFound: true,
-                        );
-                        if (added) await _loadUnreadNotif();
+                        await _openLayananSampahAndRefresh();
                       },
                       icon: const Icon(Icons.add),
                       label: Text("Tambah", style: GoogleFonts.poppins()),
@@ -645,7 +638,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           21,
                           145,
                           137,
-                        ).withAlpha(31), // Sesuaikan warna
+                        ).withAlpha(31),
                         child: const Icon(
                           Icons.home,
                           color: Color.fromARGB(255, 21, 145, 137),
@@ -688,7 +681,7 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       },
     );
-  } */
+  }
 
   // helper to open tambah akun layanan and refresh states after return
   Future<void> _openLayananSampahAndRefresh() async {
@@ -1589,365 +1582,406 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.circular(18),
         elevation: 4,
         shadowColor: Colors.black.withAlpha(51),
-        child: Container(
-          decoration: BoxDecoration(
-            image: const DecorationImage(
-              image: AssetImage("assets/images/bg1.png"),
-              fit: BoxFit.cover,
-            ),
-            borderRadius: BorderRadius.circular(18),
-          ),
-          padding: const EdgeInsets.all(18),
-          child: Row(
-            children: [
-              // Icon box
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withAlpha(10),
-                      blurRadius: 6,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.home_outlined,
-                  size: 40,
-                  color: Color.fromARGB(255, 21, 145, 137),
-                ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: _akunList.isNotEmpty ? _showAkunSelector : null,
+          child: Container(
+            decoration: BoxDecoration(
+              image: const DecorationImage(
+                image: AssetImage("assets/images/bg1.png"),
+                fit: BoxFit.cover,
               ),
-              const SizedBox(width: 12),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            padding: const EdgeInsets.all(18),
+            child: Row(
+              children: [
+                // Icon box
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withAlpha(10),
+                        blurRadius: 6,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.home_outlined,
+                    size: 40,
+                    color: Color.fromARGB(255, 21, 145, 137),
+                  ),
+                ),
+                const SizedBox(width: 12),
 
-              // Service Account info
-              Expanded(
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 300),
-                  switchInCurve: Curves.easeInOut,
-                  switchOutCurve: Curves.easeInOut,
-                  transitionBuilder: (child, anim) {
-                    return FadeTransition(opacity: anim, child: child);
-                  },
-                  child: _akunList.isEmpty
-                      ? Column(
-                          key: const ValueKey('empty_account'),
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Belum ada akun",
-                              style: GoogleFonts.poppins(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black,
+                // Service Account info
+                Expanded(
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    switchInCurve: Curves.easeInOut,
+                    switchOutCurve: Curves.easeInOut,
+                    transitionBuilder: (child, anim) {
+                      return FadeTransition(opacity: anim, child: child);
+                    },
+                    child: _akunList.isEmpty
+                        ? Column(
+                            key: const ValueKey('empty_account'),
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Belum ada akun",
+                                style: GoogleFonts.poppins(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              "Tambahkan akun layanan sampah",
-                              style: GoogleFonts.poppins(
-                                fontSize: 13,
-                                color: const Color.fromARGB(255, 21, 145, 137),
+                              const SizedBox(height: 4),
+                              Text(
+                                "Tambahkan akun layanan sampah",
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  color: const Color.fromARGB(
+                                    255,
+                                    21,
+                                    145,
+                                    137,
+                                  ),
+                                ),
                               ),
+                            ],
+                          )
+                        : Column(
+                            key: ValueKey(
+                              'account_${_selectedAkun?['id_akun'] ?? 'all'}',
                             ),
-                          ],
-                        )
-                      : Column(
-                          key: ValueKey(
-                            'account_${_selectedAkun?['id_akun'] ?? 'all'}',
-                          ),
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // HIDDEN: Badge ganti akun (fitur multiple account di-hide)
-                            // Uncomment jika ingin enable multiple account
-                            /* if (_akunList.length > 1) ...[
-                              InkWell(
-                                onTap: _showAkunSelector,
-                                child: Container(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Badge: Tap untuk melihat semua akun
+                              Row(
+                                children: [
+                                  if (_akunList.length > 1)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color.fromARGB(
+                                          255,
+                                          21,
+                                          145,
+                                          137,
+                                        ),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            "Tap untuk ganti akun",
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 9,
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          const Icon(
+                                            Icons.keyboard_arrow_down,
+                                            color: Colors.white,
+                                            size: 12,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  if (_akunList.length == 1)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange.shade600,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            "Tap untuk tambah akun",
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 9,
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          const Icon(
+                                            Icons.add_circle_outline,
+                                            color: Colors.white,
+                                            size: 12,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              // Nama Akun (Bold)
+                              Text(
+                                _selectedAkun != null
+                                    ? _selectedAkun!['nama'] ?? 'Unknown'
+                                    : _akunList.isNotEmpty
+                                    ? _akunList.first['nama'] ?? 'Unknown'
+                                    : 'No Account',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              // Kelurahan dengan icon
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(
+                                    Icons.location_on,
+                                    size: 12,
+                                    color: Colors.red,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      _selectedAkun != null &&
+                                              _selectedAkun!['kelurahan'] !=
+                                                  null
+                                          ? _selectedAkun!['kelurahan']
+                                          : _akunList.isNotEmpty &&
+                                                _akunList.first['kelurahan'] !=
+                                                    null
+                                          ? _akunList.first['kelurahan']
+                                          : '',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 10,
+                                        color: Colors.black87,
+                                      ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              // Jadwal Pengambilan dengan background berbeda
+                              if (_isLoadingSchedule)
+                                Container(
                                   padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
+                                    horizontal: 10,
+                                    vertical: 6,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: const Color.fromARGB(
-                                      255,
-                                      21,
-                                      145,
-                                      137,
-                                    ),
+                                    color: Colors.grey.shade200,
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Text(
-                                        "Tap untuk ganti",
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 9,
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w500,
+                                      SizedBox(
+                                        width: 14,
+                                        height: 14,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                                Colors.grey.shade600,
+                                              ),
                                         ),
                                       ),
-                                      const SizedBox(width: 4),
-                                      const Icon(
-                                        Icons.keyboard_arrow_down,
-                                        color: Colors.white,
-                                        size: 12,
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        "Memuat jadwal...",
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 10,
+                                          color: Colors.grey.shade600,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              else if (_nextPickupSchedule != null)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange.shade50,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: Colors.orange.shade200,
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.access_time,
+                                        size: 14,
+                                        color: Colors.orange.shade700,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Flexible(
+                                        child: Text(
+                                          "Jadwal: $_nextPickupSchedule",
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 10,
+                                            color: Colors.orange.shade800,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              else
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade100,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: Colors.grey.shade300,
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.info_outline,
+                                        size: 14,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        "Belum ada jadwal",
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 10,
+                                          color: Colors.grey.shade600,
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                       ),
                                     ],
                                   ),
                                 ),
-                              ),
-                              const SizedBox(height: 6),
-                            ], */
-                            // Nama Akun (Bold)
-                            Text(
-                              _selectedAkun != null
-                                  ? _selectedAkun!['nama'] ?? 'Unknown'
-                                  : _akunList.isNotEmpty
-                                  ? _akunList.first['nama'] ?? 'Unknown'
-                                  : 'No Account',
-                              style: GoogleFonts.poppins(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 4),
-                            // Kelurahan dengan icon
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Icon(
-                                  Icons.location_on,
-                                  size: 12,
-                                  color: Colors.red,
-                                ),
-                                const SizedBox(width: 4),
-                                Expanded(
-                                  child: Text(
-                                    _selectedAkun != null &&
-                                            _selectedAkun!['kelurahan'] != null
-                                        ? _selectedAkun!['kelurahan']
-                                        : _akunList.isNotEmpty &&
-                                              _akunList.first['kelurahan'] !=
-                                                  null
-                                        ? _akunList.first['kelurahan']
-                                        : '',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 10,
-                                      color: Colors.black87,
-                                    ),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            // Jadwal Pengambilan dengan background berbeda
-                            if (_isLoadingSchedule)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade200,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    SizedBox(
-                                      width: 14,
-                                      height: 14,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                              Colors.grey.shade600,
-                                            ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      "Memuat jadwal...",
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 10,
-                                        color: Colors.grey.shade600,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              )
-                            else if (_nextPickupSchedule != null)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.orange.shade50,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: Colors.orange.shade200,
-                                    width: 1,
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.access_time,
-                                      size: 14,
-                                      color: Colors.orange.shade700,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Flexible(
-                                      child: Text(
-                                        "Jadwal: $_nextPickupSchedule",
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 10,
-                                          color: Colors.orange.shade800,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              )
-                            else
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade100,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: Colors.grey.shade300,
-                                    width: 1,
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.info_outline,
-                                      size: 14,
-                                      color: Colors.grey.shade600,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      "Belum ada jadwal",
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 10,
-                                        color: Colors.grey.shade600,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                          ],
-                        ),
-                ),
-              ),
-
-              // Tombol Create/Detail
-              const SizedBox(width: 12),
-              SizedBox(
-                height: 42,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    if (_akunList.isEmpty) {
-                      // Jika belum ada akun, buka halaman create
-                      await _openLayananSampahAndRefresh();
-                    } else {
-                      // Tampilkan shimmer loading
-                      _showShimmerLoading(context);
-
-                      // Delay sebentar untuk efek shimmer terlihat
-                      await Future.delayed(const Duration(milliseconds: 500));
-
-                      // Jika sudah ada akun, buka detail akun
-                      final currentAccountMap =
-                          _selectedAkun ?? _akunList.first;
-
-                      // Konversi Map ke ServiceAccount object
-                      final serviceAccount = ServiceAccount(
-                        id: currentAccountMap['id_akun']?.toString() ?? '0',
-                        name: currentAccountMap['nama']?.toString() ?? '',
-                        address: currentAccountMap['alamat']?.toString() ?? '',
-                        latitude: 0.0, // Default, bisa diubah jika ada data
-                        longitude: 0.0, // Default, bisa diubah jika ada data
-                        status: 'active',
-                        contactPhone: currentAccountMap['no_telepon']
-                            ?.toString(),
-                        kecamatanName: currentAccountMap['kecamatan']
-                            ?.toString(),
-                        kelurahanName: currentAccountMap['kelurahan']
-                            ?.toString(),
-                        hariPengangkutan: currentAccountMap['hari_pengangkutan']
-                            ?.toString(),
-                      );
-
-                      // Tutup shimmer loading
-                      if (mounted) Navigator.of(context).pop();
-
-                      // Navigate ke detail
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              DetailAkunLayananScreen(akun: serviceAccount),
-                        ),
-                      );
-
-                      // Refresh setelah kembali dari detail
-                      await _loadAkunLayanan(selectLastIfNotFound: true);
-                      await _loadNextPickupSchedule();
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color.fromARGB(255, 21, 145, 137),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
+                            ],
+                          ),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        _akunList.isEmpty ? Icons.add : Icons.info_outline,
-                        size: 16,
-                        color: Colors.white,
+                ),
+
+                // Tombol Create/Detail
+                const SizedBox(width: 12),
+                SizedBox(
+                  height: 42,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      if (_akunList.isEmpty) {
+                        // Jika belum ada akun, buka halaman create
+                        await _openLayananSampahAndRefresh();
+                      } else {
+                        // Tampilkan shimmer loading
+                        _showShimmerLoading(context);
+
+                        // Delay sebentar untuk efek shimmer terlihat
+                        await Future.delayed(const Duration(milliseconds: 500));
+
+                        // Jika sudah ada akun, buka detail akun
+                        final currentAccountMap =
+                            _selectedAkun ?? _akunList.first;
+
+                        // Konversi Map ke ServiceAccount object
+                        final serviceAccount = ServiceAccount(
+                          id: currentAccountMap['id_akun']?.toString() ?? '0',
+                          name: currentAccountMap['nama']?.toString() ?? '',
+                          address:
+                              currentAccountMap['alamat']?.toString() ?? '',
+                          latitude: 0.0, // Default, bisa diubah jika ada data
+                          longitude: 0.0, // Default, bisa diubah jika ada data
+                          status: 'active',
+                          contactPhone: currentAccountMap['no_telepon']
+                              ?.toString(),
+                          kecamatanName: currentAccountMap['kecamatan']
+                              ?.toString(),
+                          kelurahanName: currentAccountMap['kelurahan']
+                              ?.toString(),
+                          hariPengangkutan:
+                              currentAccountMap['hari_pengangkutan']
+                                  ?.toString(),
+                        );
+
+                        // Tutup shimmer loading
+                        if (mounted) Navigator.of(context).pop();
+
+                        // Navigate ke detail
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                DetailAkunLayananScreen(akun: serviceAccount),
+                          ),
+                        );
+
+                        // Refresh setelah kembali dari detail
+                        await _loadAkunLayanan(selectLastIfNotFound: true);
+                        await _loadNextPickupSchedule();
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color.fromARGB(255, 21, 145, 137),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
                       ),
-                      const SizedBox(width: 6),
-                      Text(
-                        _akunList.isEmpty ? "Create" : "Detail",
-                        style: GoogleFonts.poppins(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _akunList.isEmpty ? Icons.add : Icons.info_outline,
+                          size: 16,
                           color: Colors.white,
-                          fontWeight: FontWeight.w600,
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 6),
+                        Text(
+                          _akunList.isEmpty ? "Create" : "Detail",
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

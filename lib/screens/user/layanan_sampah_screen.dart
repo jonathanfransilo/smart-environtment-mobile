@@ -4,7 +4,6 @@ import 'package:shimmer/shimmer.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 import 'tambah_akun_layanan_screen.dart'; // Pastikan file ini ada di project Anda
-import 'riwayat_pengambilan_screen.dart';
 
 import '../../models/service_account.dart';
 import '../../services/service_account_service.dart';
@@ -548,7 +547,9 @@ class DetailAkunLayananScreen extends StatelessWidget {
                   ],
 
                   // Nomor Telepon Kolektor
-                  if (collectorPhone != null && collectorPhone != '-') ...[
+                  if (collectorPhone != null && 
+                      collectorPhone != '-' && 
+                      collectorPhone.isNotEmpty) ...[
                     _buildInfoRow(
                       icon: Icons.phone,
                       label: 'Kontak',
@@ -1104,55 +1105,28 @@ class DetailAkunLayananScreen extends StatelessWidget {
 
             const SizedBox(height: 40),
 
-            /// Tombol Aksi - Grid 2 kolom
+            /// Tombol Aksi
             Column(
               children: [
-                // Baris 1: Status & Riwayat
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () => _showStatusDialog(context),
-                        icon: const Icon(Icons.info_outline),
-                        label: const Text("Status"),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
+                // Tombol Status
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _showStatusDialog(context),
+                    icon: const Icon(Icons.info_outline),
+                    label: const Text("Status"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => RiwayatPengambilanScreen(
-                                serviceAccountId: akun.id,
-                                accountName: akun.name,
-                              ),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.history),
-                        label: const Text("Riwayat"),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF4CAF50),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
                 const SizedBox(height: 12),
-                // Baris 2: Nonaktifkan Akun
+                // Tombol Nonaktifkan Akun
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(

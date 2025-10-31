@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'pengambilan_sampah_screen.dart';
 import 'ambil_foto_screen.dart';
 import '../../services/pickup_service.dart';
@@ -23,6 +24,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
   List<Map<String, dynamic>> todayPickups = [];
   List<Map<String, dynamic>> pengangkutanList = []; // Riwayat pengangkutan
   String _userName = 'Kolektor';
+  String _profileImagePath = ''; // Tambahkan untuk menyimpan path foto profile
   bool _isLoadingPickups = false;
   bool _isLoadingHistory = false;
   String? _errorMessage;
@@ -53,9 +55,11 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
   /// Load user data dari UserStorage
   Future<void> _loadUserData() async {
     final name = await UserStorage.getUserName();
+    final prefs = await SharedPreferences.getInstance();
     if (mounted) {
       setState(() {
         _userName = name ?? 'Kolektor';
+        _profileImagePath = prefs.getString('profile_image_path') ?? '';
       });
     }
   }
@@ -364,7 +368,13 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
           ? _buildPengangkutanPage(primaryColor, titleStyle)
           : _selectedIndex == 2
           ? _buildRiwayatPage(primaryColor)
-          : ProfileScreen(onProfileUpdated: (_) {}),
+          : ProfileScreen(
+              onProfileUpdated: (newImagePath) {
+                setState(() {
+                  _profileImagePath = newImagePath;
+                });
+              },
+            ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: _onNavItemTapped,
@@ -418,34 +428,20 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  Row(
                     children: [
-                      Text(
-                        _userName,
-                        style: GoogleFonts.poppins(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Row(
+                      // Profile Icon/Avatar
+                      _buildProfileAvatar(primaryColor),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF009688),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
                           Text(
-                            "Menteng, Jakarta Pusat",
+                            _userName,
                             style: GoogleFonts.poppins(
-                              fontSize: 13,
-                              color: Colors.black54,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
                             ),
                           ),
                         ],
@@ -788,7 +784,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
             ),
           ),
           const SizedBox(height: 16),
-          
+
           // List TPS
           Expanded(
             child: ListView.builder(
@@ -835,7 +831,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
               ],
             ),
           ),
-          
+
           // Tab Bar
           Container(
             color: Colors.white,
@@ -914,9 +910,9 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
               ],
             ),
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Content based on selected tab
           Expanded(
             child: _riwayatTabIndex == 0
@@ -933,107 +929,106 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
     return _isLoadingHistory
         ? const Center(child: CircularProgressIndicator())
         : pengambilanList.isEmpty
-            ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.history, size: 80, color: Colors.grey[300]),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Belum ada riwayat pengambilan',
-                      style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        color: Colors.grey[600],
-                      ),
+        ? Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.history, size: 80, color: Colors.grey[300]),
+                const SizedBox(height: 16),
+                Text(
+                  'Belum ada riwayat pengambilan',
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          )
+        : ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: pengambilanList.length,
+            itemBuilder: (context, index) {
+              final item = pengambilanList[index];
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
                     ),
                   ],
                 ),
-              )
-            : ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: pengambilanList.length,
-                itemBuilder: (context, index) {
-                  final item = pengambilanList[index];
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.04),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.all(16),
-                      leading: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: SizedBox(
-                          width: 60,
-                          height: 60,
-                          child: _buildPickupImage(
-                            item["image"]?.toString() ??
-                                "assets/images/dummy.jpg",
-                          ),
-                        ),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.all(16),
+                  leading: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: SizedBox(
+                      width: 60,
+                      height: 60,
+                      child: _buildPickupImage(
+                        item["image"]?.toString() ?? "assets/images/dummy.jpg",
                       ),
-                      title: Text(
-                        item["name"]?.toString() ?? "Unknown",
+                    ),
+                  ),
+                  title: Text(
+                    item["name"]?.toString() ?? "Unknown",
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 4),
+                      Text(
+                        item["address"]?.toString() ?? "",
                         style: GoogleFonts.poppins(
-                          fontSize: 16,
+                          fontSize: 13,
+                          color: Colors.grey[600],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        "Rp. ${(item["totalPrice"] as num?)?.toInt() ?? 0}",
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: Colors.black87,
+                          color: primaryColor,
                         ),
                       ),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 4),
-                          Text(
-                            item["address"]?.toString() ?? "",
-                            style: GoogleFonts.poppins(
-                              fontSize: 13,
-                              color: Colors.grey[600],
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            "Rp. ${(item["totalPrice"] as num?)?.toInt() ?? 0}",
-                            style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: primaryColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                      trailing: TextButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  RiwayatSampahScreen(pickupData: item),
-                            ),
-                          );
-                        },
-                        child: Text(
-                          'Detail',
-                          style: GoogleFonts.poppins(
-                            color: primaryColor,
-                            fontWeight: FontWeight.w600,
-                          ),
+                    ],
+                  ),
+                  trailing: TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              RiwayatSampahScreen(pickupData: item),
                         ),
+                      );
+                    },
+                    child: Text(
+                      'Detail',
+                      style: GoogleFonts.poppins(
+                        color: primaryColor,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                  );
-                },
+                  ),
+                ),
               );
+            },
+          );
   }
 
   // Riwayat Pengangkutan Content
@@ -1119,9 +1114,10 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
                       const SizedBox(height: 4),
                       Row(
                         children: [
-                          Icon(Icons.calendar_today, 
-                            size: 14, 
-                            color: Colors.grey[600]
+                          Icon(
+                            Icons.calendar_today,
+                            size: 14,
+                            color: Colors.grey[600],
                           ),
                           const SizedBox(width: 4),
                           Text(
@@ -1132,9 +1128,10 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
                             ),
                           ),
                           const SizedBox(width: 12),
-                          Icon(Icons.access_time, 
-                            size: 14, 
-                            color: Colors.grey[600]
+                          Icon(
+                            Icons.access_time,
+                            size: 14,
+                            color: Colors.grey[600],
                           ),
                           const SizedBox(width: 4),
                           Text(
@@ -1507,9 +1504,10 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.image_not_supported, 
-                        size: 50, 
-                        color: Colors.grey[600]
+                      Icon(
+                        Icons.image_not_supported,
+                        size: 50,
+                        color: Colors.grey[600],
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -1525,7 +1523,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
               },
             ),
           ),
-          
+
           // Info TPS
           Padding(
             padding: const EdgeInsets.all(16),
@@ -1542,15 +1540,11 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                
+
                 // Lokasi
                 Row(
                   children: [
-                    Icon(
-                      Icons.location_on,
-                      size: 16,
-                      color: Colors.grey[600],
-                    ),
+                    Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
@@ -1564,16 +1558,12 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                
+
                 // Jarak dan Waktu
                 Row(
                   children: [
                     // Jarak
-                    Icon(
-                      Icons.straighten,
-                      size: 16,
-                      color: Colors.grey[600],
-                    ),
+                    Icon(Icons.straighten, size: 16, color: Colors.grey[600]),
                     const SizedBox(width: 4),
                     Text(
                       distance,
@@ -1583,13 +1573,9 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
                       ),
                     ),
                     const SizedBox(width: 16),
-                    
+
                     // Waktu tempuh
-                    Icon(
-                      Icons.access_time,
-                      size: 16,
-                      color: primaryColor,
-                    ),
+                    Icon(Icons.access_time, size: 16, color: primaryColor),
                     const SizedBox(width: 4),
                     Text(
                       '${distanceMinutes}m',
@@ -1602,7 +1588,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Tombol Angkut Sampah
                 SizedBox(
                   width: double.infinity,
@@ -1663,7 +1649,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
                 ),
               ),
               const SizedBox(height: 24),
-              
+
               // Title
               Text(
                 'Konfirmasi Pengangkutan',
@@ -1675,7 +1661,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 12),
-              
+
               // Message
               Text(
                 'Apakah Anda yakin telah menyerahkan sampah ke $tpsName?',
@@ -1700,7 +1686,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
                 ),
               ),
             ),
-            
+
             // Tombol Konfirmasi
             ElevatedButton(
               onPressed: () {
@@ -1734,10 +1720,14 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
   }
 
   // Konfirmasi pengangkutan dan simpan ke riwayat
-  void _confirmPengangkutan(BuildContext context, String tpsName, String tpsId) {
+  void _confirmPengangkutan(
+    BuildContext context,
+    String tpsName,
+    String tpsId,
+  ) {
     // Simpan ke riwayat pengangkutan
     final DateTime now = DateTime.now();
-    
+
     // Buat data pengangkutan baru
     final newPengangkutan = {
       'id': 'ANG${now.millisecondsSinceEpoch}',
@@ -1748,14 +1738,14 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
       'time': '${now.hour}:${now.minute.toString().padLeft(2, '0')}',
       'status': 'completed',
     };
-    
+
     // Tambahkan ke list riwayat
     setState(() {
       pengangkutanList.insert(0, newPengangkutan);
     });
-    
+
     // TODO: Simpan ke database/API untuk persistensi
-    
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1783,7 +1773,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
                 ),
               ),
               const SizedBox(height: 24),
-              
+
               // Title
               Text(
                 'Selamat!',
@@ -1794,7 +1784,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
                 ),
               ),
               const SizedBox(height: 12),
-              
+
               // Message
               Container(
                 padding: const EdgeInsets.all(16),
@@ -1817,7 +1807,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
                 ),
               ),
               const SizedBox(height: 8),
-              
+
               // Detail info
               Text(
                 'Data telah disimpan ke riwayat pengangkutan',
@@ -1921,5 +1911,35 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
       default:
         return {'label': status, 'color': Colors.grey[600]};
     }
+  }
+
+  /// Widget untuk menampilkan profile avatar
+  Widget _buildProfileAvatar(Color primaryColor) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: primaryColor, width: 2),
+      ),
+      child: ClipOval(
+        child:
+            _profileImagePath.isNotEmpty && File(_profileImagePath).existsSync()
+            ? Image.file(
+                File(_profileImagePath),
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    color: primaryColor.withOpacity(0.1),
+                    child: Icon(Icons.person, color: primaryColor, size: 24),
+                  );
+                },
+              )
+            : Container(
+                color: primaryColor.withOpacity(0.1),
+                child: Icon(Icons.person, color: primaryColor, size: 24),
+              ),
+      ),
+    );
   }
 }

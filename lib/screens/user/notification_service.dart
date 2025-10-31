@@ -7,7 +7,9 @@ class NotificationService {
 
   /// Ambil semua notifikasi
   /// [isKolektor] - true jika untuk kolektor, false untuk user/resident
-  static Future<List<Map<String, dynamic>>> getNotifications({bool isKolektor = false}) async {
+  static Future<List<Map<String, dynamic>>> getNotifications({
+    bool isKolektor = false,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     final storageKey = isKolektor ? _kolektorKey : _key;
     final data = prefs.getStringList(storageKey) ?? [];
@@ -16,11 +18,39 @@ class NotificationService {
 
   /// Tambah notifikasi baru
   /// [isKolektor] - true jika untuk kolektor, false untuk user/resident
-  static Future<void> addNotification(String message, {bool isKolektor = false}) async {
+  static Future<void> addNotification(
+    String message, {
+    bool isKolektor = false,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     final storageKey = isKolektor ? _kolektorKey : _key;
     final data = prefs.getStringList(storageKey) ?? [];
-    final list = data.map((e) => jsonDecode(e) as Map<String, dynamic>).toList();
+    final list = data
+        .map((e) => jsonDecode(e) as Map<String, dynamic>)
+        .toList();
+
+    // Cek apakah notifikasi dengan message yang sama sudah ada dalam 24 jam terakhir
+    final now = DateTime.now();
+    final oneDayAgo = now.subtract(const Duration(hours: 24));
+
+    final isDuplicate = list.any((notification) {
+      final notifMessage = notification['message'] as String?;
+      final notifTimeStr = notification['time'] as String?;
+
+      if (notifMessage == message && notifTimeStr != null) {
+        final notifTime = DateTime.tryParse(notifTimeStr);
+        if (notifTime != null && notifTime.isAfter(oneDayAgo)) {
+          return true; // Notifikasi yang sama masih ada dalam 24 jam terakhir
+        }
+      }
+      return false;
+    });
+
+    // Jika notifikasi duplikat ditemukan, jangan tambahkan lagi
+    if (isDuplicate) {
+      print('Duplicate notification prevented: $message');
+      return;
+    }
 
     final notif = {
       "id": DateTime.now().millisecondsSinceEpoch.toString(),
@@ -42,7 +72,9 @@ class NotificationService {
     final prefs = await SharedPreferences.getInstance();
     final storageKey = isKolektor ? _kolektorKey : _key;
     final data = prefs.getStringList(storageKey) ?? [];
-    final list = data.map((e) => jsonDecode(e) as Map<String, dynamic>).toList();
+    final list = data
+        .map((e) => jsonDecode(e) as Map<String, dynamic>)
+        .toList();
 
     for (var n in list) {
       if (n['id'] == id) {
@@ -63,7 +95,9 @@ class NotificationService {
     final prefs = await SharedPreferences.getInstance();
     final storageKey = isKolektor ? _kolektorKey : _key;
     final data = prefs.getStringList(storageKey) ?? [];
-    final list = data.map((e) => jsonDecode(e) as Map<String, dynamic>).toList();
+    final list = data
+        .map((e) => jsonDecode(e) as Map<String, dynamic>)
+        .toList();
 
     for (var n in list) {
       n['isRead'] = true;
@@ -77,11 +111,16 @@ class NotificationService {
 
   /// Hapus satu notifikasi berdasarkan ID
   /// [isKolektor] - true jika untuk kolektor, false untuk user/resident
-  static Future<void> deleteNotification(String id, {bool isKolektor = false}) async {
+  static Future<void> deleteNotification(
+    String id, {
+    bool isKolektor = false,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     final storageKey = isKolektor ? _kolektorKey : _key;
     final data = prefs.getStringList(storageKey) ?? [];
-    final list = data.map((e) => jsonDecode(e) as Map<String, dynamic>).toList();
+    final list = data
+        .map((e) => jsonDecode(e) as Map<String, dynamic>)
+        .toList();
 
     // Hapus notifikasi dengan ID yang sesuai
     list.removeWhere((n) => n['id'] == id);
@@ -102,11 +141,43 @@ class NotificationService {
 
   /// Tambah notifikasi khusus pembayaran
   /// [isKolektor] - true jika untuk kolektor, false untuk user/resident
-  static Future<void> addPaymentNotification(String title, String message, {bool isKolektor = false}) async {
+  static Future<void> addPaymentNotification(
+    String title,
+    String message, {
+    bool isKolektor = false,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     final storageKey = isKolektor ? _kolektorKey : _key;
     final data = prefs.getStringList(storageKey) ?? [];
-    final list = data.map((e) => jsonDecode(e) as Map<String, dynamic>).toList();
+    final list = data
+        .map((e) => jsonDecode(e) as Map<String, dynamic>)
+        .toList();
+
+    // Cek apakah notifikasi payment dengan message yang sama sudah ada dalam 24 jam terakhir
+    final now = DateTime.now();
+    final oneDayAgo = now.subtract(const Duration(hours: 24));
+
+    final isDuplicate = list.any((notification) {
+      final notifType = notification['type'] as String?;
+      final notifMessage = notification['message'] as String?;
+      final notifTimeStr = notification['time'] as String?;
+
+      if (notifType == 'payment' &&
+          notifMessage == message &&
+          notifTimeStr != null) {
+        final notifTime = DateTime.tryParse(notifTimeStr);
+        if (notifTime != null && notifTime.isAfter(oneDayAgo)) {
+          return true; // Notifikasi yang sama masih ada dalam 24 jam terakhir
+        }
+      }
+      return false;
+    });
+
+    // Jika notifikasi duplikat ditemukan, jangan tambahkan lagi
+    if (isDuplicate) {
+      print('Duplicate payment notification prevented: $message');
+      return;
+    }
 
     final notif = {
       "id": DateTime.now().millisecondsSinceEpoch.toString(),
@@ -125,7 +196,7 @@ class NotificationService {
   }
 
   /// Tambah notifikasi dengan tipe tertentu
-  /// Types: pickup_schedule, invoice_new, invoice_reminder, article_new, 
+  /// Types: pickup_schedule, invoice_new, invoice_reminder, article_new,
   ///        report_created, payment_success, service_account_created
   /// [isKolektor] - true jika untuk kolektor, false untuk user/resident
   static Future<void> addNotificationWithType({
@@ -137,7 +208,35 @@ class NotificationService {
     final prefs = await SharedPreferences.getInstance();
     final storageKey = isKolektor ? _kolektorKey : _key;
     final data = prefs.getStringList(storageKey) ?? [];
-    final list = data.map((e) => jsonDecode(e) as Map<String, dynamic>).toList();
+    final list = data
+        .map((e) => jsonDecode(e) as Map<String, dynamic>)
+        .toList();
+
+    // Cek apakah notifikasi dengan type dan message yang sama sudah ada dalam 24 jam terakhir
+    final now = DateTime.now();
+    final oneDayAgo = now.subtract(const Duration(hours: 24));
+
+    final isDuplicate = list.any((notification) {
+      final notifType = notification['type'] as String?;
+      final notifMessage = notification['message'] as String?;
+      final notifTimeStr = notification['time'] as String?;
+
+      if (notifType == type &&
+          notifMessage == message &&
+          notifTimeStr != null) {
+        final notifTime = DateTime.tryParse(notifTimeStr);
+        if (notifTime != null && notifTime.isAfter(oneDayAgo)) {
+          return true; // Notifikasi yang sama masih ada dalam 24 jam terakhir
+        }
+      }
+      return false;
+    });
+
+    // Jika notifikasi duplikat ditemukan, jangan tambahkan lagi
+    if (isDuplicate) {
+      print('Duplicate notification prevented: $type - $message');
+      return;
+    }
 
     final notif = {
       "id": DateTime.now().millisecondsSinceEpoch.toString(),

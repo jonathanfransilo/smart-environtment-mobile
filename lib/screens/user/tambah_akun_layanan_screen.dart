@@ -71,6 +71,9 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
   final double _minZoom = 3.0;
   final double _maxZoom = 19.0;
 
+  // List untuk menyimpan nama akun yang sudah ada
+  List<String> _existingAccountNames = [];
+
   @override
   void initState() {
     super.initState();
@@ -82,6 +85,12 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
       final AppSettingsData? settings = await _configService.fetchAppSettings();
       final kecamatan = await _areaService.fetchKecamatan();
 
+      // Load existing accounts untuk validasi nama
+      final existingAccounts = await _serviceAccountService.fetchAccounts();
+      final existingNames = existingAccounts
+          .map((account) => account.name.toLowerCase().trim())
+          .toList();
+
       if (!mounted) return;
 
       setState(() {
@@ -90,6 +99,7 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
         _provinsiController.text = _provinceName ?? '';
         _kotaController.text = _cityName ?? '';
         _kecamatanOptions = kecamatan;
+        _existingAccountNames = existingNames;
         _isLoading = false;
       });
     } catch (error) {
@@ -116,9 +126,9 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
 
   void _showSnackBar(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   AreaOption? _findOptionByName(List<AreaOption> options, String name) {
@@ -166,8 +176,9 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
     });
 
     try {
-      final kelurahan =
-          await _areaService.fetchKelurahan(parentId: kecamatan.id);
+      final kelurahan = await _areaService.fetchKelurahan(
+        parentId: kecamatan.id,
+      );
       if (!mounted) return;
 
       setState(() {
@@ -239,11 +250,7 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
       if (kIsWeb) {
         final response = await _geocodeClient.get<List<dynamic>>(
           '/search',
-          queryParameters: {
-            'format': 'json',
-            'limit': 1,
-            'q': address,
-          },
+          queryParameters: {'format': 'json', 'limit': 1, 'q': address},
         );
 
         final data = response.data;
@@ -276,11 +283,8 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
   }
 
   Future<void> _simpanData() async {
-    if (_selectedKecamatanOption == null ||
-        _selectedKelurahanOption == null) {
-      _showSnackBar(
-        'Harap pilih Kecamatan dan Kelurahan yang valid.',
-      );
+    if (_selectedKecamatanOption == null || _selectedKelurahanOption == null) {
+      _showSnackBar('Harap pilih Kecamatan dan Kelurahan yang valid.');
       return;
     }
 
@@ -306,9 +310,7 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
 
       // Trigger notifikasi akun layanan berhasil dibuat
       final helper = NotificationHelper();
-      await helper.notifyServiceAccountCreated(
-        accountName: account.name,
-      );
+      await helper.notifyServiceAccountCreated(accountName: account.name);
 
       _showSuccessBottomSheet(context, account);
     } catch (error) {
@@ -533,10 +535,20 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildLabel('Nama Lengkap'),
-              _buildTextFormField(
+              TextFormField(
                 controller: _namaController,
-                hintText: 'Masukkan nama lengkap',
-                validatorMessage: 'Nama wajib diisi',
+                decoration: _inputDecoration(hintText: 'Masukkan nama lengkap'),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Nama wajib diisi';
+                  }
+                  // Cek apakah nama sudah ada (case insensitive)
+                  final nameLower = value.toLowerCase().trim();
+                  if (_existingAccountNames.contains(nameLower)) {
+                    return 'Nama akun layanan "$value" sudah digunakan.';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 16),
               _buildLabel('Nomor Telepon'),
@@ -573,8 +585,9 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
               Autocomplete<String>(
                 optionsBuilder: (TextEditingValue textEditingValue) {
                   final query = textEditingValue.text.toLowerCase();
-                  final names =
-                      _kecamatanOptions.map((option) => option.name).toList();
+                  final names = _kecamatanOptions
+                      .map((option) => option.name)
+                      .toList();
                   if (query.isEmpty) {
                     return names;
                   }
@@ -583,33 +596,29 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
                   );
                 },
                 onSelected: _handleKecamatanSelection,
-                fieldViewBuilder: (
-                  context,
-                  textController,
-                  focusNode,
-                  onEditingComplete,
-                ) {
-                  if (textController.text != _kecamatanController.text) {
-                    textController.value = _kecamatanController.value;
-                  }
-                  return TextFormField(
-                    controller: textController,
-                    focusNode: focusNode,
-                    decoration:
-                        _inputDecoration(hintText: 'Pilih atau ketik kecamatan'),
-                    validator: (value) =>
-                        value == null || value.isEmpty
+                fieldViewBuilder:
+                    (context, textController, focusNode, onEditingComplete) {
+                      if (textController.text != _kecamatanController.text) {
+                        textController.value = _kecamatanController.value;
+                      }
+                      return TextFormField(
+                        controller: textController,
+                        focusNode: focusNode,
+                        decoration: _inputDecoration(
+                          hintText: 'Pilih atau ketik kecamatan',
+                        ),
+                        validator: (value) => value == null || value.isEmpty
                             ? 'Kecamatan wajib diisi'
                             : null,
-                    onEditingComplete: () {
-                      onEditingComplete();
-                      _handleKecamatanSelection(textController.text);
+                        onEditingComplete: () {
+                          onEditingComplete();
+                          _handleKecamatanSelection(textController.text);
+                        },
+                        onChanged: (value) {
+                          _kecamatanController.text = value;
+                        },
+                      );
                     },
-                    onChanged: (value) {
-                      _kecamatanController.text = value;
-                    },
-                  );
-                },
               ),
               const SizedBox(height: 16),
               _buildLabel('Kelurahan'),
@@ -632,38 +641,40 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
                       );
                     },
                     onSelected: _handleKelurahanSelection,
-                    fieldViewBuilder: (
-                      context,
-                      textController,
-                      focusNode,
-                      onEditingComplete,
-                    ) {
-                      if (textController.text != _kelurahanController.text) {
-                        textController.value = _kelurahanController.value;
-                      }
-                      return TextFormField(
-                        controller: textController,
-                        focusNode: focusNode,
-                        enabled: _selectedKecamatanOption != null &&
-                            !_isKelurahanLoading,
-                        decoration: _inputDecoration(
-                          hintText: _selectedKecamatanOption == null
-                              ? 'Pilih kecamatan terlebih dahulu'
-                              : 'Pilih kelurahan',
-                        ),
-                        validator: (value) =>
-                            value == null || value.isEmpty
+                    fieldViewBuilder:
+                        (
+                          context,
+                          textController,
+                          focusNode,
+                          onEditingComplete,
+                        ) {
+                          if (textController.text !=
+                              _kelurahanController.text) {
+                            textController.value = _kelurahanController.value;
+                          }
+                          return TextFormField(
+                            controller: textController,
+                            focusNode: focusNode,
+                            enabled:
+                                _selectedKecamatanOption != null &&
+                                !_isKelurahanLoading,
+                            decoration: _inputDecoration(
+                              hintText: _selectedKecamatanOption == null
+                                  ? 'Pilih kecamatan terlebih dahulu'
+                                  : 'Pilih kelurahan',
+                            ),
+                            validator: (value) => value == null || value.isEmpty
                                 ? 'Kelurahan wajib diisi'
                                 : null,
-                        onEditingComplete: () {
-                          onEditingComplete();
-                          _handleKelurahanSelection(textController.text);
+                            onEditingComplete: () {
+                              onEditingComplete();
+                              _handleKelurahanSelection(textController.text);
+                            },
+                            onChanged: (value) {
+                              _kelurahanController.text = value;
+                            },
+                          );
                         },
-                        onChanged: (value) {
-                          _kelurahanController.text = value;
-                        },
-                      );
-                    },
                   ),
                   if (_isKelurahanLoading)
                     const Padding(
@@ -709,8 +720,10 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
     return InputDecoration(
       hintText: hintText,
       hintStyle: GoogleFonts.poppins(color: Colors.grey[400]),
-      contentPadding:
-          const EdgeInsets.symmetric(vertical: 14.0, horizontal: 12.0),
+      contentPadding: const EdgeInsets.symmetric(
+        vertical: 14.0,
+        horizontal: 12.0,
+      ),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: Colors.grey),
@@ -762,12 +775,11 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
       controller: controller,
       readOnly: readOnly,
       style: GoogleFonts.poppins(color: Colors.black87),
-      decoration: _inputDecoration(
-        hintText: hintText ?? controller.text,
-      ).copyWith(
-        fillColor: readOnly ? Colors.grey.shade100 : null,
-        filled: readOnly,
-      ),
+      decoration: _inputDecoration(hintText: hintText ?? controller.text)
+          .copyWith(
+            fillColor: readOnly ? Colors.grey.shade100 : null,
+            filled: readOnly,
+          ),
     );
   }
 
@@ -826,26 +838,15 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
                   color: Colors.white.withAlpha(217),
                   borderRadius: BorderRadius.circular(10),
                   boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withAlpha(26),
-                      blurRadius: 4,
-                    ),
+                    BoxShadow(color: Colors.black.withAlpha(26), blurRadius: 4),
                   ],
                 ),
                 child: Column(
                   children: [
                     _buildZoomButton(Icons.add, _zoomIn, 'zoomIn'),
-                    const Divider(
-                      height: 1,
-                      thickness: 1,
-                      color: Colors.grey,
-                    ),
+                    const Divider(height: 1, thickness: 1, color: Colors.grey),
                     _buildZoomButton(Icons.remove, _zoomOut, 'zoomOut'),
-                    const Divider(
-                      height: 1,
-                      thickness: 1,
-                      color: Colors.grey,
-                    ),
+                    const Divider(height: 1, thickness: 1, color: Colors.grey),
                     _buildZoomButton(
                       Icons.fullscreen,
                       () {
@@ -975,7 +976,10 @@ class _FullscreenMapPageState extends State<FullscreenMapPage> {
                   _latitude = point.latitude;
                   _longitude = point.longitude;
                 });
-                _mapController.move(LatLng(_latitude, _longitude), _currentZoom);
+                _mapController.move(
+                  LatLng(_latitude, _longitude),
+                  _currentZoom,
+                );
               },
             ),
             children: [
@@ -991,8 +995,11 @@ class _FullscreenMapPageState extends State<FullscreenMapPage> {
                     point: LatLng(_latitude, _longitude),
                     width: 40,
                     height: 40,
-                    child: const Icon(Icons.location_on,
-                        color: Colors.red, size: 40),
+                    child: const Icon(
+                      Icons.location_on,
+                      color: Colors.red,
+                      size: 40,
+                    ),
                   ),
                 ],
               ),

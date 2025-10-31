@@ -21,7 +21,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _profileImagePath = '';
   String _profileName = 'Kolektor Sampah';
   String _profileEmail = 'kolektor@email.com';
-  String _profileAddress = 'Menteng, Jakarta Pusat';
   final ImagePicker _picker = ImagePicker();
 
   @override
@@ -40,8 +39,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _profileImagePath = prefs.getString('profile_image_path') ?? '';
       _profileName = name ?? 'Kolektor Sampah';
       _profileEmail = email ?? 'kolektor@email.com';
-      _profileAddress =
-          prefs.getString('profile_address') ?? 'Menteng, Jakarta Pusat';
     });
   }
 
@@ -296,39 +293,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                       color: Colors.grey[700],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF009688).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF009688),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          _profileAddress,
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            color: const Color(0xFF009688),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
                     ),
                   ),
                 ],
