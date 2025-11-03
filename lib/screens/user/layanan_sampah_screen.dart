@@ -1011,6 +1011,13 @@ class DetailAkunLayananScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Debug: Print account details
+    print('📋 [DetailAkunScreen] Displaying account:');
+    print('   - ID: ${akun.id}');
+    print('   - Nama: ${akun.name}');
+    print('   - Contact Phone: ${akun.contactPhone}');
+    print('   - Status: ${akun.status}');
+
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
       appBar: AppBar(

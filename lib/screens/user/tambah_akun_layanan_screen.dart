@@ -297,6 +297,13 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
     });
 
     try {
+      print('📝 [TambahAkunScreen] Submitting account data:');
+      print('   - Nama: ${_namaController.text}');
+      print('   - Telepon: ${_teleponController.text}');
+      print('   - Alamat: ${_detailAlamatController.text}');
+      print('   - Area ID: ${_selectedKelurahanOption!.id}');
+      print('   - Lat/Lng: $_latitude, $_longitude');
+
       final account = await _serviceAccountService.createAccount(
         name: _namaController.text,
         contactPhone: _teleponController.text,
@@ -305,6 +312,11 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
         latitude: _latitude,
         longitude: _longitude,
       );
+
+      print('✅ [TambahAkunScreen] Account created successfully');
+      print('   - ID: ${account.id}');
+      print('   - Nama: ${account.name}');
+      print('   - Phone: ${account.contactPhone}');
 
       if (!mounted) return;
 

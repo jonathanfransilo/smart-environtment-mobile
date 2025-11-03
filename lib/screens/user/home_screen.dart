@@ -479,6 +479,8 @@ class _HomeScreenState extends State<HomeScreen> {
               'alamat': account.address,
               'alamat lengkap': account.address,
               'phone': account.contactPhone ?? '',
+              'no_telepon':
+                  account.contactPhone ?? '', // ✅ Added for detail screen
               'status': account.status,
               'kecamatan': account.kecamatanName,
               'kelurahan': account.kelurahanName,

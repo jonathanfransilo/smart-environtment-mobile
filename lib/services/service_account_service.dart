@@ -10,6 +10,8 @@ class ServiceAccountService {
   final Dio _dio;
 
   Future<List<ServiceAccount>> fetchAccounts({int limit = 100}) async {
+    print('🔄 [ServiceAccountService] Fetching accounts...');
+
     final response = await _dio.get(
       ApiConfig.mobileServiceAccounts,
       queryParameters: {
@@ -27,10 +29,21 @@ class ServiceAccountService {
     final data = body['data'] as Map<String, dynamic>?;
     final items = data?['items'] as List<dynamic>? ?? const [];
 
-    return items
-        .whereType<Map<String, dynamic>>()
-        .map(ServiceAccount.fromJson)
-        .toList();
+    print('📦 [ServiceAccountService] Fetched ${items.length} accounts');
+
+    final accounts = items.whereType<Map<String, dynamic>>().map((json) {
+      print(
+        '   - Account JSON: ${json['name']} -> contact_phone: ${json['contact_phone']}',
+      );
+      return ServiceAccount.fromJson(json);
+    }).toList();
+
+    print('✅ [ServiceAccountService] Parsed ${accounts.length} accounts');
+    for (final account in accounts) {
+      print('   - ${account.name}: contactPhone = ${account.contactPhone}');
+    }
+
+    return accounts;
   }
 
   Future<ServiceAccount> createAccount({
@@ -42,19 +55,28 @@ class ServiceAccountService {
     String? contactPhone,
     String? note,
   }) async {
+    final requestData = {
+      'name': name,
+      'address': address,
+      'area_id': areaId,
+      'latitude': latitude,
+      'longitude': longitude,
+      if (contactPhone != null && contactPhone.isNotEmpty)
+        'contact_phone': contactPhone,
+      if (note != null && note.isNotEmpty) 'note': note,
+    };
+
+    print(
+      '📤 [ServiceAccountService] Creating account with data: $requestData',
+    );
+
     final response = await _dio.post(
       ApiConfig.mobileServiceAccounts,
-      data: {
-        'name': name,
-        'address': address,
-        'area_id': areaId,
-        'latitude': latitude,
-        'longitude': longitude,
-        if (contactPhone != null && contactPhone.isNotEmpty)
-          'contact_phone': contactPhone,
-        if (note != null && note.isNotEmpty) 'note': note,
-      },
+      data: requestData,
     );
+
+    print('📥 [ServiceAccountService] Response status: ${response.statusCode}');
+    print('📦 [ServiceAccountService] Response data: ${response.data}');
 
     final Map<String, dynamic> body = response.data as Map<String, dynamic>;
     if (body['success'] != true) {
@@ -63,7 +85,17 @@ class ServiceAccountService {
 
     final data = body['data'];
     if (data is Map<String, dynamic>) {
-      return ServiceAccount.fromJson(data);
+      print('✅ [ServiceAccountService] Parsed account data: $data');
+      print(
+        '📞 [ServiceAccountService] Contact phone from response: ${data['contact_phone']}',
+      );
+
+      final account = ServiceAccount.fromJson(data);
+      print(
+        '✅ [ServiceAccountService] Account created - Phone: ${account.contactPhone}',
+      );
+
+      return account;
     }
 
     throw Exception('Data akun tidak valid');
