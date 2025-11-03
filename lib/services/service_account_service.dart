@@ -53,6 +53,7 @@ class ServiceAccountService {
     required double latitude,
     required double longitude,
     String? contactPhone,
+    String? rwName,
     String? note,
   }) async {
     final requestData = {
@@ -63,6 +64,7 @@ class ServiceAccountService {
       'longitude': longitude,
       if (contactPhone != null && contactPhone.isNotEmpty)
         'contact_phone': contactPhone,
+      if (rwName != null && rwName.isNotEmpty) 'rw_name': rwName,
       if (note != null && note.isNotEmpty) 'note': note,
     };
 

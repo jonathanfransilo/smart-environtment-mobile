@@ -33,6 +33,7 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
   final TextEditingController _kecamatanController = TextEditingController();
   final TextEditingController _provinsiController = TextEditingController();
   final TextEditingController _kotaController = TextEditingController();
+  final TextEditingController _rwController = TextEditingController();
 
   final AreaService _areaService = AreaService();
   final ServiceAccountService _serviceAccountService = ServiceAccountService();
@@ -302,6 +303,7 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
       print('   - Telepon: ${_teleponController.text}');
       print('   - Alamat: ${_detailAlamatController.text}');
       print('   - Area ID: ${_selectedKelurahanOption!.id}');
+      print('   - RW: ${_rwController.text}');
       print('   - Lat/Lng: $_latitude, $_longitude');
 
       final account = await _serviceAccountService.createAccount(
@@ -309,6 +311,7 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
         contactPhone: _teleponController.text,
         address: _detailAlamatController.text,
         areaId: _selectedKelurahanOption!.id,
+        rwName: _rwController.text.trim().isNotEmpty ? _rwController.text.trim() : null,
         latitude: _latitude,
         longitude: _longitude,
       );
@@ -442,6 +445,7 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
     _kecamatanController.dispose();
     _provinsiController.dispose();
     _kotaController.dispose();
+    _rwController.dispose();
     super.dispose();
   }
 
@@ -694,6 +698,45 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
                       child: LinearProgressIndicator(minHeight: 2),
                     ),
                 ],
+              ),
+              const SizedBox(height: 16),
+              _buildLabel('RW (Rukun Warga)'),
+              TextFormField(
+                controller: _rwController,
+                keyboardType: TextInputType.text,
+                decoration: _inputDecoration(
+                  hintText: 'Contoh: RW 05 atau ketik 5',
+                ).copyWith(
+                  // helperText: 'Opsional - Kosongkan jika tidak ada',
+                  helperStyle: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return null; // Optional field
+                  }
+                  // Regex untuk format RW (case insensitive)
+                  // Boleh: "RW 5", "rw 05", "5", "05", "RW05"
+                  final rwRegex = RegExp(r'^(RW\s*)?\d{1,3}$', caseSensitive: false);
+                  if (!rwRegex.hasMatch(value.trim())) {
+                    return 'Format RW tidak valid. Contoh: RW 05 atau 5';
+                  }
+                  return null;
+                },
+                onChanged: (value) {
+                  // Auto-format: jika user ketik angka saja, tambahkan prefix RW
+                  if (value.isNotEmpty && RegExp(r'^\d+$').hasMatch(value.trim())) {
+                    final formatted = 'RW ${value.trim().padLeft(2, '0')}';
+                    if (_rwController.text != formatted) {
+                      _rwController.value = TextEditingValue(
+                        text: formatted,
+                        selection: TextSelection.collapsed(offset: formatted.length),
+                      );
+                    }
+                  }
+                },
               ),
               const SizedBox(height: 16),
               _buildLabel('Preview Lokasi (Titik Merah = Lokasi Dipilih)'),

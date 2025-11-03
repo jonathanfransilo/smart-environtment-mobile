@@ -9,6 +9,7 @@ class ServiceAccount {
     this.contactPhone,
     this.kecamatanName,
     this.kelurahanName,
+    this.rwName,
     this.hariPengangkutan,
   });
 
@@ -21,6 +22,7 @@ class ServiceAccount {
   final String? contactPhone;
   final String? kecamatanName;
   final String? kelurahanName;
+  final String? rwName;
   final String? hariPengangkutan;
 
   factory ServiceAccount.fromJson(Map<String, dynamic> json) {
@@ -28,6 +30,8 @@ class ServiceAccount {
   final areaMap = areaData is Map<String, dynamic> ? areaData : null;
   final parentData = areaMap?['parent'];
   final parentMap = parentData is Map<String, dynamic> ? parentData : null;
+  final rwData = json['rw'];
+  final rwMap = rwData is Map<String, dynamic> ? rwData : null;
 
   return ServiceAccount(
       id: json['id'].toString(),
@@ -46,6 +50,7 @@ class ServiceAccount {
       json['kecamatan']?.toString() ?? parentMap?['name']?.toString(),
     kelurahanName:
       json['kelurahan']?.toString() ?? areaMap?['name']?.toString(),
+      rwName: rwMap?['name']?.toString(),
       hariPengangkutan: json['hari_pengangkutan']?.toString(),
     );
   }
@@ -61,6 +66,7 @@ class ServiceAccount {
       'contact_phone': contactPhone,
       'kecamatan': kecamatanName,
       'kelurahan': kelurahanName,
+      'rw': rwName,
       'hari_pengangkutan': hariPengangkutan,
     };
   }

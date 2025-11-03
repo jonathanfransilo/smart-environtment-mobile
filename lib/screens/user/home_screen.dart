@@ -484,6 +484,7 @@ class _HomeScreenState extends State<HomeScreen> {
               'status': account.status,
               'kecamatan': account.kecamatanName,
               'kelurahan': account.kelurahanName,
+              'rw': account.rwName,
               'hari_pengangkutan': account.hariPengangkutan,
             },
           )
@@ -996,14 +997,30 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                             ],
                           ),
-                          subtitle: Text(
-                            akun["alamat lengkap"] ?? "-",
-                            style: GoogleFonts.poppins(
-                              fontSize: 13,
-                              color: isInactive
-                                  ? Colors.grey.shade500
-                                  : Colors.black87,
-                            ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (akun['rw'] != null && akun['rw'].toString().isNotEmpty)
+                                Text(
+                                  '${akun['kelurahan']} • ${akun['rw']}',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: isInactive
+                                        ? Colors.grey.shade500
+                                        : const Color.fromARGB(255, 21, 145, 137),
+                                  ),
+                                ),
+                              Text(
+                                akun["alamat lengkap"] ?? "-",
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  color: isInactive
+                                      ? Colors.grey.shade500
+                                      : Colors.black87,
+                                ),
+                              ),
+                            ],
                           ),
                           trailing: isSelected
                               ? Icon(
