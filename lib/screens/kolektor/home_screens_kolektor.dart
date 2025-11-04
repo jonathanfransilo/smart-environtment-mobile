@@ -105,6 +105,22 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
         _isLoadingPickups = false;
         if (success && data != null) {
           todayPickups = data;
+          // Debug: Print data structure untuk melihat apa yang diterima dari API
+          if (data.isNotEmpty) {
+            print('📦 [HomeKolektor] Sample pickup data: ${data.first}');
+            if (data.first['service_account'] != null) {
+              print(
+                '✅ [HomeKolektor] Service account data: ${data.first['service_account']}',
+              );
+            } else {
+              print('⚠️ [HomeKolektor] No service_account in pickup data');
+            }
+            if (data.first['house_info'] != null) {
+              print(
+                '🏠 [HomeKolektor] House info data: ${data.first['house_info']}',
+              );
+            }
+          }
         } else {
           _errorMessage = message;
           todayPickups = [];
@@ -667,8 +683,28 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
                       final pickup = todayPickups[index];
                       final houseInfo =
                           pickup['house_info'] as Map<String, dynamic>?;
+                      final serviceAccountInfo =
+                          pickup['service_account'] as Map<String, dynamic>?;
+
+                      // Prioritas: service_account > account_number > service_account_name > resident
+                      String displayName = 'N/A';
+                      if (serviceAccountInfo != null &&
+                          serviceAccountInfo['name'] != null) {
+                        displayName = serviceAccountInfo['name'].toString();
+                      } else if (houseInfo != null) {
+                        // PERBAIKAN: account_number adalah nama service account!
+                        if (houseInfo['account_number'] != null) {
+                          displayName = houseInfo['account_number'].toString();
+                        } else if (houseInfo['service_account_name'] != null) {
+                          displayName = houseInfo['service_account_name']
+                              .toString();
+                        } else if (houseInfo['resident_name'] != null) {
+                          displayName = houseInfo['resident_name'].toString();
+                        }
+                      }
+
                       return _taskCard(
-                        houseInfo?['resident_name']?.toString() ?? 'N/A',
+                        displayName,
                         houseInfo?['address']?.toString() ?? 'N/A',
                         pickup['id']?.toString() ?? '',
                         pickup['status']?.toString() ?? 'scheduled',
@@ -1284,13 +1320,27 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
 
                       // Jika status on_progress, langsung ke halaman Ambil Foto
                       if (status == 'on_progress') {
+                        // Ambil nama dari service account, bukan resident
+                        final serviceAccountInfo =
+                            pickupData['service_account']
+                                as Map<String, dynamic>?;
+                        String displayName = name;
+
+                        if (serviceAccountInfo != null &&
+                            serviceAccountInfo['name'] != null) {
+                          displayName = serviceAccountInfo['name'] as String;
+                        } else if (houseInfo != null &&
+                            houseInfo['service_account_name'] != null) {
+                          displayName =
+                              houseInfo['service_account_name'] as String;
+                        }
+
                         Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (context) => AmbilFotoScreen(
                               pickupId: pickupData['id'] as int,
-                              userName:
-                                  pickupData['user_name'] as String? ?? name,
+                              userName: displayName,
                               address: address,
                               idPengambilan: pickupId,
                             ),
@@ -1303,15 +1353,96 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
                         return;
                       }
 
-                      // Untuk status pending/scheduled, navigasi ke PengambilanSampahScreen
+                      // PERBAIKAN: Ambil data service account dengan prioritas yang benar
+                      final serviceAccountInfo =
+                          pickupData['service_account']
+                              as Map<String, dynamic>?;
+
+                      // Debug logging - PENTING untuk melihat struktur data!
+                      print(
+                        '═══════════════════════════════════════════════════════',
+                      );
+                      print(
+                        '🔍 [PICKUP DATA] All keys: ${pickupData.keys.toList()}',
+                      );
+                      print('🔍 [SERVICE ACCOUNT] Data: $serviceAccountInfo');
+                      print('🔍 [HOUSE INFO] Data: $houseInfo');
+
+                      // Variabel untuk nama dan telepon yang akan ditampilkan
+                      String displayName = 'Data tidak tersedia';
+                      String displayPhone = 'Nomor tidak tersedia';
+
+                      // LOGIC BARU: Prioritas pengambilan data
+                      if (serviceAccountInfo != null &&
+                          serviceAccountInfo['name'] != null) {
+                        // PRIORITAS 1: service_account object terpisah
+                        displayName = serviceAccountInfo['name'] as String;
+                        displayPhone =
+                            serviceAccountInfo['contact_phone'] as String? ??
+                            'Tidak ada nomor';
+                        print('✅ [DATA SOURCE] service_account object');
+                      } else if (houseInfo != null) {
+                        // PRIORITAS 2: account_number (INI NAMA SERVICE ACCOUNT!)
+                        if (houseInfo['account_number'] != null) {
+                          displayName = houseInfo['account_number'] as String;
+                          displayPhone =
+                              houseInfo['phone_number'] as String? ??
+                              'Tidak ada nomor';
+                          print(
+                            '✅ [DATA SOURCE] house_info.account_number (NAMA SERVICE ACCOUNT)',
+                          );
+                        } else if (houseInfo['service_account_name'] != null) {
+                          // Ada field service_account_name di house_info
+                          displayName =
+                              houseInfo['service_account_name'] as String;
+                          displayPhone =
+                              houseInfo['service_account_phone'] as String? ??
+                              'Tidak ada nomor';
+                          print('✅ [DATA SOURCE] house_info.service_account_*');
+                        } else if (houseInfo.containsKey('service_account')) {
+                          // Kadang service_account nested di house_info
+                          final nestedSA =
+                              houseInfo['service_account']
+                                  as Map<String, dynamic>?;
+                          if (nestedSA != null) {
+                            displayName =
+                                nestedSA['name'] as String? ?? 'Nama tidak ada';
+                            displayPhone =
+                                nestedSA['contact_phone'] as String? ??
+                                'Tidak ada nomor';
+                            print(
+                              '✅ [DATA SOURCE] house_info.service_account (nested)',
+                            );
+                          }
+                        } else {
+                          // FALLBACK: Gunakan resident name (ini yang saat ini terjadi)
+                          displayName =
+                              houseInfo['resident_name'] as String? ?? name;
+                          displayPhone =
+                              houseInfo['phone'] as String? ??
+                              'Tidak ada nomor';
+                          print(
+                            '⚠️ [DATA SOURCE] resident (FALLBACK - BUKAN SERVICE ACCOUNT!)',
+                          );
+                          print(
+                            '⚠️ service_account_id: ${houseInfo['service_account_id']}',
+                          );
+                        }
+                      }
+
+                      print('📌 [RESULT] Name: $displayName');
+                      print('📌 [RESULT] Phone: $displayPhone');
+                      print(
+                        '═══════════════════════════════════════════════════════',
+                      );
+
                       Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => PengambilanSampahScreen(
                             pickupId: pickupData['id'] as int,
-                            userName:
-                                pickupData['user_name'] as String? ?? name,
-                            userPhone: houseInfo?['phone'] as String? ?? '-',
+                            userName: displayName,
+                            userPhone: displayPhone,
                             address: address,
                             idPengambilan: pickupId,
                             distance: '0.5 km',

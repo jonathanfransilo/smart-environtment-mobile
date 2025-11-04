@@ -103,6 +103,32 @@ class ServiceAccountService {
     throw Exception('Data akun tidak valid');
   }
 
+  /// Ambil detail service account berdasarkan ID
+  Future<ServiceAccount?> getAccountById(String id) async {
+    try {
+      print('🔄 [ServiceAccountService] Fetching account by ID: $id');
+
+      final response = await _dio.get('${ApiConfig.mobileServiceAccounts}/$id');
+
+      final Map<String, dynamic> body = response.data as Map<String, dynamic>;
+      if (body['success'] != true) {
+        print('❌ [ServiceAccountService] Failed to fetch account');
+        return null;
+      }
+
+      final data = body['data'] as Map<String, dynamic>?;
+      if (data != null) {
+        print('✅ [ServiceAccountService] Account fetched: ${data['name']}');
+        return ServiceAccount.fromJson(data);
+      }
+
+      return null;
+    } catch (e) {
+      print('❌ [ServiceAccountService] Error fetching account: $e');
+      return null;
+    }
+  }
+
   Future<void> deleteAccount(String id) async {
     await _dio.delete('${ApiConfig.mobileServiceAccounts}/$id');
   }

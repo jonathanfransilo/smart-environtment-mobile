@@ -49,14 +49,14 @@ class _PengambilanSampahScreenState extends State<PengambilanSampahScreen>
 
   Future<void> _openGoogleMaps(double lat, double lng) async {
     // Format URL dengan query parameter yang lebih jelas untuk navigasi
-    final Uri googleMapsUrl =
-        Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
-    
+    final Uri googleMapsUrl = Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query=$lat,$lng',
+    );
+
     print('🗺️ Opening Google Maps with coordinates: $lat, $lng');
     print('🔗 URL: $googleMapsUrl');
-    
-    if (!await launchUrl(googleMapsUrl,
-        mode: LaunchMode.externalApplication)) {
+
+    if (!await launchUrl(googleMapsUrl, mode: LaunchMode.externalApplication)) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -70,12 +70,16 @@ class _PengambilanSampahScreenState extends State<PengambilanSampahScreen>
 
   void _zoomIn() {
     _mapController.move(
-        _mapController.camera.center, _mapController.camera.zoom + 1);
+      _mapController.camera.center,
+      _mapController.camera.zoom + 1,
+    );
   }
 
   void _zoomOut() {
     _mapController.move(
-        _mapController.camera.center, _mapController.camera.zoom - 1);
+      _mapController.camera.center,
+      _mapController.camera.zoom - 1,
+    );
   }
 
   void _toggleFullScreen() {
@@ -113,7 +117,7 @@ class _PengambilanSampahScreenState extends State<PengambilanSampahScreen>
 
     // Call API to start pickup
     final (success, message) = await PickupService.startPickup(widget.pickupId);
-    
+
     // Close loading dialog
     if (mounted) Navigator.pop(context);
 
@@ -121,7 +125,7 @@ class _PengambilanSampahScreenState extends State<PengambilanSampahScreen>
       setState(() {
         _isConfirmed = true;
       });
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -165,7 +169,9 @@ class _PengambilanSampahScreenState extends State<PengambilanSampahScreen>
   }
 
   Future<void> _openChat(String phoneNumber) async {
-    final Uri whatsappUri = Uri.parse('https://wa.me/${phoneNumber.replaceAll('+', '').replaceAll('-', '').replaceAll(' ', '')}');
+    final Uri whatsappUri = Uri.parse(
+      'https://wa.me/${phoneNumber.replaceAll('+', '').replaceAll('-', '').replaceAll(' ', '')}',
+    );
     if (!await launchUrl(whatsappUri, mode: LaunchMode.externalApplication)) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -213,7 +219,8 @@ class _PengambilanSampahScreenState extends State<PengambilanSampahScreen>
   TileLayer _buildTileLayer() {
     // Gunakan Cartodb Positron yang lebih reliable dan tidak memblokir akses
     return TileLayer(
-      urlTemplate: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+      urlTemplate:
+          'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
       subdomains: const ['a', 'b', 'c', 'd'],
       userAgentPackageName: 'com.citiasia.smartenvironment/1.0',
       additionalOptions: const {
@@ -280,11 +287,15 @@ class _PengambilanSampahScreenState extends State<PengambilanSampahScreen>
   void initState() {
     super.initState();
     _animController = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 800));
-    _markerScale =
-        CurvedAnimation(parent: _animController, curve: Curves.easeOutBack);
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _markerScale = CurvedAnimation(
+      parent: _animController,
+      curve: Curves.easeOutBack,
+    );
     _animController.forward();
-    
+
     // Cek status - jika sudah on_progress, set _isConfirmed = true
     if (widget.status == 'on_progress') {
       _isConfirmed = true;
@@ -403,9 +414,7 @@ class _PengambilanSampahScreenState extends State<PengambilanSampahScreen>
                     mini: true,
                     backgroundColor: Colors.blueGrey,
                     child: Icon(
-                      _isFullScreen
-                          ? Icons.fullscreen_exit
-                          : Icons.fullscreen,
+                      _isFullScreen ? Icons.fullscreen_exit : Icons.fullscreen,
                       color: Colors.white,
                     ),
                   ),
@@ -511,211 +520,236 @@ class _PengambilanSampahScreenState extends State<PengambilanSampahScreen>
   // Widget Reusable
 
   Widget _sectionTitle(String text) => Text(
-        text,
-        style: GoogleFonts.poppins(
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
-          color: Colors.black87,
-        ),
-      );
+    text,
+    style: GoogleFonts.poppins(
+      fontSize: 16,
+      fontWeight: FontWeight.w600,
+      color: Colors.black87,
+    ),
+  );
 
   Widget _userInfo() => Row(
-        children: [
-          const CircleAvatar(
-            radius: 24,
-            backgroundColor: Color(0xFFE0E0E0),
-            child: Icon(Icons.person, color: Colors.black54, size: 28),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(widget.userName,
-                    style: GoogleFonts.poppins(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87)),
-                Text(widget.userPhone,
-                    style: GoogleFonts.poppins(
-                        fontSize: 13, color: Colors.grey[600])),
-              ],
-            ),
-          ),
-          // Tampilkan tombol chat dan telepon hanya setelah konfirmasi
-          if (_isConfirmed) ..._buildContactButtons(),
-        ],
-      );
-
-  Widget _locationInfo(Color primaryColor) => Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.grey[50],
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey[200]!),
-        ),
-        child: Row(
+    children: [
+      const CircleAvatar(
+        radius: 24,
+        backgroundColor: Color(0xFFE0E0E0),
+        child: Icon(Icons.person, color: Colors.black54, size: 28),
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.location_on_outlined, color: primaryColor, size: 22),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Lokasi Pengambilan',
-                      style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87)),
-                  const SizedBox(height: 4),
-                  Text(widget.address,
-                      style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                          height: 1.4)),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Text('ID Pengambilan: ',
-                          style: GoogleFonts.poppins(
-                              fontSize: 11, color: Colors.grey[600])),
-                      Text(widget.idPengambilan,
-                          style: GoogleFonts.poppins(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.grey[800])),
-                    ],
-                  ),
-                ],
+            Text(
+              widget.userName,
+              style: GoogleFonts.poppins(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+            Text(
+              widget.userPhone.isNotEmpty && widget.userPhone != '-'
+                  ? widget.userPhone
+                  : 'Nomor telepon tidak tersedia',
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                color: widget.userPhone.isNotEmpty && widget.userPhone != '-'
+                    ? Colors.grey[600]
+                    : Colors.grey[400],
+                fontStyle:
+                    widget.userPhone.isNotEmpty && widget.userPhone != '-'
+                    ? FontStyle.normal
+                    : FontStyle.italic,
               ),
             ),
           ],
         ),
-      );
+      ),
+      // Tampilkan tombol chat dan telepon hanya setelah konfirmasi dan jika ada nomor telepon
+      if (_isConfirmed &&
+          widget.userPhone.isNotEmpty &&
+          widget.userPhone != '-')
+        ..._buildContactButtons(),
+    ],
+  );
+
+  Widget _locationInfo(Color primaryColor) => Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: Colors.grey[50],
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Colors.grey[200]!),
+    ),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.location_on_outlined, color: primaryColor, size: 22),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Lokasi Pengambilan',
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                widget.address,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Text(
+                    'ID Pengambilan: ',
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  Text(
+                    widget.idPengambilan,
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey[800],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
 
   Widget _lihatLokasiButton(Color primaryColor) => SizedBox(
-        width: double.infinity,
-        child: ElevatedButton.icon(
-          onPressed: () => _openGoogleMaps(widget.latitude, widget.longitude),
-          icon: const Icon(Icons.map_outlined, color: Colors.white),
-          label: Text(
-            'Lihat di Google Maps',
-            style: GoogleFonts.poppins(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: Colors.white),
-          ),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.orange[600],
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
-            elevation: 0,
-          ),
+    width: double.infinity,
+    child: ElevatedButton.icon(
+      onPressed: () => _openGoogleMaps(widget.latitude, widget.longitude),
+      icon: const Icon(Icons.map_outlined, color: Colors.white),
+      label: Text(
+        'Lihat di Google Maps',
+        style: GoogleFonts.poppins(
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
         ),
-      );
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.orange[600],
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 0,
+      ),
+    ),
+  );
 
   Widget _ambilButton(Color primaryColor) => SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          onPressed: _confirmPickup,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: primaryColor,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
-            elevation: 0,
-          ),
-          child: Text(
-            'Ambil',
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      );
+    width: double.infinity,
+    child: ElevatedButton(
+      onPressed: _confirmPickup,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: primaryColor,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 0,
+      ),
+      child: Text(
+        'Ambil',
+        style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600),
+      ),
+    ),
+  );
 
   Widget _ambilFotoButton(Color primaryColor) => SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          onPressed: () async {
-            // Show loading
-            showDialog(
-              context: context,
-              barrierDismissible: false,
-              builder: (context) => Center(
-                child: Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
+    width: double.infinity,
+    child: ElevatedButton(
+      onPressed: () async {
+        // Show loading
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => Center(
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Memulai pengambilan...',
+                    style: GoogleFonts.poppins(fontSize: 14),
                   ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const CircularProgressIndicator(),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Memulai pengambilan...',
-                        style: GoogleFonts.poppins(fontSize: 14),
-                      ),
-                    ],
-                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        // Call API to start pickup
+        final (success, message) = await PickupService.startPickup(
+          widget.pickupId,
+        );
+
+        // Close loading
+        if (mounted) Navigator.of(context).pop();
+
+        if (success) {
+          // Navigate to photo screen
+          if (mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AmbilFotoScreen(
+                  pickupId: widget.pickupId,
+                  userName: widget.userName,
+                  address: widget.address,
+                  idPengambilan: widget.idPengambilan,
                 ),
               ),
             );
-
-            // Call API to start pickup
-            final (success, message) = await PickupService.startPickup(widget.pickupId);
-            
-            // Close loading
-            if (mounted) Navigator.of(context).pop();
-
-            if (success) {
-              // Navigate to photo screen
-              if (mounted) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => AmbilFotoScreen(
-                      pickupId: widget.pickupId,
-                      userName: widget.userName,
-                      address: widget.address,
-                      idPengambilan: widget.idPengambilan,
-                    ),
-                  ),
-                );
-              }
-            } else {
-              // Show error
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(message ?? 'Gagal memulai pengambilan'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              }
-            }
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: primaryColor,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
-            elevation: 0,
-          ),
-          child: Text(
-            'Ambil Foto',
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      );
+          }
+        } else {
+          // Show error
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(message ?? 'Gagal memulai pengambilan'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      },
+      style: ElevatedButton.styleFrom(
+        backgroundColor: primaryColor,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 0,
+      ),
+      child: Text(
+        'Ambil Foto',
+        style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600),
+      ),
+    ),
+  );
 }

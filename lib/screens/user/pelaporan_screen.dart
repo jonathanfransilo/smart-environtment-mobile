@@ -1057,27 +1057,46 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
 
   static const Color primaryColor = Color.fromARGB(255, 21, 145, 137);
 
-  // Widget untuk menampilkan sepasang Label dan Value
-  Widget _buildDetailRow(String label, String value) {
+  // Widget untuk menampilkan sepasang Label dan Value dengan Icon
+  Widget _buildDetailRow(String label, String value, IconData icon) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16.0),
-      child: Column(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              color: Colors.grey.shade600,
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: primaryColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
             ),
+            child: Icon(icon, size: 20, color: primaryColor),
           ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-              color: Colors.black87,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                    height: 1.4,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -1111,37 +1130,37 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
       imageWidget = Image.network(
         laporan.photoUrl!,
         fit: BoxFit.cover,
-        height: 200,
+        height: 250,
         width: double.infinity,
         errorBuilder: (context, error, stackTrace) {
           print('❌ Image load error: $error');
           print('   URL: ${laporan.photoUrl}');
           return Container(
-            height: 200,
+            height: 250,
             width: double.infinity,
-            color: Colors.grey.shade300,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Colors.grey.shade200, Colors.grey.shade400],
+              ),
+            ),
             child: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.broken_image, size: 50, color: Colors.grey),
-                  SizedBox(height: 8),
+                  Icon(
+                    Icons.broken_image,
+                    size: 60,
+                    color: Colors.grey.shade600,
+                  ),
+                  SizedBox(height: 12),
                   Text(
                     "Gagal memuat gambar",
-                    style: GoogleFonts.poppins(fontSize: 12),
-                  ),
-                  SizedBox(height: 4),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16),
-                    child: Text(
-                      laporan.photoUrl ?? '',
-                      style: GoogleFonts.poppins(
-                        fontSize: 10,
-                        color: Colors.grey.shade600,
-                      ),
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade700,
                     ),
                   ),
                 ],
@@ -1155,7 +1174,7 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
             return child;
           }
           return Container(
-            height: 200,
+            height: 250,
             width: double.infinity,
             color: Colors.grey.shade200,
             child: Center(
@@ -1164,6 +1183,8 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
                     ? loadingProgress.cumulativeBytesLoaded /
                           loadingProgress.expectedTotalBytes!
                     : null,
+                strokeWidth: 3,
+                color: primaryColor,
               ),
             ),
           );
@@ -1173,38 +1194,38 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
       imageWidget = buildPlatformImage(
         laporan.imageFile!,
         fit: BoxFit.cover,
-        height: 200,
+        height: 250,
         width: double.infinity,
-      );
-    } else if (laporan.isAsset) {
-      // Fallback jika ada flag isAsset
-      imageWidget = Container(
-        height: 200,
-        width: double.infinity,
-        color: Colors.grey.shade300,
-        child: const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.image, size: 50, color: Colors.grey),
-              SizedBox(height: 8),
-              Text("Tidak ada gambar"),
-            ],
-          ),
-        ),
       );
     } else {
       imageWidget = Container(
-        height: 200,
+        height: 250,
         width: double.infinity,
-        color: Colors.grey.shade300,
-        child: const Center(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Colors.grey.shade200, Colors.grey.shade400],
+          ),
+        ),
+        child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.image, size: 50, color: Colors.grey),
-              SizedBox(height: 8),
-              Text("Tidak ada gambar"),
+              Icon(
+                Icons.image_not_supported,
+                size: 60,
+                color: Colors.grey.shade600,
+              ),
+              SizedBox(height: 12),
+              Text(
+                "Tidak ada gambar",
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey.shade700,
+                ),
+              ),
             ],
           ),
         ),
@@ -1212,91 +1233,221 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
     }
 
     return Scaffold(
+      backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
         title: Text(
           "Detail Laporan",
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
         ),
-        backgroundColor: Colors.white,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [primaryColor, primaryColor.withOpacity(0.8)],
+            ),
+          ),
+        ),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Area Foto (tanpa overlay)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
+            // Area Foto dengan Shadow Effect
+            Container(
+              decoration: BoxDecoration(
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
               child: imageWidget,
             ),
-            const SizedBox(height: 24),
 
-            // Header dengan ID dan Status
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "Detail Laporan",
-                      style: GoogleFonts.poppins(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
+            const SizedBox(height: 20),
+
+            // Status Badge Floating
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            _getStatusColor(laporan.status),
+                            _getStatusColor(laporan.status).withOpacity(0.8),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: _getStatusColor(
+                              laporan.status,
+                            ).withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            _getStatusIcon(laporan.status),
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            laporan.statusText.toUpperCase(),
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      "ID: ${laporan.id.substring(0, 10)}",
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
-                      ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Card Informasi dengan Design Modern
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
                     ),
                   ],
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _getStatusColor(laporan.status),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    laporan.statusText.toUpperCase(),
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header Card
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: primaryColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            Icons.description,
+                            color: primaryColor,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Informasi Laporan",
+                                style: GoogleFonts.poppins(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              Text(
+                                "ID: ${laporan.id.substring(0, 12)}",
+                                style: GoogleFonts.poppins(
+                                  fontSize: 11,
+                                  color: Colors.grey.shade600,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
 
-            // Detail Data
-            _buildDetailRow("Kota", laporan.kota),
-            _buildDetailRow("Kategori", laporan.kategori),
-            if (laporan.serviceAccount != null &&
-                laporan.serviceAccount!.isNotEmpty)
-              _buildDetailRow("Service Account", laporan.serviceAccount!),
-            _buildDetailRow("Waktu Pelanggaran", laporan.waktuPelanggaran),
-            _buildDetailRow("Deskripsi", laporan.ciriCiri),
+                    const SizedBox(height: 24),
+
+                    // Detail Data dengan Icon
+                    _buildDetailRow("Kota", laporan.kota, Icons.location_city),
+                    const Divider(height: 24),
+                    _buildDetailRow(
+                      "Kategori",
+                      laporan.kategori,
+                      Icons.category,
+                    ),
+                    if (laporan.serviceAccount != null &&
+                        laporan.serviceAccount!.isNotEmpty) ...[
+                      const Divider(height: 24),
+                      _buildDetailRow(
+                        "Service Account",
+                        laporan.serviceAccount!,
+                        Icons.business,
+                      ),
+                    ],
+                    const Divider(height: 24),
+                    _buildDetailRow(
+                      "Waktu Pelanggaran",
+                      laporan.waktuPelanggaran,
+                      Icons.access_time,
+                    ),
+                    const Divider(height: 24),
+                    _buildDetailRow("Deskripsi", laporan.ciriCiri, Icons.notes),
+                  ],
+                ),
+              ),
+            ),
 
             const SizedBox(height: 32),
           ],
         ),
       ),
     );
+  }
+
+  // Helper untuk mendapatkan icon berdasarkan status
+  IconData _getStatusIcon(String status) {
+    switch (status.toLowerCase()) {
+      case 'open':
+        return Icons.schedule;
+      case 'in_progress':
+        return Icons.autorenew;
+      case 'resolved':
+        return Icons.check_circle;
+      case 'rejected':
+        return Icons.cancel;
+      default:
+        return Icons.info;
+    }
   }
 }
 
@@ -1602,22 +1753,6 @@ class _ReportCard extends StatelessWidget {
 
   static const Color primaryColor = Color.fromARGB(255, 21, 145, 137);
 
-  // Fungsi untuk mendapatkan warna badge berdasarkan status dari database
-  Color _getBadgeColor() {
-    switch (report.status.toLowerCase()) {
-      case 'open':
-        return Colors.orange.shade100; // Menunggu
-      case 'in_progress':
-        return primaryColor.withOpacity(0.2); // Diproses
-      case 'resolved':
-        return Colors.green.shade100; // Selesai
-      case 'rejected':
-        return Colors.red.shade100; // Ditolak
-      default:
-        return Colors.grey.shade100;
-    }
-  }
-
   // Fungsi untuk mendapatkan text color badge
   Color _getBadgeTextColor() {
     switch (report.status.toLowerCase()) {
@@ -1642,157 +1777,181 @@ class _ReportCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              // Thumbnail Image
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  width: 80,
-                  height: 80,
-                  color: Colors.grey.shade200,
-                  child: report.photoUrl != null
-                      ? Image.network(
-                          report.photoUrl!,
-                          fit: BoxFit.cover,
-                          width: 80,
-                          height: 80,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Icon(
-                              Icons.broken_image,
-                              size: 40,
-                              color: Colors.grey.shade400,
-                            );
-                          },
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return Center(
-                              child: CircularProgressIndicator(
-                                value:
-                                    loadingProgress.expectedTotalBytes != null
-                                    ? loadingProgress.cumulativeBytesLoaded /
-                                          loadingProgress.expectedTotalBytes!
-                                    : null,
-                                strokeWidth: 2,
-                              ),
-                            );
-                          },
-                        )
-                      : report.imageFile != null
-                      ? buildPlatformImage(
-                          report.imageFile!,
-                          fit: BoxFit.cover,
-                          width: 80,
-                          height: 80,
-                        )
-                      : Icon(
-                          Icons.image_outlined,
-                          size: 40,
-                          color: Colors.grey.shade400,
-                        ),
-                ),
-              ),
-              const SizedBox(width: 12),
-
-              // Content
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Status Badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _getBadgeColor(),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        _getStatusText(),
-                        style: GoogleFonts.poppins(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: _getBadgeTextColor(),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-
-                    // Title
-                    Text(
-                      report.kategori.isNotEmpty
-                          ? report.kategori
-                          : 'Sampah belum diambil',
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-
-                    // Date
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.access_time,
-                          size: 12,
-                          color: Colors.grey.shade600,
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            'Dikirim: ${DateFormat('dd MMM yyyy HH:mm').format(report.createdAt)}',
-                            style: GoogleFonts.poppins(
-                              fontSize: 11,
-                              color: Colors.grey.shade600,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                // Thumbnail Image dengan Border Gradient
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        primaryColor.withOpacity(0.3),
+                        primaryColor.withOpacity(0.1),
                       ],
                     ),
+                  ),
+                  padding: const EdgeInsets.all(2),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      width: 90,
+                      height: 90,
+                      color: Colors.grey.shade100,
+                      child: report.photoUrl != null
+                          ? Image.network(
+                              report.photoUrl!,
+                              fit: BoxFit.cover,
+                              width: 90,
+                              height: 90,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        Colors.grey.shade300,
+                                        Colors.grey.shade200,
+                                      ],
+                                    ),
+                                  ),
+                                  child: Icon(
+                                    Icons.broken_image_rounded,
+                                    size: 40,
+                                    color: Colors.grey.shade500,
+                                  ),
+                                );
+                              },
+                              loadingBuilder:
+                                  (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return Container(
+                                      color: Colors.grey.shade100,
+                                      child: Center(
+                                        child: CircularProgressIndicator(
+                                          value:
+                                              loadingProgress
+                                                      .expectedTotalBytes !=
+                                                  null
+                                              ? loadingProgress
+                                                        .cumulativeBytesLoaded /
+                                                    loadingProgress
+                                                        .expectedTotalBytes!
+                                              : null,
+                                          strokeWidth: 2.5,
+                                          color: primaryColor,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                            )
+                          : report.imageFile != null
+                          ? buildPlatformImage(
+                              report.imageFile!,
+                              fit: BoxFit.cover,
+                              width: 90,
+                              height: 90,
+                            )
+                          : Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    Colors.grey.shade300,
+                                    Colors.grey.shade200,
+                                  ],
+                                ),
+                              ),
+                              child: Icon(
+                                Icons.image_outlined,
+                                size: 40,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
 
-                    // Lokasi jika ada
-                    if (report.lokasi.isNotEmpty) ...[
-                      const SizedBox(height: 2),
+                // Content
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Status Badge dengan Gradient
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              _getBadgeTextColor(),
+                              _getBadgeTextColor().withOpacity(0.8),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            BoxShadow(
+                              color: _getBadgeTextColor().withOpacity(0.3),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          _getStatusText().toUpperCase(),
+                          style: GoogleFonts.poppins(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+
+                      // Title dengan Icon
                       Row(
                         children: [
                           Icon(
-                            Icons.location_on_outlined,
-                            size: 12,
-                            color: Colors.grey.shade600,
+                            Icons.report_problem_rounded,
+                            size: 16,
+                            color: primaryColor,
                           ),
-                          const SizedBox(width: 4),
+                          const SizedBox(width: 6),
                           Expanded(
                             child: Text(
-                              report.lokasi,
+                              report.kategori.isNotEmpty
+                                  ? report.kategori
+                                  : 'Sampah belum diambil',
                               style: GoogleFonts.poppins(
-                                fontSize: 11,
-                                color: Colors.grey.shade600,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.black87,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -1800,14 +1959,93 @@ class _ReportCard extends StatelessWidget {
                           ),
                         ],
                       ),
-                    ],
-                  ],
-                ),
-              ),
+                      const SizedBox(height: 6),
 
-              // Arrow Icon
-              Icon(Icons.chevron_right, color: Colors.grey.shade400, size: 24),
-            ],
+                      // Date dengan Background
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.schedule,
+                              size: 12,
+                              color: Colors.grey.shade700,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              DateFormat(
+                                'dd MMM yyyy HH:mm',
+                              ).format(report.createdAt),
+                              style: GoogleFonts.poppins(
+                                fontSize: 11,
+                                color: Colors.grey.shade700,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Lokasi jika ada
+                      if (report.lokasi.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.location_on,
+                              size: 14,
+                              color: Colors.red.shade400,
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                report.lokasi,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 11,
+                                  color: Colors.grey.shade600,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+
+                // Arrow Icon dengan Gradient Background
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        primaryColor.withOpacity(0.1),
+                        primaryColor.withOpacity(0.05),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    color: primaryColor,
+                    size: 18,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
