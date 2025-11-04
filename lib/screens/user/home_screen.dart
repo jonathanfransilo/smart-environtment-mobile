@@ -8,12 +8,14 @@ import 'notification_service.dart';
 import 'notification_screen.dart';
 import 'tips_detail_screen.dart';
 import 'payment_method_screen.dart';
+import 'payment_process_screen.dart';
 import '../../services/invoice_service.dart';
 import '../../services/service_account_service.dart';
 import '../../services/notification_helper.dart';
 import '../../services/resident_pickup_service.dart';
 import '../../services/user_storage.dart';
 import '../../services/artikel_service.dart';
+import '../../services/payment_service.dart';
 import '../../models/service_account.dart';
 import '../../models/artikel_model.dart';
 import 'layanan_sampah_screen.dart';
@@ -45,6 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // Invoice/Tagihan state
   final InvoiceService _invoiceService = InvoiceService();
   final ResidentPickupService _pickupService = ResidentPickupService();
+  final PaymentService _paymentService = PaymentService();
   List<Map<String, dynamic>> _unpaidInvoices = [];
   double _totalUnpaidAmount = 0;
   bool _isLoadingInvoices = false;
@@ -195,6 +198,101 @@ class _HomeScreenState extends State<HomeScreen> {
         _totalUnpaidAmount = 0;
         _isLoadingInvoices = false;
       });
+    }
+  }
+
+  /// Handle payment button click - check for pending payment first
+  Future<void> _handlePaymentClick() async {
+    try {
+      print('🔘 [HomeScreen] Payment button clicked, checking for pending payment...');
+      // Check if there's a pending payment
+      final pendingPayment = await _paymentService.checkPendingPayment();
+
+      if (!mounted) return;
+
+      if (pendingPayment != null) {
+        print('⚠️ [HomeScreen] Pending payment found! Order ID: ${pendingPayment.orderId}');
+        // Show dialog asking if user wants to continue pending payment
+        final shouldContinue = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Text(
+              'Pembayaran Belum Selesai',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            ),
+            content: Text(
+              'Anda memiliki pembayaran yang belum selesai. Apakah ingin melanjutkan pembayaran tersebut?',
+              style: GoogleFonts.poppins(fontSize: 14),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(
+                  'Batal',
+                  style: GoogleFonts.poppins(color: Colors.grey.shade600),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color.fromARGB(255, 21, 145, 137),
+                ),
+                child: Text(
+                  'Lanjutkan',
+                  style: GoogleFonts.poppins(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        );
+
+        if (shouldContinue == true) {
+          print('✅ [HomeScreen] User chose to continue pending payment');
+          // Navigate to payment process screen with pending payment
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => PaymentProcessScreen(
+                payment: pendingPayment,
+              ),
+            ),
+          );
+
+          // Refresh if payment was successful
+          if (result == true) {
+            await _loadUnpaidInvoices();
+          }
+        } else {
+          print('❌ [HomeScreen] User cancelled pending payment dialog');
+        }
+      } else {
+        print('➡️ [HomeScreen] No pending payment, proceeding to payment method screen');
+        // No pending payment, proceed to payment method screen
+        final result = await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PaymentMethodScreen(
+              invoices: _unpaidInvoices,
+            ),
+          ),
+        );
+
+        // Refresh if payment was successful
+        if (result == true) {
+          await _loadUnpaidInvoices();
+        }
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal memeriksa status pembayaran: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -2564,19 +2662,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           _unpaidInvoices.isEmpty)
                       ? null
                       : () async {
-                          final result = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => PaymentMethodScreen(
-                                invoices: _unpaidInvoices,
-                              ),
-                            ),
-                          );
-
-                          // Refresh if payment was successful
-                          if (result == true) {
-                            await _loadUnpaidInvoices();
-                          }
+                          await _handlePaymentClick();
                         },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color.fromARGB(255, 21, 145, 137),

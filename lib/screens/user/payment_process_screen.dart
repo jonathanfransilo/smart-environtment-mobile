@@ -37,6 +37,17 @@ class _PaymentProcessScreenState extends State<PaymentProcessScreen> {
     _currentPayment = widget.payment;
     _calculateCountdown();
     _startStatusPolling();
+    _savePendingPayment();
+  }
+
+  Future<void> _savePendingPayment() async {
+    if (_currentPayment.orderId != null && _currentPayment.isPending) {
+      print('💾 [PaymentProcessScreen] Saving pending payment: ${_currentPayment.orderId}');
+      await _paymentService.savePendingPayment(_currentPayment.orderId!);
+      print('✅ [PaymentProcessScreen] Pending payment saved successfully');
+    } else {
+      print('⚠️ [PaymentProcessScreen] Payment not saved - Order ID: ${_currentPayment.orderId}, Status: ${_currentPayment.status}');
+    }
   }
 
   @override
@@ -111,7 +122,11 @@ class _PaymentProcessScreenState extends State<PaymentProcessScreen> {
       // Show success dialog if payment is successful
       if (_currentPayment.isSuccess) {
         _statusCheckTimer?.cancel();
+        await _paymentService.clearPendingPayment();
         _showSuccessDialog();
+      } else if (_currentPayment.isFailed) {
+        _statusCheckTimer?.cancel();
+        await _paymentService.clearPendingPayment();
       }
     } catch (e) {
       if (mounted) {

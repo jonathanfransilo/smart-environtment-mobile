@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'riwayat_pembayaran_service.dart';
 import 'pdf_export_service.dart';
 import 'payment_method_screen.dart';
+import 'payment_process_screen.dart';
+import '../../services/payment_service.dart';
 
 class RiwayatPembayaranScreen extends StatefulWidget {
   const RiwayatPembayaranScreen({super.key});
@@ -20,6 +22,8 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
   // Untuk sistem tagihan
   double _totalTagihanPending = 0;
   int _jumlahTagihanPending = 0;
+
+  final PaymentService _paymentService = PaymentService();
 
   @override
   void initState() {
@@ -118,43 +122,116 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
       return;
     }
 
-    // Get pending payment invoices
-    final pendingPayments = _riwayatList.where((item) {
-      return item.containsKey('order_id') && item['status'] == 'pending';
-    }).toList();
+    try {
+      // Check if there's a pending payment
+      final pendingPayment = await _paymentService.checkPendingPayment();
 
-    if (pendingPayments.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tidak ada tagihan pending yang ditemukan'),
-          backgroundColor: Colors.orange,
+      if (!mounted) return;
+
+      if (pendingPayment != null) {
+        // Show dialog asking if user wants to continue pending payment
+        final shouldContinue = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Text(
+              'Pembayaran Belum Selesai',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            ),
+            content: Text(
+              'Anda memiliki pembayaran yang belum selesai. Apakah ingin melanjutkan pembayaran tersebut?',
+              style: GoogleFonts.poppins(fontSize: 14),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(
+                  'Batal',
+                  style: GoogleFonts.poppins(color: Colors.grey.shade600),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color.fromARGB(255, 21, 145, 137),
+                ),
+                child: Text(
+                  'Lanjutkan',
+                  style: GoogleFonts.poppins(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        );
+
+        if (shouldContinue == true) {
+          // Navigate to payment process screen with pending payment
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => PaymentProcessScreen(
+                payment: pendingPayment,
+              ),
+            ),
+          );
+
+          // Refresh if payment was successful
+          if (result == true || mounted) {
+            await _loadRiwayatPembayaran();
+          }
+          return;
+        }
+      }
+
+      // No pending payment, proceed with new payment
+      // Get pending payment invoices
+      final pendingPayments = _riwayatList.where((item) {
+        return item.containsKey('order_id') && item['status'] == 'pending';
+      }).toList();
+
+      if (pendingPayments.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tidak ada tagihan pending yang ditemukan'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      // Convert to invoice format for PaymentMethodScreen
+      final invoices = pendingPayments.map((payment) {
+        final invoice = payment['invoice'] as Map<String, dynamic>?;
+        return {
+          'id': invoice?['id'] ?? payment['id'],
+          'invoice_number': invoice?['invoice_number'] ?? 'Invoice',
+          'total_amount': payment['amount'] ?? 0,
+          'status': 'unpaid',
+        };
+      }).toList();
+
+      // Navigate to PaymentMethodScreen
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PaymentMethodScreen(invoices: invoices),
         ),
       );
-      return;
-    }
 
-    // Convert to invoice format for PaymentMethodScreen
-    final invoices = pendingPayments.map((payment) {
-      final invoice = payment['invoice'] as Map<String, dynamic>?;
-      return {
-        'id': invoice?['id'] ?? payment['id'],
-        'invoice_number': invoice?['invoice_number'] ?? 'Invoice',
-        'total_amount': payment['amount'] ?? 0,
-        'status': 'unpaid',
-      };
-    }).toList();
-
-    // Navigate to PaymentMethodScreen
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => PaymentMethodScreen(invoices: invoices),
-      ),
-    );
-
-    // Refresh if payment was made
-    if (result == true || mounted) {
-      await _loadRiwayatPembayaran();
+      // Refresh if payment was made
+      if (result == true || mounted) {
+        await _loadRiwayatPembayaran();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal memeriksa status pembayaran: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 

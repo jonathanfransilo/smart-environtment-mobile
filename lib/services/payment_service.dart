@@ -1,9 +1,11 @@
 import 'package:dio/dio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'api_client.dart';
 import '../models/payment_transaction.dart';
 
 class PaymentService {
   final Dio _dio = ApiClient.instance.dio;
+  static const String _pendingPaymentKey = 'pending_payment_order_id';
 
   /// Create new payment transaction
   /// 
@@ -194,6 +196,103 @@ class PaymentService {
     } catch (e) {
       if (e is Exception) rethrow;
       throw Exception('Error cancelling payment: $e');
+    }
+  }
+
+  /// Get pending payments from API (payments with status 'pending')
+  Future<List<PaymentTransaction>> getPendingPaymentsFromAPI() async {
+    try {
+      final response = await _dio.get(
+        '/mobile/resident/payments/pending',
+      );
+
+      if (response.statusCode == 200 && response.data['success'] == true) {
+        final payments = response.data['data']['payments'] as List?;
+        if (payments != null) {
+          return payments
+              .map((p) => PaymentTransaction.fromJson(p))
+              .toList();
+        }
+      }
+      return [];
+    } catch (e) {
+      print('❌ [PaymentService] Error getting pending payments from API: $e');
+      return [];
+    }
+  }
+
+  /// Save pending payment order ID to local storage
+  Future<void> savePendingPayment(String orderId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_pendingPaymentKey, orderId);
+  }
+
+  /// Get pending payment order ID from local storage
+  Future<String?> getPendingPaymentOrderId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_pendingPaymentKey);
+  }
+
+  /// Clear pending payment from local storage
+  Future<void> clearPendingPayment() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_pendingPaymentKey);
+  }
+
+  /// Check if there's a pending payment and get its details
+  /// This will check both local storage AND API to find any pending payments
+  Future<PaymentTransaction?> checkPendingPayment() async {
+    try {
+      // STEP 1: Check local storage first (faster)
+      final orderId = await getPendingPaymentOrderId();
+      print('🔍 [PaymentService] Checking pending payment. Local Order ID: $orderId');
+      
+      if (orderId != null && orderId.isNotEmpty) {
+        print('📡 [PaymentService] Fetching payment status for order: $orderId');
+        try {
+          // Check payment status from API
+          final payment = await checkPaymentStatus(orderId);
+          print('📊 [PaymentService] Payment status: ${payment.status}');
+
+          // Clear pending if payment is completed or failed
+          if (payment.isSuccess || payment.isFailed) {
+            print('🗑️ [PaymentService] Payment is ${payment.status}, clearing pending payment');
+            await clearPendingPayment();
+            // Continue to check API for other pending payments
+          } else if (payment.isPending) {
+            print('⏳ [PaymentService] Found pending payment from local: ${payment.orderId}');
+            return payment;
+          }
+        } catch (e) {
+          print('⚠️ [PaymentService] Local payment not found or invalid: $e');
+          await clearPendingPayment();
+          // Continue to check API
+        }
+      }
+
+      // STEP 2: Check API for any pending payments (in case local storage is empty or outdated)
+      print('📡 [PaymentService] Checking pending payments from API...');
+      final pendingPayments = await getPendingPaymentsFromAPI();
+      
+      if (pendingPayments.isNotEmpty) {
+        // Get the most recent pending payment
+        final latestPending = pendingPayments.first;
+        print('⏳ [PaymentService] Found pending payment from API: ${latestPending.orderId}');
+        
+        // Save to local storage for next time
+        if (latestPending.orderId != null) {
+          await savePendingPayment(latestPending.orderId!);
+          print('💾 [PaymentService] Saved pending payment to local storage');
+        }
+        
+        return latestPending;
+      }
+
+      print('✅ [PaymentService] No pending payments found');
+      return null;
+    } catch (e) {
+      print('❌ [PaymentService] Error checking pending payment: $e');
+      return null;
     }
   }
 }
