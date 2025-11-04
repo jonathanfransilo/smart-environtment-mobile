@@ -39,8 +39,10 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
       _errorMessage = null;
     });
 
-    print('🔄 [RiwayatPengambilan] Loading history for account: ${widget.accountName} (ID: ${widget.serviceAccountId})');
-    
+    print(
+      '🔄 [RiwayatPengambilan] Loading history for account: ${widget.accountName} (ID: ${widget.serviceAccountId})',
+    );
+
     // Kirim service_account_id ke API untuk filter data yang spesifik
     final (success, message, pickups) = await _pickupService.getPickupHistory(
       serviceAccountId: widget.serviceAccountId,
@@ -48,28 +50,41 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
 
     if (!mounted) return;
 
-    print('📊 [RiwayatPengambilan] Result - Success: $success, Items: ${pickups?.length ?? 0}');
+    print(
+      '📊 [RiwayatPengambilan] Result - Success: $success, Items: ${pickups?.length ?? 0}',
+    );
 
     if (success && pickups != null) {
       // Debug: Print sample data structure
       if (pickups.isNotEmpty) {
         print('🔍 [RiwayatPengambilan] Sample pickup data:');
         print('   Keys: ${pickups[0].keys}');
-        print('   Data: ${pickups[0]}');
-        
-        // Check for photo URL in different possible fields
-        final samplePhoto = pickups[0]['photo_url'] ?? 
-                           pickups[0]['image'] ?? 
-                           pickups[0]['photo'] ?? 
-                           pickups[0]['pickup_photo'];
-        print('📷 [RiwayatPengambilan] Sample photo field: $samplePhoto');
+
+        // Check ALL possible photo fields
+        final photoUrl = pickups[0]['photo_url'];
+        final image = pickups[0]['image'];
+        final photo = pickups[0]['photo'];
+        final pickupPhoto = pickups[0]['pickup_photo'];
+        final photoPath = pickups[0]['photo_path'];
+        final imagePath = pickups[0]['image_path'];
+
+        print('📷 [RiwayatPengambilan] Photo fields:');
+        print('   photo_url: $photoUrl');
+        print('   image: $image');
+        print('   photo: $photo');
+        print('   pickup_photo: $pickupPhoto');
+        print('   photo_path: $photoPath');
+        print('   image_path: $imagePath');
+
+        // Print full data untuk debugging
+        print('� [RiwayatPengambilan] Full data: ${pickups[0]}');
       }
-      
+
       setState(() {
         _pickupHistory = pickups;
         _isLoading = false;
       });
-      
+
       if (pickups.isEmpty) {
         print('⚠️ [RiwayatPengambilan] No pickup history found');
       } else {
@@ -217,7 +232,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
     final pickupDate = pickup['pickup_date'] as String?;
     final wasteItems = pickup['waste_items'] as List<dynamic>?;
     final serviceAccount = pickup['service_account'] as Map<String, dynamic>?;
-    
+
     if (wasteItems == null || wasteItems.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -225,36 +240,57 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
     // Calculate totals for this pickup
     int totalItems = wasteItems.length;
     double totalPrice = 0;
-    
+
     // Get dominant waste type (yang paling banyak)
     Map<String, int> typeCount = {};
-    
+
     for (var item in wasteItems) {
       // Calculate price
       final itemPrice = item['total_price'] ?? 0;
-      totalPrice += itemPrice is String ? double.tryParse(itemPrice) ?? 0 : itemPrice;
-      
+      totalPrice += itemPrice is String
+          ? double.tryParse(itemPrice) ?? 0
+          : itemPrice;
+
       // Count waste types
-      final wasteType = item['waste_type']?.toString() ?? 
-                       item['waste']?['type']?.toString() ?? 
-                       _getCategoryFromName(item['waste_category'] ?? '');
+      final wasteType =
+          item['waste_type']?.toString() ??
+          item['waste']?['type']?.toString() ??
+          _getCategoryFromName(item['waste_category'] ?? '');
       typeCount[wasteType] = (typeCount[wasteType] ?? 0) + 1;
     }
-    
-    // Get dominant waste type
-    String dominantType = 'Anorganik';
-    int maxCount = 0;
-    typeCount.forEach((type, count) {
-      if (count > maxCount) {
-        maxCount = count;
-        dominantType = type;
+
+    final address =
+        serviceAccount?['address'] ??
+        serviceAccount?['alamat'] ??
+        widget.accountName;
+
+    // Get photo URL - check multiple possible field names
+    String? photoUrl =
+        pickup['photo_url'] as String? ??
+        pickup['pickup_photo'] as String? ??
+        pickup['image'] as String? ??
+        pickup['photo'] as String? ??
+        pickup['photo_path'] as String? ??
+        pickup['image_path'] as String?;
+
+    // Jika photo URL relatif (tidak dimulai dengan http), tambahkan base URL
+    if (photoUrl != null && photoUrl.isNotEmpty) {
+      if (!photoUrl.startsWith('http')) {
+        // Hapus leading slash jika ada
+        if (photoUrl.startsWith('/')) {
+          photoUrl = photoUrl.substring(1);
+        }
+        // Tambahkan base URL
+        final baseUrl = 'https://smart-environment-web.citiasiainc.id';
+        photoUrl = '$baseUrl/$photoUrl';
       }
-    });
-    
-    final categoryColor = _getCategoryColor(dominantType);
-    final address = serviceAccount?['address'] ?? 
-                    serviceAccount?['alamat'] ?? 
-                    widget.accountName;
+    }
+
+    final hasPhoto = photoUrl != null && photoUrl.isNotEmpty;
+
+    if (hasPhoto) {
+      print('📷 [Card] Photo URL for pickup: $photoUrl');
+    }
 
     return GestureDetector(
       onTap: () => _showDetailDialog(pickup),
@@ -275,11 +311,11 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header dengan badge dan tanggal
+            // Header dengan tanggal saja (tanpa badge kategori)
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: categoryColor.withOpacity(0.1),
+                color: Colors.grey[50],
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(16),
                   topRight: Radius.circular(16),
@@ -288,37 +324,42 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: categoryColor,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      dominantType,
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.delete_outline,
+                        size: 20,
+                        color: Colors.grey[600],
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Pengambilan Sampah',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ],
                   ),
-                  Text(
-                    pickupDate != null ? _formatDateShort(pickupDate) : '-',
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey[700],
-                    ),
+                  Row(
+                    children: [
+                      // Badge foto dihapus
+                      Text(
+                        pickupDate != null ? _formatDateShort(pickupDate) : '-',
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
-            
-            // Body dengan info ringkas
+
+            // Body dengan info ringkas (tanpa foto thumbnail)
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -327,9 +368,10 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                   // Alamat
                   Row(
                     children: [
-                      Icon(Icons.location_on_outlined, 
-                        size: 16, 
-                        color: Colors.grey[600]
+                      Icon(
+                        Icons.location_on_outlined,
+                        size: 16,
+                        color: Colors.grey[600],
                       ),
                       const SizedBox(width: 6),
                       Expanded(
@@ -346,9 +388,52 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 12),
-                  
+
+                  // Photo thumbnail jika ada
+                  if (hasPhoto) ...[
+                    Container(
+                      width: double.infinity,
+                      height: 180,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey[300]!),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          photoUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Center(
+                              child: Icon(
+                                Icons.broken_image,
+                                size: 48,
+                                color: Colors.grey[400],
+                              ),
+                            );
+                          },
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Center(
+                              child: CircularProgressIndicator(
+                                value:
+                                    loadingProgress.expectedTotalBytes != null
+                                    ? loadingProgress.cumulativeBytesLoaded /
+                                          loadingProgress.expectedTotalBytes!
+                                    : null,
+                                strokeWidth: 2,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+
                   // Info row (Total Items saja, tanpa berat)
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -371,11 +456,11 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 12),
                   const Divider(height: 1),
                   const SizedBox(height: 12),
-                  
+
                   // Total Harga & Lihat Detail
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -443,7 +528,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
   /// Format tanggal pendek (contoh: Selasa, 27 Mei 2025 13:58)
   String _formatDateShort(String? dateStr) {
     if (dateStr == null || dateStr.isEmpty) return '-';
-    
+
     try {
       final date = DateTime.parse(dateStr);
       final dayName = DateFormat('EEEE', 'id_ID').format(date);
@@ -457,7 +542,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
   /// Format currency
   String _formatCurrency(dynamic amount) {
     if (amount == null) return '0';
-    
+
     final number = amount is String ? double.tryParse(amount) ?? 0 : amount;
     final formatter = NumberFormat('#,###', 'id_ID');
     return formatter.format(number);
@@ -466,45 +551,58 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
   /// Get category from waste name (fallback jika tidak ada waste_type dari API)
   String _getCategoryFromName(String wasteName) {
     final lowerName = wasteName.toLowerCase();
-    
+
     // Organik keywords
-    if (lowerName.contains('dapur') || 
-        lowerName.contains('sisa') || 
+    if (lowerName.contains('dapur') ||
+        lowerName.contains('sisa') ||
         lowerName.contains('makanan') ||
         lowerName.contains('organik')) {
       return 'Organik';
     }
-    
+
     // B3 keywords
-    if (lowerName.contains('baterai') || 
-        lowerName.contains('elektronik') || 
+    if (lowerName.contains('baterai') ||
+        lowerName.contains('elektronik') ||
         lowerName.contains('lampu') ||
         lowerName.contains('b3')) {
       return 'B3';
     }
-    
+
     // Default: Anorganik (kertas, plastik, kaleng, dll)
     return 'Anorganik';
   }
 
   /// Get category color based on waste type
-  Color _getCategoryColor(String wasteType) {
-    final lowerType = wasteType.toLowerCase();
-    
-    if (lowerType.contains('organik')) {
-      return const Color(0xFF4CAF50); // Green
-    } else if (lowerType.contains('b3')) {
-      return const Color(0xFFF44336); // Red
-    } else {
-      return const Color(0xFF2196F3); // Blue for Anorganik
-    }
-  }
-
   /// Show detail dialog - Design sesuai gambar
   void _showDetailDialog(Map<String, dynamic> pickup) {
     final pickupDate = pickup['pickup_date'] as String?;
     final wasteItems = pickup['waste_items'] as List<dynamic>?;
     final accountId = pickup['id']?.toString() ?? '-';
+
+    // Get photo URL - check multiple possible field names
+    String? photoUrl =
+        pickup['photo_url'] as String? ??
+        pickup['pickup_photo'] as String? ??
+        pickup['image'] as String? ??
+        pickup['photo'] as String? ??
+        pickup['photo_path'] as String? ??
+        pickup['image_path'] as String?;
+
+    // Jika photo URL relatif (tidak dimulai dengan http), tambahkan base URL
+    if (photoUrl != null && photoUrl.isNotEmpty) {
+      if (!photoUrl.startsWith('http')) {
+        // Hapus leading slash jika ada
+        if (photoUrl.startsWith('/')) {
+          photoUrl = photoUrl.substring(1);
+        }
+        // Tambahkan base URL
+        final baseUrl = 'https://smart-environment-web.citiasiainc.id';
+        photoUrl = '$baseUrl/$photoUrl';
+      }
+    }
+
+    print('📷 [DetailDialog] Original pickup data: $pickup');
+    print('📷 [DetailDialog] Final Photo URL: $photoUrl');
 
     showDialog(
       context: context,
@@ -513,7 +611,10 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
-          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 24,
+          ),
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -563,6 +664,181 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Foto Bukti Pengambilan (jika ada)
+                      if (photoUrl != null && photoUrl.isNotEmpty) ...[
+                        Builder(
+                          builder: (context) {
+                            final imageUrl =
+                                photoUrl!; // Capture non-null value
+                            return Container(
+                              width: double.infinity,
+                              height: 200,
+                              decoration: BoxDecoration(
+                                color: Colors.grey[200],
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.grey[300]!),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: GestureDetector(
+                                  onTap: () {
+                                    // Show fullscreen photo
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => Scaffold(
+                                          backgroundColor: Colors.black,
+                                          appBar: AppBar(
+                                            backgroundColor: Colors.black,
+                                            foregroundColor: Colors.white,
+                                            title: Text(
+                                              'Foto Bukti Pengambilan',
+                                              style: GoogleFonts.poppins(),
+                                            ),
+                                          ),
+                                          body: Center(
+                                            child: InteractiveViewer(
+                                              child: Image.network(
+                                                imageUrl,
+                                                fit: BoxFit.contain,
+                                                errorBuilder:
+                                                    (
+                                                      context,
+                                                      error,
+                                                      stackTrace,
+                                                    ) {
+                                                      return const Center(
+                                                        child: Icon(
+                                                          Icons.broken_image,
+                                                          size: 64,
+                                                          color: Colors.white54,
+                                                        ),
+                                                      );
+                                                    },
+                                                loadingBuilder: (context, child, loadingProgress) {
+                                                  if (loadingProgress == null)
+                                                    return child;
+                                                  return Center(
+                                                    child: CircularProgressIndicator(
+                                                      value:
+                                                          loadingProgress
+                                                                  .expectedTotalBytes !=
+                                                              null
+                                                          ? loadingProgress
+                                                                    .cumulativeBytesLoaded /
+                                                                loadingProgress
+                                                                    .expectedTotalBytes!
+                                                          : null,
+                                                      color: Colors.white,
+                                                    ),
+                                                  );
+                                                },
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  child: Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      Image.network(
+                                        imageUrl,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) {
+                                          print(
+                                            '❌ [DetailDialog] Error loading image: $error',
+                                          );
+                                          return Center(
+                                            child: Column(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: [
+                                                Icon(
+                                                  Icons.broken_image,
+                                                  size: 48,
+                                                  color: Colors.grey[400],
+                                                ),
+                                                const SizedBox(height: 8),
+                                                Text(
+                                                  'Gagal memuat foto',
+                                                  style: GoogleFonts.poppins(
+                                                    fontSize: 12,
+                                                    color: Colors.grey[600],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        },
+                                        loadingBuilder: (context, child, loadingProgress) {
+                                          if (loadingProgress == null)
+                                            return child;
+                                          return Center(
+                                            child: CircularProgressIndicator(
+                                              value:
+                                                  loadingProgress
+                                                          .expectedTotalBytes !=
+                                                      null
+                                                  ? loadingProgress
+                                                            .cumulativeBytesLoaded /
+                                                        loadingProgress
+                                                            .expectedTotalBytes!
+                                                  : null,
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                      // Overlay untuk indicator bisa di-tap
+                                      Positioned(
+                                        bottom: 8,
+                                        right: 8,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.black.withOpacity(
+                                              0.6,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(
+                                                Icons.zoom_in,
+                                                color: Colors.white,
+                                                size: 16,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                'Tap untuk perbesar',
+                                                style: GoogleFonts.poppins(
+                                                  fontSize: 10,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        const Divider(),
+                        const SizedBox(height: 16),
+                      ],
+
                       // ID Pickup
                       Text(
                         '#$accountId',
@@ -571,17 +847,18 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                           color: Colors.grey[600],
                         ),
                       ),
-                      
+
                       const SizedBox(height: 16),
                       const Divider(),
                       const SizedBox(height: 16),
-                      
+
                       // Waktu Pengambilan
                       Row(
                         children: [
-                          Icon(Icons.access_time, 
-                            size: 18, 
-                            color: Colors.grey[600]
+                          Icon(
+                            Icons.access_time,
+                            size: 18,
+                            color: Colors.grey[600],
                           ),
                           const SizedBox(width: 8),
                           Text(
@@ -596,23 +873,26 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        pickupDate != null ? _formatDateWithTime(pickupDate) : '-',
+                        pickupDate != null
+                            ? _formatDateWithTime(pickupDate)
+                            : '-',
                         style: GoogleFonts.poppins(
                           fontSize: 14,
                           color: Colors.black87,
                         ),
                       ),
-                      
+
                       const SizedBox(height: 16),
                       const Divider(),
                       const SizedBox(height: 16),
-                      
+
                       // Sampah Header
                       Row(
                         children: [
-                          Icon(Icons.delete_outline, 
-                            size: 18, 
-                            color: Colors.grey[600]
+                          Icon(
+                            Icons.delete_outline,
+                            size: 18,
+                            color: Colors.grey[600],
                           ),
                           const SizedBox(width: 8),
                           Text(
@@ -625,17 +905,33 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                           ),
                         ],
                       ),
-                      
+
                       const SizedBox(height: 12),
-                      
+
                       // Detail Sampah List
                       if (wasteItems != null && wasteItems.isNotEmpty)
                         ...wasteItems.map((item) {
-                          final wasteName = item['waste_category'] ?? 
-                                           item['waste_name'] ?? 
-                                           item['waste']?['category'] ?? '-';
+                          // Get waste category (organic, anorganik, dll)
+                          final wasteCategory =
+                              item['waste_category'] ??
+                              item['waste']?['category'] ??
+                              item['waste_name'] ??
+                              '-';
+
+                          // Get pocket size (Besar, Sedang, Kecil)
+                          final pocketSize =
+                              item['pocket_size'] ??
+                              item['size'] ??
+                              item['waste_size'] ??
+                              '';
+
+                          // Combine category with size if available
+                          final displayName = pocketSize.isNotEmpty
+                              ? '$wasteCategory $pocketSize'
+                              : wasteCategory;
+
                           final quantity = item['quantity'] ?? 0;
-                          
+
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 8),
                             child: Row(
@@ -643,7 +939,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                               children: [
                                 Expanded(
                                   child: Text(
-                                    wasteName,
+                                    displayName,
                                     style: GoogleFonts.poppins(
                                       fontSize: 14,
                                       color: Colors.black87,
@@ -663,12 +959,12 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                             ),
                           );
                         }).toList(),
-                      
+
                       const SizedBox(height: 16),
                       const Divider(height: 1),
                       const SizedBox(height: 16),
-                      
-                      // Total (Jumlah)
+
+                      // Total (Jumlah) - Sum of all quantities
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -681,7 +977,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                             ),
                           ),
                           Text(
-                            '${wasteItems?.length ?? 0}',
+                            '${wasteItems?.fold<int>(0, (sum, item) => sum + (item['quantity'] as int? ?? 0)) ?? 0}',
                             style: GoogleFonts.poppins(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
@@ -690,9 +986,9 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                           ),
                         ],
                       ),
-                      
+
                       const SizedBox(height: 24),
-                      
+
                       // Close Button
                       SizedBox(
                         width: double.infinity,
@@ -730,11 +1026,14 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
   /// Format tanggal dengan waktu (contoh: Selasa, 27 Mei 2025 13:58)
   String _formatDateWithTime(String? dateStr) {
     if (dateStr == null || dateStr.isEmpty) return '-';
-    
+
     try {
       final date = DateTime.parse(dateStr);
       final dayName = DateFormat('EEEE', 'id_ID').format(date);
-      final dateFormatted = DateFormat('d MMMM yyyy HH:mm', 'id_ID').format(date);
+      final dateFormatted = DateFormat(
+        'd MMMM yyyy HH:mm',
+        'id_ID',
+      ).format(date);
       return '$dayName, $dateFormatted';
     } catch (e) {
       return dateStr;

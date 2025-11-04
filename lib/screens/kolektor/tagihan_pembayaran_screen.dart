@@ -39,9 +39,11 @@ class _TagihanPembayaranScreenState extends State<TagihanPembayaranScreen> {
   // Build image widget for both web and mobile
   Widget _buildPhotoWidget() {
     print('🖼️ [TagihanPembayaran] Building photo widget...');
-    print('🖼️ [TagihanPembayaran] imageFile: ${widget.imageFile?.name ?? "null"}');
+    print(
+      '🖼️ [TagihanPembayaran] imageFile: ${widget.imageFile?.name ?? "null"}',
+    );
     print('🖼️ [TagihanPembayaran] photoUrl: ${widget.photoUrl ?? "null"}');
-    
+
     if (widget.imageFile != null) {
       // Use imageFile first (from camera/gallery)
       print('✅ [TagihanPembayaran] Using imageFile (original photo)');
@@ -511,108 +513,108 @@ class _TagihanPembayaranScreenState extends State<TagihanPembayaranScreen> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: Column(
-        children: [
-          // Progress Stepper (Selesai/Complete)
-          Container(color: Colors.white, child: _buildProgressStepper()),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            // Progress Stepper (Selesai/Complete)
+            Container(color: Colors.white, child: _buildProgressStepper()),
 
-          // Success Icon and Title
-          Container(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    color: Colors.green,
-                    shape: BoxShape.circle,
+            // Success Icon and Title
+            Container(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: Colors.green,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.check, color: Colors.white, size: 30),
                   ),
-                  child: Icon(Icons.check, color: Colors.white, size: 30),
-                ),
-                SizedBox(height: 12),
-                Text(
-                  'Buat Tagihan Sampah',
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
+                  SizedBox(height: 12),
+                  Text(
+                    'Buat Tagihan Sampah',
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
 
-          // Photo Container
-          Container(
-            margin: EdgeInsets.symmetric(horizontal: 20),
-            height: 200,
-            decoration: BoxDecoration(
-              color: Colors.grey[200],
-              borderRadius: BorderRadius.circular(12),
+            // Photo Container
+            Container(
+              margin: EdgeInsets.symmetric(horizontal: 20),
+              height: 200,
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: _buildPhotoWidget(),
             ),
-            clipBehavior: Clip.antiAlias,
-            child: _buildPhotoWidget(),
-          ),
 
-          SizedBox(height: 16),
+            SizedBox(height: 16),
 
-          // Address and ID
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
-              children: [
-                Text(
-                  widget.address,
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
+            // Address and ID
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                children: [
+                  Text(
+                    widget.address,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
                   ),
-                ),
-                Text(
-                  '#${widget.idPengambilan}',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: Colors.grey[600],
+                  Text(
+                    '#${widget.idPengambilan}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
 
-          SizedBox(height: 20),
+            SizedBox(height: 20),
 
-          // Waktu Pengambilan
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Waktu Pengambilan',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: Colors.grey[600],
+            // Waktu Pengambilan
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Waktu Pengambilan',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
                   ),
-                ),
-                Text(
-                  'Selasa, 27 Mei 2025 13.58',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
+                  Text(
+                    'Selasa, 27 Mei 2025 13.58',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
 
-          SizedBox(height: 20),
+            SizedBox(height: 20),
 
-          // Sampah List
-          Expanded(
-            child: Container(
+            // Sampah List
+            Container(
               padding: EdgeInsets.symmetric(horizontal: 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -707,35 +709,35 @@ class _TagihanPembayaranScreenState extends State<TagihanPembayaranScreen> {
                 ],
               ),
             ),
-          ),
 
-          // Lanjutkan Button
-          Container(
-            padding: EdgeInsets.all(20),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _lanjutkan,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF009688),
-                  foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+            // Lanjutkan Button
+            Container(
+              padding: EdgeInsets.all(20),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _lanjutkan,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFF009688),
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
                   ),
-                  elevation: 0,
-                ),
-                child: Text(
-                  'Buat Tagihan',
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                  child: Text(
+                    'Buat Tagihan',
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

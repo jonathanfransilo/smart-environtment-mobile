@@ -4,7 +4,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../../services/notification_helper.dart';
 import '../../services/complaint_service.dart';
+import '../../services/service_account_service.dart';
 import '../../models/complaint.dart';
+import '../../models/service_account.dart';
 import '../../config/api_config.dart';
 import '../../utils/file.dart' as custom_file;
 import '../../utils/file.dart'; // Import untuk createFileFromBytes
@@ -50,6 +52,8 @@ class Laporan {
   final String? photoUrl; // URL foto dari API
   final bool isAsset;
   final DateTime createdAt;
+  final String
+  status; // Status dari database: 'open', 'in_progress', 'resolved', 'rejected'
 
   Laporan({
     required this.kota,
@@ -61,8 +65,25 @@ class Laporan {
     this.imageFile,
     this.photoUrl,
     required this.isAsset,
+    this.status = 'open', // Default status
   }) : id = DateTime.now().microsecondsSinceEpoch.toString(),
        createdAt = DateTime.now();
+
+  // Get status display text in Indonesian
+  String get statusText {
+    switch (status.toLowerCase()) {
+      case 'open':
+        return 'Menunggu';
+      case 'in_progress':
+        return 'Diproses';
+      case 'resolved':
+        return 'Selesai';
+      case 'rejected':
+        return 'Ditolak';
+      default:
+        return status;
+    }
+  }
 
   // Helper untuk mendapatkan deskripsi singkat
   String get shortDescription => "$kategori di $lokasi";
@@ -80,6 +101,7 @@ class Laporan {
       'imagePath': imageFile?.path,
       'photoUrl': photoUrl,
       'isAsset': isAsset,
+      'status': status,
       'createdAt': createdAt.toIso8601String(),
     };
   }
@@ -98,6 +120,7 @@ class Laporan {
           : null,
       photoUrl: json['photoUrl'] as String?,
       isAsset: json['isAsset'] as bool? ?? false,
+      status: json['status'] as String? ?? 'open',
     );
   }
 }
@@ -123,8 +146,6 @@ class BuatLaporanScreen extends StatefulWidget {
 class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
   // Controller untuk mengelola input text
   final TextEditingController _deskripsiController = TextEditingController();
-  final TextEditingController _serviceAccountController =
-      TextEditingController();
 
   // Pilihan Kategori sesuai API Documentation
   static const List<Map<String, String>> _types = [
@@ -139,6 +160,11 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
   // State untuk menyimpan tipe yang dipilih
   String? _selectedType;
 
+  // State untuk service account
+  List<ServiceAccount> _serviceAccounts = [];
+  String? _selectedServiceAccountId;
+  bool _isLoadingServiceAccounts = false;
+
   // Kunci form untuk validasi
   final _formKey = GlobalKey<FormState>();
 
@@ -146,10 +172,51 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
   static const Color primaryColor = Color.fromARGB(255, 21, 145, 137);
 
   @override
+  void initState() {
+    super.initState();
+    _loadServiceAccounts();
+  }
+
+  @override
   void dispose() {
     _deskripsiController.dispose();
-    _serviceAccountController.dispose();
     super.dispose();
+  }
+
+  // Fungsi untuk memuat service accounts dari API
+  Future<void> _loadServiceAccounts() async {
+    setState(() {
+      _isLoadingServiceAccounts = true;
+    });
+
+    try {
+      final serviceAccountService = ServiceAccountService();
+      final accounts = await serviceAccountService.fetchAccounts();
+
+      setState(() {
+        _serviceAccounts = accounts;
+        _isLoadingServiceAccounts = false;
+      });
+
+      print('✅ Loaded ${accounts.length} service accounts');
+    } catch (e) {
+      setState(() {
+        _isLoadingServiceAccounts = false;
+      });
+
+      print('❌ Error loading service accounts: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.orange,
+            content: Text(
+              'Gagal memuat service account: $e',
+              style: GoogleFonts.poppins(),
+            ),
+          ),
+        );
+      }
+    }
   }
 
   // Fungsi Navigasi ke DetailLaporanScreen
@@ -172,9 +239,7 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
       // Debug print
       print('🔍 _selectedType: $_selectedType');
       print('🔍 _deskripsiController.text: ${_deskripsiController.text}');
-      print(
-        '🔍 _serviceAccountController.text: ${_serviceAccountController.text}',
-      );
+      print('🔍 _selectedServiceAccountId: $_selectedServiceAccountId');
 
       // Ambil data dari state dan controller
       final reportData = <String, String>{
@@ -184,12 +249,16 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
             : 'Tidak ada deskripsi', // API field: description - dengan fallback
       };
 
-      // Tambahkan service account hanya jika diisi
-      if (_serviceAccountController.text.isNotEmpty) {
-        reportData['serviceAccount'] = _serviceAccountController.text;
+      // Tambahkan service account hanya jika dipilih
+      if (_selectedServiceAccountId != null &&
+          _selectedServiceAccountId!.isNotEmpty) {
+        reportData['serviceAccount'] = _selectedServiceAccountId!;
       }
 
       print('🔍 reportData: $reportData');
+
+      // Gunakan foto yang dipilih user, fallback ke foto dari parent
+      final finalImage = _selectedImage ?? widget.imageFile;
 
       // Navigasi ke DetailLaporanScreen
       Navigator.of(context)
@@ -197,7 +266,7 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
             MaterialPageRoute<Laporan>(
               builder: (ctx) => DetailLaporanScreen(
                 reportData: reportData,
-                imageFile: widget.imageFile,
+                imageFile: finalImage,
                 isAsset: widget.isAsset,
               ),
             ),
@@ -212,49 +281,117 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
     }
   }
 
+  // Fungsi untuk memilih foto (galeri/kamera)
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final XFile? pickedFile = await ImagePicker().pickImage(
+        source: source,
+        imageQuality: 80,
+      );
+
+      if (pickedFile != null) {
+        final bytes = await pickedFile.readAsBytes();
+        final customFile = createFileFromBytes(pickedFile.path, bytes);
+
+        setState(() {
+          _selectedImage = customFile;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.red,
+            content: Text(
+              'Gagal mengambil gambar: $e',
+              style: GoogleFonts.poppins(),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  // Fungsi untuk menampilkan dialog pilihan foto
+  void _showPickerOptions() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Pilih Foto',
+          style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _OptionButton(
+              icon: Icons.photo_library,
+              label: 'Pilih dari Galeri',
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickImage(ImageSource.gallery);
+              },
+            ),
+            const SizedBox(height: 12),
+            _OptionButton(
+              icon: Icons.camera_alt,
+              label: 'Ambil Foto',
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickImage(ImageSource.camera);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  custom_file.File? _selectedImage;
+
   @override
   Widget build(BuildContext context) {
     // Tentukan widget gambar yang akan ditampilkan
     Widget imageWidget;
-    if (widget.imageFile != null) {
+
+    // Gunakan foto yang baru dipilih, atau foto yang dibawa dari parent
+    final imageToShow = _selectedImage ?? widget.imageFile;
+
+    if (imageToShow != null) {
       // Menggunakan buildPlatformImage untuk cross-platform compatibility
       imageWidget = buildPlatformImage(
-        widget.imageFile!,
+        imageToShow,
         fit: BoxFit.cover,
         width: double.infinity,
         height: 200,
       );
-    } else if (widget.isAsset) {
-      // Fallback jika ada flag isAsset (seharusnya tidak digunakan lagi)
-      imageWidget = Container(
-        width: double.infinity,
-        height: 200,
-        color: Colors.grey.shade300,
-        child: const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.image, size: 50, color: Colors.grey),
-              SizedBox(height: 8),
-              Text("Tidak ada gambar"),
-            ],
-          ),
-        ),
-      );
     } else {
-      // Kasus fallback
-      imageWidget = Container(
-        width: double.infinity,
-        height: 200,
-        color: Colors.grey.shade300,
-        child: const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.image, size: 50, color: Colors.grey),
-              SizedBox(height: 8),
-              Text("Tidak ada gambar"),
-            ],
+      // Placeholder untuk upload foto (menggunakan image dari assets)
+      imageWidget = GestureDetector(
+        onTap: _showPickerOptions,
+        child: Container(
+          width: double.infinity,
+          height: 200,
+          decoration: BoxDecoration(
+            color: Colors.grey.shade200,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Center(
+            child: Image.asset(
+              'assets/images/camera-plus.png',
+              width: 120,
+              height: 120,
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) {
+                // Fallback jika gambar tidak ditemukan
+                return Icon(
+                  Icons.add_a_photo,
+                  size: 80,
+                  color: Colors.grey.shade400,
+                );
+              },
+            ),
           ),
         ),
       );
@@ -305,16 +442,15 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
                         left: 0,
                         right: 0,
                         child: InkWell(
-                          onTap: () {
-                            // Kembali ke PelaporanScreen untuk memilih foto baru
-                            Navigator.pop(context);
-                          },
+                          onTap: _showPickerOptions,
                           child: Container(
                             width: double.infinity,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.7),
-                              borderRadius: const BorderRadius.only(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            decoration: const BoxDecoration(
+                              color: Color(
+                                0xFF3D3D3D,
+                              ), // Warna dark gray solid seperti di Figma
+                              borderRadius: BorderRadius.only(
                                 bottomLeft: Radius.circular(8),
                                 bottomRight: Radius.circular(8),
                               ),
@@ -326,6 +462,7 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
                                 color: Colors.white,
                                 fontWeight: FontWeight.w600,
                                 fontSize: 14,
+                                letterSpacing: 0.5,
                               ),
                             ),
                           ),
@@ -369,12 +506,11 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Service Account (Opsional)
-              TextFormField(
-                controller: _serviceAccountController,
+              // Service Account Dropdown (Opsional)
+              DropdownButtonFormField<String>(
+                value: _selectedServiceAccountId,
                 decoration: InputDecoration(
                   labelText: "Service Account (Opsional)",
-                  hintText: "Masukkan ID service account jika ada...",
                   prefixIcon: const Icon(Icons.account_circle),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -382,6 +518,43 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
                   helperText: "Kosongkan jika tidak tahu ID service account",
                   helperMaxLines: 2,
                 ),
+                items: [
+                  // Option untuk tidak memilih service account
+                  const DropdownMenuItem<String>(
+                    value: null,
+                    child: Text('Tidak ada'),
+                  ),
+                  // Service accounts dari API
+                  ..._serviceAccounts.map((account) {
+                    return DropdownMenuItem<String>(
+                      value: account.id,
+                      child: Text(
+                        account.name,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  }),
+                ],
+                onChanged: _isLoadingServiceAccounts
+                    ? null
+                    : (value) {
+                        setState(() {
+                          _selectedServiceAccountId = value;
+                        });
+                      },
+                hint: _isLoadingServiceAccounts
+                    ? const Row(
+                        children: [
+                          SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          SizedBox(width: 8),
+                          Text('Memuat data...'),
+                        ],
+                      )
+                    : const Text('Pilih Service Account'),
                 // Tidak ada validator - field ini opsional
               ),
               const SizedBox(height: 16),
@@ -912,6 +1085,22 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
     );
   }
 
+  // Fungsi untuk mendapatkan warna badge berdasarkan status
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'open':
+        return Colors.orange; // Menunggu
+      case 'in_progress':
+        return primaryColor; // Diproses
+      case 'resolved':
+        return Colors.green; // Selesai
+      case 'rejected':
+        return Colors.red; // Ditolak
+      default:
+        return primaryColor;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Tentukan widget gambar yang akan ditampilkan
@@ -1078,11 +1267,11 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: primaryColor,
+                    color: _getStatusColor(laporan.status),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    "PROSES",
+                    laporan.statusText.toUpperCase(),
                     style: GoogleFonts.poppins(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -1123,7 +1312,6 @@ class PelaporanScreen extends StatefulWidget {
 }
 
 class _PelaporanScreenState extends State<PelaporanScreen> {
-  final ImagePicker _picker = ImagePicker();
   custom_file.File? _selectedImageFile;
   bool _isDummyImage = false;
   bool _isLoading = false; // Loading state untuk API call
@@ -1233,70 +1421,34 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
       imageFile: null, // API returns URL, bukan File
       photoUrl: photoUrl, // Simpan URL foto
       isAsset: complaint.photos.isNotEmpty, // Ada foto dari API
+      status: complaint.status, // Ambil status dari database
     );
   }
 
   /// 🔹 Fungsi navigasi ke halaman Buat Laporan
   void _goToBuatLaporan() {
-    // Memastikan ada gambar sebelum navigasi
-    if (_selectedImageFile != null || _isDummyImage) {
-      // ⭐️ Menangkap hasil pengiriman laporan dari BuatLaporanScreen
-      Navigator.of(context)
-          .push(
-            MaterialPageRoute<Laporan>(
-              // Tentukan tipe kembalian adalah Laporan
-              builder: (ctx) => BuatLaporanScreen(
-                imageFile: _selectedImageFile,
-                isAsset: _isDummyImage,
-              ),
+    // Langsung navigasi ke BuatLaporanScreen (tidak perlu foto dulu)
+    // User bisa upload foto di dalam form
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute<Laporan>(
+            // Tentukan tipe kembalian adalah Laporan
+            builder: (ctx) => BuatLaporanScreen(
+              imageFile: _selectedImageFile, // bisa null
+              isAsset: _isDummyImage,
             ),
-          )
-          .then((newReport) {
-            // Membersihkan gambar di layar ini
-            _removeImage();
-
-            // Jika laporan berhasil dikirim, refresh list dari API
-            if (newReport != null) {
-              _loadSavedReports(); // Refresh data dari API
-              // SnackBar sudah ditangani di DetailLaporanScreen
-            }
-          });
-    } else {
-      // Tampilkan opsi jika belum ada gambar yang dipilih
-      _showPickerOptions(context);
-    }
-  }
-
-  /// 🔹 Fungsi ambil gambar dari kamera atau galeri
-  Future<void> _pickImage(ImageSource source) async {
-    try {
-      final pickedFile = await _picker.pickImage(source: source);
-      if (pickedFile != null) {
-        // Untuk web, kita perlu read bytes dulu
-        final bytes = await pickedFile.readAsBytes();
-        setState(() {
-          // Buat File dengan bytes agar bisa digunakan di web
-          _selectedImageFile = createFileFromBytes(pickedFile.path, bytes);
-          _isDummyImage = false;
-        });
-      } else {
-        // Jika tidak ada gambar dipilih, beri tahu user
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Tidak ada gambar yang dipilih."),
-            backgroundColor: Colors.orange,
           ),
-        );
-      }
-    } catch (e) {
-      // Jika error, beri tahu user
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Error mengambil gambar: $e"),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
+        )
+        .then((newReport) {
+          // Membersihkan gambar di layar ini
+          _removeImage();
+
+          // Jika laporan berhasil dikirim, refresh list dari API
+          if (newReport != null) {
+            _loadSavedReports(); // Refresh data dari API
+            // SnackBar sudah ditangani di DetailLaporanScreen
+          }
+        });
   }
 
   /// 🔹 Reset gambar
@@ -1305,54 +1457,6 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
       _selectedImageFile = null;
       _isDummyImage = false;
     });
-  }
-
-  /// 🔹 Popup pilih file
-  void _showPickerOptions(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: Text(
-          "Pilih File",
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-        ),
-        content: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _OptionButton(
-              icon: Icons.photo,
-              label: "Gallery",
-              onTap: () {
-                Navigator.pop(ctx);
-                _pickImage(ImageSource.gallery);
-              },
-            ),
-            _OptionButton(
-              icon: Icons.camera_alt,
-              label: "Camera",
-              onTap: () {
-                Navigator.pop(ctx);
-                _pickImage(ImageSource.camera);
-              },
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              "BATAL",
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: primaryColor,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   /// 🔹 Widget untuk menampilkan gambar (File atau daftar laporan)
@@ -1398,28 +1502,18 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
     }
   }
 
-  // 🔹 Widget untuk tombol FAB yang berubah (Plus atau Centang)
+  // 🔹 Widget untuk tombol FAB - selalu buka form
   Widget _buildFloatingActionButton() {
-    final bool hasImage = _selectedImageFile != null || _isDummyImage;
-
     return FloatingActionButton(
       backgroundColor: primaryColor,
-      // Jika sudah ada gambar, FAB digunakan untuk menavigasi ke form
-      // Jika belum ada gambar, FAB digunakan untuk memanggil opsi pilih gambar
-      onPressed: hasImage
-          ? _goToBuatLaporan
-          : () => _showPickerOptions(context),
-      child: Icon(
-        hasImage ? Icons.check : Icons.add, // Centang jika ada gambar
-      ),
+      // Langsung buka form BuatLaporanScreen (user upload foto di dalam form)
+      onPressed: _goToBuatLaporan,
+      child: const Icon(Icons.add), // Selalu icon plus
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    // Tentukan apakah harus menampilkan Gambar Preview atau Empty State/List
-    final bool showImagePreview = _selectedImageFile != null || _isDummyImage;
-
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -1427,63 +1521,17 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
           style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
         ),
       ),
-      // Gunakan Stack/Center hanya jika menampilkan Preview Gambar,
-      // jika menampilkan List, gunakan Column/Expanded dengan RefreshIndicator
-      body: showImagePreview
-          ? Center(
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  // Gambar Preview
-                  Container(
-                    width: 280,
-                    height: 280,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.2),
-                          blurRadius: 10,
-                          offset: const Offset(0, 5),
-                        ),
-                      ],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: _imageDisplayWidget(),
-                    ),
-                  ),
-                  // Tombol Hapus Gambar (X)
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: CircleAvatar(
-                      radius: 18,
-                      backgroundColor: Colors.red.shade600,
-                      child: IconButton(
-                        icon: const Icon(
-                          Icons.close,
-                          size: 20,
-                          color: Colors.white,
-                        ),
-                        padding: EdgeInsets.zero,
-                        onPressed: _removeImage,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            )
-          : RefreshIndicator(
-              onRefresh: _loadSavedReports,
-              color: primaryColor,
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: _imageDisplayWidget(),
-                ),
-              ),
-            ), // Tampilkan Empty State/List dengan RefreshIndicator
+      // Selalu tampilkan list laporan atau empty state (tidak ada preview gambar)
+      body: RefreshIndicator(
+        onRefresh: _loadSavedReports,
+        color: primaryColor,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: _imageDisplayWidget(),
+          ),
+        ),
+      ),
 
       floatingActionButton: _buildFloatingActionButton(),
     );
@@ -1554,43 +1602,41 @@ class _ReportCard extends StatelessWidget {
 
   static const Color primaryColor = Color.fromARGB(255, 21, 145, 137);
 
-  // Fungsi untuk mendapatkan warna badge berdasarkan kategori
+  // Fungsi untuk mendapatkan warna badge berdasarkan status dari database
   Color _getBadgeColor() {
-    final kategoriLower = report.kategori.toLowerCase();
-    if (kategoriLower.contains('tidak diangkut') ||
-        kategoriLower.contains('tidak remah')) {
-      return Colors.red.shade100;
-    } else if (kategoriLower.contains('menumpuk')) {
-      return primaryColor.withOpacity(0.2);
-    } else if (kategoriLower.contains('progress')) {
-      return Colors.blue.shade100;
+    switch (report.status.toLowerCase()) {
+      case 'open':
+        return Colors.orange.shade100; // Menunggu
+      case 'in_progress':
+        return primaryColor.withOpacity(0.2); // Diproses
+      case 'resolved':
+        return Colors.green.shade100; // Selesai
+      case 'rejected':
+        return Colors.red.shade100; // Ditolak
+      default:
+        return Colors.grey.shade100;
     }
-    return Colors.green.shade100;
   }
 
   // Fungsi untuk mendapatkan text color badge
   Color _getBadgeTextColor() {
-    final kategoriLower = report.kategori.toLowerCase();
-    if (kategoriLower.contains('tidak diangkut') ||
-        kategoriLower.contains('tidak remah')) {
-      return Colors.red.shade700;
-    } else if (kategoriLower.contains('menumpuk')) {
-      return primaryColor;
-    } else if (kategoriLower.contains('progress')) {
-      return Colors.blue.shade700;
+    switch (report.status.toLowerCase()) {
+      case 'open':
+        return Colors.orange.shade700; // Menunggu
+      case 'in_progress':
+        return primaryColor; // Diproses
+      case 'resolved':
+        return Colors.green.shade700; // Selesai
+      case 'rejected':
+        return Colors.red.shade700; // Ditolak
+      default:
+        return Colors.grey.shade700;
     }
-    return Colors.green.shade700;
   }
 
-  // Fungsi untuk mendapatkan status text
+  // Fungsi untuk mendapatkan status text dari database
   String _getStatusText() {
-    final kategoriLower = report.kategori.toLowerCase();
-    if (kategoriLower.contains('tidak diangkut')) {
-      return 'Tidak Remah';
-    } else if (kategoriLower.contains('menumpuk')) {
-      return 'Keterlambatan';
-    }
-    return 'On Progress';
+    return report.statusText;
   }
 
   @override
@@ -1788,23 +1834,25 @@ class _OptionButton extends StatelessWidget {
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          CircleAvatar(
-            radius: 30,
-            backgroundColor: Colors.grey.shade200,
-            child: Icon(icon, size: 28, color: primaryColor),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: GoogleFonts.poppins(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 28, color: primaryColor),
+            const SizedBox(width: 16),
+            Text(
+              label,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

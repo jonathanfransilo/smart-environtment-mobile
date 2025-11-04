@@ -11,10 +11,7 @@ import '../../models/payment_transaction.dart';
 class PaymentProcessScreen extends StatefulWidget {
   final PaymentTransaction payment;
 
-  const PaymentProcessScreen({
-    super.key,
-    required this.payment,
-  });
+  const PaymentProcessScreen({super.key, required this.payment});
 
   @override
   State<PaymentProcessScreen> createState() => _PaymentProcessScreenState();
@@ -52,7 +49,7 @@ class _PaymentProcessScreenState extends State<PaymentProcessScreen> {
   void _calculateCountdown() {
     // Use expiredAt field directly or fall back to metadata
     DateTime? expiryTime;
-    
+
     if (_currentPayment.expiredAt != null) {
       expiryTime = _currentPayment.expiredAt;
     } else if (_currentPayment.metadata != null &&
@@ -63,7 +60,7 @@ class _PaymentProcessScreenState extends State<PaymentProcessScreen> {
         // Ignore parse error
       }
     }
-    
+
     if (expiryTime != null) {
       final now = DateTime.now();
       _secondsRemaining = expiryTime.difference(now).inSeconds;
@@ -100,8 +97,9 @@ class _PaymentProcessScreenState extends State<PaymentProcessScreen> {
     });
 
     try {
-      final updatedPayment =
-          await _paymentService.checkPaymentStatus(_currentPayment.orderId!);
+      final updatedPayment = await _paymentService.checkPaymentStatus(
+        _currentPayment.orderId!,
+      );
 
       if (!mounted) return;
 
@@ -150,22 +148,25 @@ class _PaymentProcessScreenState extends State<PaymentProcessScreen> {
             // Status banner
             _buildStatusBanner(),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
 
             // Payment details based on type
-            if (_currentPayment.paymentType == 'va' || _currentPayment.paymentType == 'bank_transfer')
+            if (_currentPayment.paymentType == 'va' ||
+                _currentPayment.paymentType == 'bank_transfer')
               _buildVACard()
             else if (_currentPayment.paymentType == 'qris')
               _buildQRISCard()
-            else if (_currentPayment.paymentType == 'ewallet' || _currentPayment.paymentType == 'gopay' || _currentPayment.paymentType == 'shopeepay')
+            else if (_currentPayment.paymentType == 'ewallet' ||
+                _currentPayment.paymentType == 'gopay' ||
+                _currentPayment.paymentType == 'shopeepay')
               _buildEWalletCard(),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
 
             // Instructions
             _buildInstructions(),
 
-            const SizedBox(height: 80),
+            const SizedBox(height: 24),
           ],
         ),
       ),
@@ -194,39 +195,34 @@ class _PaymentProcessScreenState extends State<PaymentProcessScreen> {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: bgColor,
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+      decoration: BoxDecoration(color: bgColor),
       child: Column(
         children: [
-          Icon(icon, color: Colors.white, size: 48),
-          const SizedBox(height: 12),
+          Icon(icon, color: Colors.white, size: 42),
+          const SizedBox(height: 10),
           Text(
             statusText,
             style: GoogleFonts.poppins(
               color: Colors.white,
-              fontSize: 20,
+              fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             currencyFormat.format(_currentPayment.amount),
             style: GoogleFonts.poppins(
               color: Colors.white,
-              fontSize: 28,
+              fontSize: 26,
               fontWeight: FontWeight.bold,
             ),
           ),
           if (_secondsRemaining > 0) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             Text(
               'Berlaku hingga: ${_formatCountdown(_secondsRemaining)}',
-              style: GoogleFonts.poppins(
-                color: Colors.white70,
-                fontSize: 14,
-              ),
+              style: GoogleFonts.poppins(color: Colors.white70, fontSize: 13),
             ),
           ],
         ],
@@ -242,7 +238,7 @@ class _PaymentProcessScreenState extends State<PaymentProcessScreen> {
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -268,9 +264,10 @@ class _PaymentProcessScreenState extends State<PaymentProcessScreen> {
                 child: Icon(
                   Icons.account_balance,
                   color: Colors.blue.shade700,
+                  size: 22,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -278,14 +275,14 @@ class _PaymentProcessScreenState extends State<PaymentProcessScreen> {
                     Text(
                       '${va.bank?.toUpperCase()} Virtual Account',
                       style: GoogleFonts.poppins(
-                        fontSize: 16,
+                        fontSize: 15,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     Text(
                       'Transfer ke nomor VA di bawah',
                       style: GoogleFonts.poppins(
-                        fontSize: 12,
+                        fontSize: 11,
                         color: Colors.grey.shade600,
                       ),
                     ),
@@ -294,19 +291,19 @@ class _PaymentProcessScreenState extends State<PaymentProcessScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: Colors.grey.shade100,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: Colors.grey.shade300),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
                       'Nomor Virtual Account',
@@ -315,21 +312,42 @@ class _PaymentProcessScreenState extends State<PaymentProcessScreen> {
                         color: Colors.grey.shade600,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      va.vaNumber!,
-                      style: GoogleFonts.poppins(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 2,
+                    InkWell(
+                      onTap: () => _copyToClipboard(va.vaNumber!),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.copy,
+                              color: Colors.blue.shade700,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Salin',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                color: Colors.blue.shade700,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
                 ),
-                IconButton(
-                  onPressed: () => _copyToClipboard(va.vaNumber!),
-                  icon: Icon(Icons.copy, color: Colors.blue.shade700),
-                  tooltip: 'Salin',
+                const SizedBox(height: 8),
+                SelectableText(
+                  va.vaNumber!,
+                  style: GoogleFonts.poppins(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1,
+                  ),
                 ),
               ],
             ),
@@ -465,7 +483,8 @@ class _PaymentProcessScreenState extends State<PaymentProcessScreen> {
   Widget _buildInstructions() {
     List<String> instructions = [];
 
-    if (_currentPayment.paymentType == 'va' || _currentPayment.paymentType == 'bank_transfer') {
+    if (_currentPayment.paymentType == 'va' ||
+        _currentPayment.paymentType == 'bank_transfer') {
       instructions = [
         'Buka aplikasi mobile banking atau ATM',
         'Pilih menu Transfer / Transfer ke Virtual Account',
@@ -480,7 +499,9 @@ class _PaymentProcessScreenState extends State<PaymentProcessScreen> {
         'Scan QR Code di atas',
         'Konfirmasi pembayaran',
       ];
-    } else if (_currentPayment.paymentType == 'ewallet' || _currentPayment.paymentType == 'gopay' || _currentPayment.paymentType == 'shopeepay') {
+    } else if (_currentPayment.paymentType == 'ewallet' ||
+        _currentPayment.paymentType == 'gopay' ||
+        _currentPayment.paymentType == 'shopeepay') {
       instructions = [
         'Klik tombol untuk membuka aplikasi',
         'Login ke akun ${_currentPayment.paymentChannel}',
@@ -491,7 +512,7 @@ class _PaymentProcessScreenState extends State<PaymentProcessScreen> {
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -509,20 +530,20 @@ class _PaymentProcessScreenState extends State<PaymentProcessScreen> {
           Text(
             'Cara Pembayaran',
             style: GoogleFonts.poppins(
-              fontSize: 16,
+              fontSize: 15,
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           ...instructions.asMap().entries.map((entry) {
             return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.only(bottom: 10),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    width: 24,
-                    height: 24,
+                    width: 22,
+                    height: 22,
                     decoration: BoxDecoration(
                       color: Colors.blue.shade700,
                       shape: BoxShape.circle,
@@ -532,19 +553,23 @@ class _PaymentProcessScreenState extends State<PaymentProcessScreen> {
                         '${entry.key + 1}',
                         style: GoogleFonts.poppins(
                           color: Colors.white,
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
                   Expanded(
-                    child: Text(
-                      entry.value,
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        color: Colors.grey.shade700,
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        entry.value,
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          color: Colors.grey.shade700,
+                          height: 1.3,
+                        ),
                       ),
                     ),
                   ),
@@ -559,7 +584,7 @@ class _PaymentProcessScreenState extends State<PaymentProcessScreen> {
 
   Widget _buildBottomBar() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -574,18 +599,23 @@ class _PaymentProcessScreenState extends State<PaymentProcessScreen> {
         child: Row(
           children: [
             if (_isCheckingStatus)
-              const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
+              const Padding(
+                padding: EdgeInsets.all(8.0),
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
               )
             else
               IconButton(
                 onPressed: _checkPaymentStatus,
-                icon: const Icon(Icons.refresh),
+                icon: const Icon(Icons.refresh, size: 22),
                 tooltip: 'Refresh Status',
+                padding: const EdgeInsets.all(8),
+                constraints: const BoxConstraints(),
               ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
             Expanded(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -594,14 +624,14 @@ class _PaymentProcessScreenState extends State<PaymentProcessScreen> {
                   Text(
                     'Status: ${_getStatusText(_currentPayment.status)}',
                     style: GoogleFonts.poppins(
-                      fontSize: 12,
+                      fontSize: 11,
                       color: Colors.grey.shade600,
                     ),
                   ),
                   Text(
                     'Otomatis diperbarui setiap 5 detik',
                     style: GoogleFonts.poppins(
-                      fontSize: 10,
+                      fontSize: 9,
                       color: Colors.grey.shade500,
                     ),
                   ),
@@ -613,26 +643,35 @@ class _PaymentProcessScreenState extends State<PaymentProcessScreen> {
                 onPressed: _cancelPayment,
                 style: TextButton.styleFrom(
                   foregroundColor: Colors.red.shade600,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                 ),
                 child: Text(
                   'Batalkan',
                   style: GoogleFonts.poppins(
                     fontWeight: FontWeight.w600,
+                    fontSize: 13,
                   ),
                 ),
               ),
             if (_currentPayment.isSuccess)
               ElevatedButton(
-                onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+                onPressed: () =>
+                    Navigator.of(context).popUntil((route) => route.isFirst),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green.shade600,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 10,
+                  ),
                 ),
                 child: Text(
                   'Selesai',
                   style: GoogleFonts.poppins(
                     fontWeight: FontWeight.w600,
+                    fontSize: 13,
                     color: Colors.white,
                   ),
                 ),
@@ -723,7 +762,9 @@ class _PaymentProcessScreenState extends State<PaymentProcessScreen> {
     );
 
     try {
-      final success = await _paymentService.cancelPayment(_currentPayment.orderId!);
+      final success = await _paymentService.cancelPayment(
+        _currentPayment.orderId!,
+      );
 
       if (!mounted) return;
 
