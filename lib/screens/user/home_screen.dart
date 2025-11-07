@@ -204,14 +204,18 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Handle payment button click - check for pending payment first
   Future<void> _handlePaymentClick() async {
     try {
-      print('🔘 [HomeScreen] Payment button clicked, checking for pending payment...');
+      print(
+        '🔘 [HomeScreen] Payment button clicked, checking for pending payment...',
+      );
       // Check if there's a pending payment
       final pendingPayment = await _paymentService.checkPendingPayment();
 
       if (!mounted) return;
 
       if (pendingPayment != null) {
-        print('⚠️ [HomeScreen] Pending payment found! Order ID: ${pendingPayment.orderId}');
+        print(
+          '⚠️ [HomeScreen] Pending payment found! Order ID: ${pendingPayment.orderId}',
+        );
         // Show dialog asking if user wants to continue pending payment
         final shouldContinue = await showDialog<bool>(
           context: context,
@@ -255,9 +259,8 @@ class _HomeScreenState extends State<HomeScreen> {
           final result = await Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => PaymentProcessScreen(
-                payment: pendingPayment,
-              ),
+              builder: (context) =>
+                  PaymentProcessScreen(payment: pendingPayment),
             ),
           );
 
@@ -269,14 +272,15 @@ class _HomeScreenState extends State<HomeScreen> {
           print('❌ [HomeScreen] User cancelled pending payment dialog');
         }
       } else {
-        print('➡️ [HomeScreen] No pending payment, proceeding to payment method screen');
+        print(
+          '➡️ [HomeScreen] No pending payment, proceeding to payment method screen',
+        );
         // No pending payment, proceed to payment method screen
         final result = await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => PaymentMethodScreen(
-              invoices: _unpaidInvoices,
-            ),
+            builder: (context) =>
+                PaymentMethodScreen(invoices: _unpaidInvoices),
           ),
         );
 
@@ -1098,7 +1102,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              if (akun['rw'] != null && akun['rw'].toString().isNotEmpty)
+                              if (akun['rw'] != null &&
+                                  akun['rw'].toString().isNotEmpty)
                                 Text(
                                   '${akun['kelurahan']} • ${akun['rw']}',
                                   style: GoogleFonts.poppins(
@@ -1106,7 +1111,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                     fontWeight: FontWeight.w500,
                                     color: isInactive
                                         ? Colors.grey.shade500
-                                        : const Color.fromARGB(255, 21, 145, 137),
+                                        : const Color.fromARGB(
+                                            255,
+                                            21,
+                                            145,
+                                            137,
+                                          ),
                                   ),
                                 ),
                               Text(
@@ -1422,31 +1432,88 @@ class _HomeScreenState extends State<HomeScreen> {
                     "assets/images/keranjang.png",
                     "Riwayat Pengambilan\nSampah",
                     onTap: () async {
-                      // Navigasi ke riwayat pengambilan sampah
-                      if (_akunList.isEmpty) {
-                        // Jika belum ada akun, tampilkan snackbar
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Anda belum memiliki akun layanan. Silakan buat akun terlebih dahulu.',
-                              style: GoogleFonts.poppins(),
+                      try {
+                        print('🔘 [HomeScreen] Riwayat Pengambilan clicked');
+
+                        // Navigasi ke riwayat pengambilan sampah
+                        if (_akunList.isEmpty) {
+                          print('⚠️ [HomeScreen] No account available');
+                          // Jika belum ada akun, tampilkan snackbar
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Anda belum memiliki akun layanan. Silakan buat akun terlebih dahulu.',
+                                style: GoogleFonts.poppins(),
+                              ),
+                              backgroundColor: Colors.orange,
+                              duration: const Duration(seconds: 3),
                             ),
-                            backgroundColor: Colors.orange,
-                            duration: const Duration(seconds: 3),
-                          ),
-                        );
-                      } else {
+                          );
+                          return;
+                        }
+
                         // Jika sudah ada akun, buka halaman riwayat
                         final currentAccount = _selectedAkun ?? _akunList.first;
+                        final serviceAccountId =
+                            currentAccount['id_akun']?.toString() ??
+                            currentAccount['id']?.toString() ??
+                            '0';
+                        final accountName =
+                            currentAccount['nama']?.toString() ?? 'Akun';
+
+                        print(
+                          '📋 [HomeScreen] Opening history for account: $accountName (ID: $serviceAccountId)',
+                        );
+
+                        // Validasi ID
+                        if (serviceAccountId == '0' ||
+                            serviceAccountId.isEmpty) {
+                          print('❌ [HomeScreen] Invalid service account ID');
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'ID akun tidak valid. Silakan refresh halaman.',
+                                style: GoogleFonts.poppins(),
+                              ),
+                              backgroundColor: Colors.red,
+                              duration: const Duration(seconds: 3),
+                            ),
+                          );
+                          return;
+                        }
+
+                        if (!mounted) return;
+
                         await Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (context) => RiwayatPengambilanScreen(
-                              serviceAccountId:
-                                  currentAccount['id_akun']?.toString() ?? '0',
-                              accountName:
-                                  currentAccount['nama']?.toString() ?? 'Akun',
+                              serviceAccountId: serviceAccountId,
+                              accountName: accountName,
                             ),
+                          ),
+                        );
+
+                        print(
+                          '✅ [HomeScreen] Returned from RiwayatPengambilan',
+                        );
+                      } catch (e, stackTrace) {
+                        print(
+                          '💥 [HomeScreen] Error opening RiwayatPengambilan: $e',
+                        );
+                        print('Stack trace: $stackTrace');
+
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Gagal membuka riwayat: ${e.toString()}',
+                              style: GoogleFonts.poppins(),
+                            ),
+                            backgroundColor: Colors.red,
+                            duration: const Duration(seconds: 3),
                           ),
                         );
                       }

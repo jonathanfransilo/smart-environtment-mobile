@@ -660,14 +660,42 @@ class DetailAkunLayananScreen extends StatelessWidget {
         if (!context.mounted) return;
         Navigator.pop(context);
 
-        final invoices = invoiceData['unpaid_invoices'] as List<dynamic>?;
-        final totalAmount = invoiceData['total_amount'] as num? ?? 0;
+        final allInvoices = invoiceData['unpaid_invoices'] as List<dynamic>?;
 
-        // Jika ada tagihan yang belum dibayar
-        if (invoices != null && invoices.isNotEmpty) {
-          _showTagihanBelumLunasDialog(context, invoices, totalAmount);
+        // 🔍 FILTER: Ambil hanya invoice untuk akun INI saja
+        final accountInvoices =
+            allInvoices?.where((invoice) {
+              final serviceAccount = invoice['service_account'];
+              if (serviceAccount == null) return false;
+
+              // Match berdasarkan ID akun
+              return serviceAccount['id']?.toString() == akun.id.toString();
+            }).toList() ??
+            [];
+
+        // Hitung total amount untuk akun ini
+        final totalAmount = accountInvoices.fold<num>(
+          0,
+          (sum, invoice) => sum + (invoice['total_amount'] as num? ?? 0),
+        );
+
+        print(
+          '📊 [DetailAkunScreen] Checking invoices for account ID: ${akun.id}',
+        );
+        print(
+          '📊 [DetailAkunScreen] Found ${accountInvoices.length} unpaid invoices for this account',
+        );
+        print('📊 [DetailAkunScreen] Total amount: $totalAmount');
+
+        // Jika akun INI ada tagihan yang belum dibayar
+        if (accountInvoices.isNotEmpty) {
+          _showTagihanBelumLunasDialog(context, accountInvoices, totalAmount);
           return;
         }
+
+        print(
+          '✅ [DetailAkunScreen] No unpaid invoices, can proceed with deactivation',
+        );
       }
 
       // Toggle status akun (active <-> inactive)

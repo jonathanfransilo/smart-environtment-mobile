@@ -75,6 +75,12 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
   // List untuk menyimpan nama akun yang sudah ada
   List<String> _existingAccountNames = [];
 
+  // State untuk menampilkan card notifikasi validasi
+  bool _showValidationNotification = false;
+  String _validationTitle = '';
+  String _validationMessage = '';
+  String _validationField = '';
+
   @override
   void initState() {
     super.initState();
@@ -225,6 +231,28 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
     debugPrint('Koordinat dipilih: $lat, $lng');
   }
 
+  void _showValidationError({
+    required String title,
+    required String message,
+    required String field,
+  }) {
+    setState(() {
+      _showValidationNotification = true;
+      _validationTitle = title;
+      _validationMessage = message;
+      _validationField = field;
+    });
+
+    // Auto-hide setelah 5 detik
+    Future.delayed(const Duration(seconds: 5), () {
+      if (mounted) {
+        setState(() {
+          _showValidationNotification = false;
+        });
+      }
+    });
+  }
+
   Future<void> _searchAddress(String address) async {
     if (address.trim().isEmpty) {
       return;
@@ -284,8 +312,103 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
   }
 
   Future<void> _simpanData() async {
-    if (_selectedKecamatanOption == null || _selectedKelurahanOption == null) {
-      _showSnackBar('Harap pilih Kecamatan dan Kelurahan yang valid.');
+    // Validasi Nama Lengkap
+    if (_namaController.text.trim().isEmpty) {
+      _showValidationError(
+        title: 'Nama Lengkap Kosong',
+        message: 'Nama lengkap tidak boleh kosong',
+        field: _namaController.text.trim(),
+      );
+      return;
+    }
+
+    // Cek duplikat nama
+    final nameLower = _namaController.text.toLowerCase().trim();
+    if (_existingAccountNames.contains(nameLower)) {
+      _showValidationError(
+        title: 'Nama Sudah Terdaftar',
+        message: 'Nama "${_namaController.text.trim()}" sudah pernah digunakan',
+        field: _namaController.text.trim(),
+      );
+      return;
+    }
+
+    // Validasi Nomor Telepon
+    if (_teleponController.text.trim().isEmpty) {
+      _showValidationError(
+        title: 'Nomor Telepon Kosong',
+        message: 'Nomor telepon tidak boleh kosong',
+        field: 'Nomor Telepon',
+      );
+      return;
+    }
+
+    if (_teleponController.text.length < 11) {
+      _showValidationError(
+        title: 'Nomor Telepon Tidak Valid',
+        message: 'Nomor telepon minimal 11 digit',
+        field: _teleponController.text,
+      );
+      return;
+    }
+
+    if (_teleponController.text.length > 13) {
+      _showValidationError(
+        title: 'Nomor Telepon Terlalu Panjang',
+        message: 'Nomor telepon maksimal 13 digit',
+        field: _teleponController.text,
+      );
+      return;
+    }
+
+    // Validasi Kecamatan dan Kelurahan
+    if (_selectedKecamatanOption == null) {
+      _showValidationError(
+        title: 'Kecamatan Belum Dipilih',
+        message: 'Silakan pilih kecamatan terlebih dahulu',
+        field: 'Kecamatan',
+      );
+      return;
+    }
+
+    if (_selectedKelurahanOption == null) {
+      _showValidationError(
+        title: 'Kelurahan Belum Dipilih',
+        message: 'Silakan pilih kelurahan terlebih dahulu',
+        field: 'Kelurahan',
+      );
+      return;
+    }
+
+    // Validasi RW
+    if (_rwController.text.trim().isEmpty) {
+      _showValidationError(
+        title: 'RW Kosong',
+        message: 'RW (Rukun Warga) tidak boleh kosong',
+        field: 'RW',
+      );
+      return;
+    }
+
+    // Validasi RW tidak boleh 00
+    final rwText = _rwController.text.trim().toUpperCase();
+    final rwNumber = int.tryParse(rwText.replaceAll(RegExp(r'[^0-9]'), ''));
+    if (rwNumber != null && rwNumber == 0) {
+      _showValidationError(
+        title: 'RW Tidak Valid',
+        message: 'RW tidak boleh 00. Minimal harus RW 01',
+        field: _rwController.text.trim(),
+      );
+      return;
+    }
+
+    // Validasi Detail Alamat
+    if (_detailAlamatController.text.trim().isEmpty) {
+      _showValidationError(
+        title: 'Detail Alamat Kosong',
+        message: 'Detail alamat tidak boleh kosong',
+        field: 'Detail Alamat',
+      );
       return;
     }
 
@@ -311,7 +434,9 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
         contactPhone: _teleponController.text,
         address: _detailAlamatController.text,
         areaId: _selectedKelurahanOption!.id,
-        rwName: _rwController.text.trim().isNotEmpty ? _rwController.text.trim() : null,
+        rwName: _rwController.text.trim().isNotEmpty
+            ? _rwController.text.trim()
+            : null,
         latitude: _latitude,
         longitude: _longitude,
       );
@@ -436,6 +561,217 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
     _mapController.move(LatLng(_latitude, _longitude), _currentZoom);
   }
 
+  Widget _buildValidationNotificationCard() {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeInOut,
+      height: _showValidationNotification ? null : 0,
+      child: _showValidationNotification
+          ? AnimatedOpacity(
+              duration: const Duration(milliseconds: 400),
+              opacity: _showValidationNotification ? 1.0 : 0.0,
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.red.shade50,
+                      Colors.red.shade100.withOpacity(0.5),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.red.shade400, width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.red.withOpacity(0.25),
+                      blurRadius: 12,
+                      spreadRadius: 2,
+                      offset: const Offset(0, 4),
+                    ),
+                    BoxShadow(
+                      color: Colors.red.shade100.withOpacity(0.5),
+                      blurRadius: 20,
+                      spreadRadius: -5,
+                      offset: const Offset(0, -2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Icon dengan animasi pulse
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0.8, end: 1.0),
+                      duration: const Duration(milliseconds: 600),
+                      curve: Curves.easeInOut,
+                      builder: (context, scale, child) {
+                        return Transform.scale(scale: scale, child: child);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [Colors.red.shade400, Colors.red.shade600],
+                          ),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.red.withOpacity(0.4),
+                              blurRadius: 8,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.error_outline_rounded,
+                          color: Colors.white,
+                          size: 32,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  _validationTitle,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.red.shade900,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.shade700,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.warning_rounded,
+                                      color: Colors.white,
+                                      size: 12,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Error',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          if (_validationField.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: Colors.red.shade200,
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.edit_outlined,
+                                    color: Colors.red.shade700,
+                                    size: 18,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      '"$_validationField"',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.red.shade800,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.info_outline_rounded,
+                                color: Colors.red.shade700,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  _validationMessage,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    color: Colors.red.shade700,
+                                    height: 1.4,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    InkWell(
+                      onTap: () {
+                        setState(() {
+                          _showValidationNotification = false;
+                        });
+                      },
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade100,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.close_rounded,
+                          color: Colors.red.shade700,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : const SizedBox.shrink(),
+    );
+  }
+
   @override
   void dispose() {
     _namaController.dispose();
@@ -469,49 +805,58 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
       bottomNavigationBar: !_isLoading
           ? Padding(
               padding: const EdgeInsets.all(20),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isSubmitting ? null : _simpanData,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4CAF50),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: _isSubmitting
-                      ? Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            SizedBox(
-                              height: 18,
-                              width: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Text(
-                              'Menyimpan...',
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Card Notifikasi Validasi
+                  _buildValidationNotificationCard(),
+
+                  // Tombol Simpan
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _isSubmitting ? null : _simpanData,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4CAF50),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: _isSubmitting
+                          ? Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                SizedBox(
+                                  height: 18,
+                                  width: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  'Menyimpan...',
+                                  style: GoogleFonts.poppins(
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Text(
+                              'Simpan',
                               style: GoogleFonts.poppins(
                                 fontWeight: FontWeight.w600,
                                 color: Colors.white,
                                 fontSize: 16,
                               ),
                             ),
-                          ],
-                        )
-                      : Text(
-                          'Simpan',
-                          style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                            fontSize: 16,
-                          ),
-                        ),
-                ),
+                    ),
+                  ),
+                ],
               ),
             )
           : null,
@@ -553,7 +898,66 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
               _buildLabel('Nama Lengkap'),
               TextFormField(
                 controller: _namaController,
-                decoration: _inputDecoration(hintText: 'Masukkan nama lengkap'),
+                decoration: _inputDecoration(hintText: 'Masukkan nama lengkap')
+                    .copyWith(
+                      // Tambahkan suffix icon warning jika nama sudah digunakan
+                      suffixIcon:
+                          _namaController.text.isNotEmpty &&
+                              _existingAccountNames.contains(
+                                _namaController.text.toLowerCase().trim(),
+                              )
+                          ? const Icon(
+                              Icons.warning_amber_rounded,
+                              color: Colors.red,
+                              size: 24,
+                            )
+                          : null,
+                      // Helper text merah jika nama sudah digunakan
+                      helperText:
+                          _namaController.text.isNotEmpty &&
+                              _existingAccountNames.contains(
+                                _namaController.text.toLowerCase().trim(),
+                              )
+                          ? 'Nama akun layanan "${_namaController.text}" sudah digunakan.'
+                          : null,
+                      helperStyle: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.red,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      helperMaxLines: 2,
+                      // Border merah jika nama sudah digunakan
+                      enabledBorder:
+                          _namaController.text.isNotEmpty &&
+                              _existingAccountNames.contains(
+                                _namaController.text.toLowerCase().trim(),
+                              )
+                          ? OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(
+                                color: Colors.red,
+                                width: 1.5,
+                              ),
+                            )
+                          : null,
+                      focusedBorder:
+                          _namaController.text.isNotEmpty &&
+                              _existingAccountNames.contains(
+                                _namaController.text.toLowerCase().trim(),
+                              )
+                          ? OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(
+                                color: Colors.red,
+                                width: 2,
+                              ),
+                            )
+                          : null,
+                    ),
+                onChanged: (value) {
+                  // Trigger rebuild untuk update visual feedback
+                  setState(() {});
+                },
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Nama wajib diisi';
@@ -704,35 +1108,51 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
               TextFormField(
                 controller: _rwController,
                 keyboardType: TextInputType.text,
-                decoration: _inputDecoration(
-                  hintText: 'Contoh: RW 05 atau ketik 5',
-                ).copyWith(
-                  // helperText: 'Opsional - Kosongkan jika tidak ada',
-                  helperStyle: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
-                ),
+                decoration:
+                    _inputDecoration(
+                      hintText: 'Contoh: RW 05 atau ketik 5',
+                    ).copyWith(
+                      helperText: 'Minimal RW 01, tidak boleh RW 00',
+                      helperStyle: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return null; // Optional field
+                    return 'RW wajib diisi';
                   }
                   // Regex untuk format RW (case insensitive)
                   // Boleh: "RW 5", "rw 05", "5", "05", "RW05"
-                  final rwRegex = RegExp(r'^(RW\s*)?\d{1,3}$', caseSensitive: false);
+                  final rwRegex = RegExp(
+                    r'^(RW\s*)?\d{1,3}$',
+                    caseSensitive: false,
+                  );
                   if (!rwRegex.hasMatch(value.trim())) {
                     return 'Format RW tidak valid. Contoh: RW 05 atau 5';
                   }
+
+                  // Validasi tidak boleh RW 00
+                  final rwNumber = int.tryParse(
+                    value.trim().replaceAll(RegExp(r'[^0-9]'), ''),
+                  );
+                  if (rwNumber != null && rwNumber == 0) {
+                    return 'RW tidak boleh 00. Minimal harus RW 01';
+                  }
+
                   return null;
                 },
                 onChanged: (value) {
                   // Auto-format: jika user ketik angka saja, tambahkan prefix RW
-                  if (value.isNotEmpty && RegExp(r'^\d+$').hasMatch(value.trim())) {
+                  if (value.isNotEmpty &&
+                      RegExp(r'^\d+$').hasMatch(value.trim())) {
                     final formatted = 'RW ${value.trim().padLeft(2, '0')}';
                     if (_rwController.text != formatted) {
                       _rwController.value = TextEditingValue(
                         text: formatted,
-                        selection: TextSelection.collapsed(offset: formatted.length),
+                        selection: TextSelection.collapsed(
+                          offset: formatted.length,
+                        ),
                       );
                     }
                   }

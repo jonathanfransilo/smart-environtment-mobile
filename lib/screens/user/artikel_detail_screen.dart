@@ -14,8 +14,10 @@ class ArtikelDetailScreen extends StatefulWidget {
     this.article,
     this.articleId,
     this.articleSlug,
-  }) : assert(article != null || articleId != null || articleSlug != null,
-            'Either article, articleId, or articleSlug must be provided');
+  }) : assert(
+         article != null || articleId != null || articleSlug != null,
+         'Either article, articleId, or articleSlug must be provided',
+       );
 
   @override
   State<ArtikelDetailScreen> createState() => _ArtikelDetailScreenState();
@@ -109,7 +111,10 @@ class _ArtikelDetailScreenState extends State<ArtikelDetailScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF009688),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -124,7 +129,9 @@ class _ArtikelDetailScreenState extends State<ArtikelDetailScreen> {
       return const Center(child: Text('Artikel tidak ditemukan'));
     }
 
-    final imageUrl = _article!.imageUrl ?? 'https://via.placeholder.com/400x220?text=No+Image';
+    final imageUrl =
+        _article!.imageUrl ??
+        'https://via.placeholder.com/400x220?text=No+Image';
 
     return SingleChildScrollView(
       child: Column(
@@ -166,7 +173,11 @@ class _ArtikelDetailScreenState extends State<ArtikelDetailScreen> {
               child: Row(
                 children: [
                   if (_article!.author != null) ...[
-                    Icon(Icons.person_outline, size: 16, color: Colors.grey[600]),
+                    Icon(
+                      Icons.person_outline,
+                      size: 16,
+                      color: Colors.grey[600],
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       _article!.author!,
@@ -200,7 +211,11 @@ class _ArtikelDetailScreenState extends State<ArtikelDetailScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 children: [
-                  Icon(Icons.visibility_outlined, size: 16, color: Colors.grey[600]),
+                  Icon(
+                    Icons.visibility_outlined,
+                    size: 16,
+                    color: Colors.grey[600],
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     '${_article!.viewCount} kali dilihat',
@@ -215,7 +230,7 @@ class _ArtikelDetailScreenState extends State<ArtikelDetailScreen> {
 
           const SizedBox(height: 16),
 
-          // Excerpt (if available)
+          // Excerpt (if available) - render HTML safely so tags like <p>/<span> are displayed correctly
           if (_article!.excerpt != null && _article!.excerpt!.isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -226,14 +241,23 @@ class _ArtikelDetailScreenState extends State<ArtikelDetailScreen> {
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: Colors.grey[300]!),
                 ),
-                child: Text(
-                  _article!.excerpt!,
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontStyle: FontStyle.italic,
-                    color: Colors.grey[700],
-                    height: 1.5,
-                  ),
+                // Use Html widget to render any inline HTML in the excerpt instead of showing raw tags
+                child: Html(
+                  data: _article!.excerpt!,
+                  style: {
+                    "body": Style(
+                      fontSize: FontSize(14),
+                      fontStyle: FontStyle.italic,
+                      color: Colors.grey[700],
+                      fontFamily: GoogleFonts.poppins().fontFamily,
+                      lineHeight: const LineHeight(1.5),
+                      margin: Margins.zero,
+                    ),
+                    // Keep paragraphs compact inside the excerpt box
+                    "p": Style(margin: Margins.only(bottom: 8)),
+                    // Ensure spans inherit the body style
+                    "span": Style(),
+                  },
                 ),
               ),
             ),
@@ -252,9 +276,7 @@ class _ArtikelDetailScreenState extends State<ArtikelDetailScreen> {
                   color: Colors.black87,
                   fontFamily: GoogleFonts.poppins().fontFamily,
                 ),
-                "p": Style(
-                  margin: Margins.only(bottom: 12),
-                ),
+                "p": Style(margin: Margins.only(bottom: 12)),
                 "h1": Style(
                   fontSize: FontSize(24),
                   fontWeight: FontWeight.bold,
@@ -270,9 +292,7 @@ class _ArtikelDetailScreenState extends State<ArtikelDetailScreen> {
                   fontWeight: FontWeight.bold,
                   margin: Margins.only(top: 12, bottom: 8),
                 ),
-                "img": Style(
-                  margin: Margins.symmetric(vertical: 12),
-                ),
+                "img": Style(margin: Margins.symmetric(vertical: 12)),
                 "a": Style(
                   color: const Color(0xFF009688),
                   textDecoration: TextDecoration.underline,
@@ -290,11 +310,16 @@ class _ArtikelDetailScreenState extends State<ArtikelDetailScreen> {
                 runSpacing: 8,
                 children: _article!.tags!.map((tag) {
                   return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFF009688).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFF009688).withOpacity(0.3)),
+                      border: Border.all(
+                        color: const Color(0xFF009688).withOpacity(0.3),
+                      ),
                     ),
                     child: Text(
                       tag,
@@ -317,8 +342,18 @@ class _ArtikelDetailScreenState extends State<ArtikelDetailScreen> {
 
   String _formatDate(DateTime date) {
     final months = [
-      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
     ];
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }

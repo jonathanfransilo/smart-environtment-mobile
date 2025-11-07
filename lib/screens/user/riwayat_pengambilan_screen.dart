@@ -34,73 +34,97 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
 
   /// Muat riwayat pickup dari API
   Future<void> _loadHistory() async {
+    if (!mounted) {
+      print('⚠️ [RiwayatPengambilan] Widget not mounted, aborting load');
+      return;
+    }
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
-    print(
-      '🔄 [RiwayatPengambilan] Loading history for account: ${widget.accountName} (ID: ${widget.serviceAccountId})',
-    );
+    try {
+      print(
+        '🔄 [RiwayatPengambilan] Loading history for account: ${widget.accountName} (ID: ${widget.serviceAccountId})',
+      );
 
-    // Kirim service_account_id ke API untuk filter data yang spesifik
-    final (success, message, pickups) = await _pickupService.getPickupHistory(
-      serviceAccountId: widget.serviceAccountId,
-    );
-
-    if (!mounted) return;
-
-    print(
-      '📊 [RiwayatPengambilan] Result - Success: $success, Items: ${pickups?.length ?? 0}',
-    );
-
-    if (success && pickups != null) {
-      // Debug: Print sample data structure
-      if (pickups.isNotEmpty) {
-        print('🔍 [RiwayatPengambilan] Sample pickup data:');
-        print('   Keys: ${pickups[0].keys}');
-
-        // Check ALL possible photo fields
-        final photoUrl = pickups[0]['photo_url'];
-        final image = pickups[0]['image'];
-        final photo = pickups[0]['photo'];
-        final pickupPhoto = pickups[0]['pickup_photo'];
-        final photoPath = pickups[0]['photo_path'];
-        final imagePath = pickups[0]['image_path'];
-
-        print('📷 [RiwayatPengambilan] Photo fields:');
-        print('   photo_url: $photoUrl');
-        print('   image: $image');
-        print('   photo: $photo');
-        print('   pickup_photo: $pickupPhoto');
-        print('   photo_path: $photoPath');
-        print('   image_path: $imagePath');
-
-        // Print full data untuk debugging
-        print('� [RiwayatPengambilan] Full data: ${pickups[0]}');
+      // Validasi service account ID
+      if (widget.serviceAccountId.isEmpty || widget.serviceAccountId == '0') {
+        throw Exception('ID akun tidak valid');
       }
 
-      setState(() {
-        _pickupHistory = pickups;
-        _isLoading = false;
-      });
+      // Kirim service_account_id ke API untuk filter data yang spesifik
+      final (success, message, pickups) = await _pickupService.getPickupHistory(
+        serviceAccountId: widget.serviceAccountId,
+      );
 
-      if (pickups.isEmpty) {
-        print('⚠️ [RiwayatPengambilan] No pickup history found');
+      if (!mounted) {
+        print('⚠️ [RiwayatPengambilan] Widget unmounted during API call');
+        return;
+      }
+
+      print(
+        '📊 [RiwayatPengambilan] API Result - Success: $success, Message: $message, Items: ${pickups?.length ?? 0}',
+      );
+
+      if (success && pickups != null) {
+        // Debug: Print sample data structure
+        if (pickups.isNotEmpty) {
+          print('🔍 [RiwayatPengambilan] Sample pickup data:');
+          print('   Keys: ${pickups[0].keys}');
+
+          // Check ALL possible photo fields
+          final photoUrl = pickups[0]['photo_url'];
+          final image = pickups[0]['image'];
+          final photo = pickups[0]['photo'];
+          final pickupPhoto = pickups[0]['pickup_photo'];
+          final photoPath = pickups[0]['photo_path'];
+          final imagePath = pickups[0]['image_path'];
+
+          print('📷 [RiwayatPengambilan] Photo fields:');
+          print('   photo_url: $photoUrl');
+          print('   image: $image');
+          print('   photo: $photo');
+          print('   pickup_photo: $pickupPhoto');
+          print('   photo_path: $photoPath');
+          print('   image_path: $imagePath');
+        }
+
+        setState(() {
+          _pickupHistory = pickups;
+          _isLoading = false;
+        });
+
+        if (pickups.isEmpty) {
+          print('⚠️ [RiwayatPengambilan] No pickup history found');
+        } else {
+          print(
+            '✅ [RiwayatPengambilan] Loaded ${pickups.length} pickup records',
+          );
+        }
       } else {
-        print('✅ [RiwayatPengambilan] Loaded ${pickups.length} pickup records');
+        throw Exception(message ?? 'Gagal memuat data dari server');
       }
-    } else {
-      print('❌ [RiwayatPengambilan] Error: $message');
+    } catch (e, stackTrace) {
+      print('❌ [RiwayatPengambilan] Error loading history: $e');
+      print('Stack trace: $stackTrace');
+
+      if (!mounted) return;
+
       setState(() {
         _isLoading = false;
-        _errorMessage = message ?? 'Gagal memuat riwayat';
+        _errorMessage = e.toString().replaceAll('Exception: ', '');
       });
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    print(
+      '🎨 [RiwayatPengambilan] Building widget - Loading: $_isLoading, Error: $_errorMessage, Items: ${_pickupHistory.length}',
+    );
+
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
       appBar: AppBar(
@@ -128,6 +152,13 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
         backgroundColor: const Color.fromARGB(255, 21, 145, 137),
         foregroundColor: Colors.white,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            print('⬅️ [RiwayatPengambilan] Back button pressed');
+            Navigator.of(context).pop();
+          },
+        ),
       ),
       body: _isLoading ? _buildShimmer() : _buildContent(),
     );
@@ -229,300 +260,333 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
 
   /// Card untuk setiap pickup - Satu card per pickup (bukan per item)
   Widget _buildPickupCard(Map<String, dynamic> pickup) {
-    final pickupDate = pickup['pickup_date'] as String?;
-    final wasteItems = pickup['waste_items'] as List<dynamic>?;
-    final serviceAccount = pickup['service_account'] as Map<String, dynamic>?;
+    try {
+      final pickupDate = pickup['pickup_date'] as String?;
+      final wasteItems = pickup['waste_items'] as List<dynamic>?;
+      final serviceAccount = pickup['service_account'] as Map<String, dynamic>?;
 
-    if (wasteItems == null || wasteItems.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    // Calculate totals for this pickup
-    int totalItems = wasteItems.length;
-    double totalPrice = 0;
-
-    // Get dominant waste type (yang paling banyak)
-    Map<String, int> typeCount = {};
-
-    for (var item in wasteItems) {
-      // Calculate price
-      final itemPrice = item['total_price'] ?? 0;
-      totalPrice += itemPrice is String
-          ? double.tryParse(itemPrice) ?? 0
-          : itemPrice;
-
-      // Count waste types
-      final wasteType =
-          item['waste_type']?.toString() ??
-          item['waste']?['type']?.toString() ??
-          _getCategoryFromName(item['waste_category'] ?? '');
-      typeCount[wasteType] = (typeCount[wasteType] ?? 0) + 1;
-    }
-
-    final address =
-        serviceAccount?['address'] ??
-        serviceAccount?['alamat'] ??
-        widget.accountName;
-
-    // Get photo URL - check multiple possible field names
-    String? photoUrl =
-        pickup['photo_url'] as String? ??
-        pickup['pickup_photo'] as String? ??
-        pickup['image'] as String? ??
-        pickup['photo'] as String? ??
-        pickup['photo_path'] as String? ??
-        pickup['image_path'] as String?;
-
-    // Jika photo URL relatif (tidak dimulai dengan http), tambahkan base URL
-    if (photoUrl != null && photoUrl.isNotEmpty) {
-      if (!photoUrl.startsWith('http')) {
-        // Hapus leading slash jika ada
-        if (photoUrl.startsWith('/')) {
-          photoUrl = photoUrl.substring(1);
-        }
-        // Tambahkan base URL
-        final baseUrl = 'https://smart-environment-web.citiasiainc.id';
-        photoUrl = '$baseUrl/$photoUrl';
+      if (wasteItems == null || wasteItems.isEmpty) {
+        print('⚠️ [RiwayatPengambilan] Empty waste items for pickup');
+        return const SizedBox.shrink();
       }
-    }
 
-    final hasPhoto = photoUrl != null && photoUrl.isNotEmpty;
+      // Calculate totals for this pickup
+      int totalItems = wasteItems.length;
+      double totalPrice = 0;
 
-    if (hasPhoto) {
-      print('📷 [Card] Photo URL for pickup: $photoUrl');
-    }
+      // Get dominant waste type (yang paling banyak)
+      Map<String, int> typeCount = {};
 
-    return GestureDetector(
-      onTap: () => _showDetailDialog(pickup),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey[300]!, width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha(8),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header dengan tanggal saja (tanpa badge kategori)
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                  topRight: Radius.circular(16),
+      for (var item in wasteItems) {
+        try {
+          // Calculate price
+          final itemPrice = item['total_price'] ?? 0;
+          totalPrice += itemPrice is String
+              ? double.tryParse(itemPrice) ?? 0
+              : (itemPrice as num).toDouble();
+
+          // Count waste types
+          final wasteType =
+              item['waste_type']?.toString() ??
+              item['waste']?['type']?.toString() ??
+              _getCategoryFromName(item['waste_category'] ?? '');
+          typeCount[wasteType] = (typeCount[wasteType] ?? 0) + 1;
+        } catch (e) {
+          print('⚠️ [RiwayatPengambilan] Error processing waste item: $e');
+        }
+      }
+
+      final address =
+          serviceAccount?['address'] ??
+          serviceAccount?['alamat'] ??
+          widget.accountName;
+
+      // Get photo URL - check multiple possible field names
+      String? photoUrl =
+          pickup['photo_url'] as String? ??
+          pickup['pickup_photo'] as String? ??
+          pickup['image'] as String? ??
+          pickup['photo'] as String? ??
+          pickup['photo_path'] as String? ??
+          pickup['image_path'] as String?;
+
+      // Jika photo URL relatif (tidak dimulai dengan http), tambahkan base URL
+      if (photoUrl != null && photoUrl.isNotEmpty) {
+        if (!photoUrl.startsWith('http')) {
+          // Hapus leading slash jika ada
+          if (photoUrl.startsWith('/')) {
+            photoUrl = photoUrl.substring(1);
+          }
+          // Tambahkan base URL
+          final baseUrl = 'https://smart-environment-web.citiasiainc.id';
+          photoUrl = '$baseUrl/$photoUrl';
+        }
+      }
+
+      final hasPhoto = photoUrl != null && photoUrl.isNotEmpty;
+
+      if (hasPhoto) {
+        print('📷 [Card] Photo URL for pickup: $photoUrl');
+      }
+
+      return GestureDetector(
+        onTap: () {
+          try {
+            print('👆 [RiwayatPengambilan] Card tapped, showing detail dialog');
+            _showDetailDialog(pickup);
+          } catch (e, stackTrace) {
+            print('💥 [RiwayatPengambilan] Error opening detail dialog: $e');
+            print('Stack trace: $stackTrace');
+
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Gagal membuka detail: ${e.toString()}',
+                    style: GoogleFonts.poppins(),
+                  ),
+                  backgroundColor: Colors.red,
                 ),
+              );
+            }
+          }
+        },
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey[300]!, width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(8),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.delete_outline,
-                        size: 20,
-                        color: Colors.grey[600],
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Pengambilan Sampah',
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ],
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header dengan tanggal saja (tanpa badge kategori)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    topRight: Radius.circular(16),
                   ),
-                  Row(
-                    children: [
-                      // Badge foto dihapus
-                      Text(
-                        pickupDate != null ? _formatDateShort(pickupDate) : '-',
-                        style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.grey[700],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.delete_outline,
+                          size: 20,
+                          color: Colors.grey[600],
                         ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            // Body dengan info ringkas (tanpa foto thumbnail)
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Alamat
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.location_on_outlined,
-                        size: 16,
-                        color: Colors.grey[600],
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          address,
+                        const SizedBox(width: 8),
+                        Text(
+                          'Pengambilan Sampah',
                           style: GoogleFonts.poppins(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                             color: Colors.black87,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  // Photo thumbnail jika ada
-                  if (hasPhoto) ...[
-                    Container(
-                      width: double.infinity,
-                      height: 180,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[200],
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey[300]!),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.network(
-                          photoUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Center(
-                              child: Icon(
-                                Icons.broken_image,
-                                size: 48,
-                                color: Colors.grey[400],
-                              ),
-                            );
-                          },
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return Center(
-                              child: CircularProgressIndicator(
-                                value:
-                                    loadingProgress.expectedTotalBytes != null
-                                    ? loadingProgress.cumulativeBytesLoaded /
-                                          loadingProgress.expectedTotalBytes!
-                                    : null,
-                                strokeWidth: 2,
-                              ),
-                            );
-                          },
-                        ),
-                      ),
+                      ],
                     ),
-                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        // Badge foto dihapus
+                        Text(
+                          pickupDate != null
+                              ? _formatDateShort(pickupDate)
+                              : '-',
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
+                ),
+              ),
 
-                  // Info row (Total Items saja, tanpa berat)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Total Item',
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          color: Colors.grey[500],
+              // Body dengan info ringkas (tanpa foto thumbnail)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Alamat
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.location_on_outlined,
+                          size: 16,
+                          color: Colors.grey[600],
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '$totalItems jenis sampah',
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            address,
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
 
-                  const SizedBox(height: 12),
-                  const Divider(height: 1),
-                  const SizedBox(height: 12),
+                    const SizedBox(height: 12),
 
-                  // Total Harga & Lihat Detail
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Total Harga',
-                            style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              color: Colors.grey[500],
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Rp. ${_formatCurrency(totalPrice)}',
-                            style: GoogleFonts.poppins(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF4CAF50),
-                            ),
-                          ),
-                        ],
-                      ),
+                    // Photo thumbnail jika ada
+                    if (hasPhoto) ...[
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
+                        width: double.infinity,
+                        height: 180,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF009688),
-                          borderRadius: BorderRadius.circular(8),
+                          color: Colors.grey[200],
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey[300]!),
                         ),
-                        child: Row(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.network(
+                            photoUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Center(
+                                child: Icon(
+                                  Icons.broken_image,
+                                  size: 48,
+                                  color: Colors.grey[400],
+                                ),
+                              );
+                            },
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return Center(
+                                child: CircularProgressIndicator(
+                                  value:
+                                      loadingProgress.expectedTotalBytes != null
+                                      ? loadingProgress.cumulativeBytesLoaded /
+                                            loadingProgress.expectedTotalBytes!
+                                      : null,
+                                  strokeWidth: 2,
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+
+                    // Info row (Total Items saja, tanpa berat)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Total Item',
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '$totalItems jenis sampah',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 12),
+                    const Divider(height: 1),
+                    const SizedBox(height: 12),
+
+                    // Total Harga & Lihat Detail
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Detail',
+                              'Total Harga',
                               style: GoogleFonts.poppins(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
+                                fontSize: 12,
+                                color: Colors.grey[500],
                               ),
                             ),
-                            const SizedBox(width: 4),
-                            const Icon(
-                              Icons.arrow_forward_ios,
-                              size: 12,
-                              color: Colors.white,
+                            const SizedBox(height: 2),
+                            Text(
+                              'Rp. ${_formatCurrency(totalPrice)}',
+                              style: GoogleFonts.poppins(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF4CAF50),
+                              ),
                             ),
                           ],
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF009688),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              Text(
+                                'Detail',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              const Icon(
+                                Icons.arrow_forward_ios,
+                                size: 12,
+                                color: Colors.white,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
-    );
+      );
+    } catch (e, stackTrace) {
+      print('💥 [RiwayatPengambilan] Error building pickup card: $e');
+      print('Stack trace: $stackTrace');
+      return const SizedBox.shrink();
+    }
   }
 
   /// Format tanggal pendek (contoh: Selasa, 27 Mei 2025 13:58)

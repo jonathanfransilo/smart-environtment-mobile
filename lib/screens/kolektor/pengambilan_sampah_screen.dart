@@ -154,8 +154,30 @@ class _PengambilanSampahScreenState extends State<PengambilanSampahScreen>
     }
   }
 
+  // Helper method untuk format nomor telepon dari 0xxx menjadi +62xxx
+  String _formatPhoneNumber(String phone) {
+    // Bersihkan nomor dari spasi, dash, dan tanda kurung
+    String formatted = phone.trim().replaceAll(RegExp(r'[\s\-()]'), '');
+
+    // Jika diawali dengan 0, ganti dengan +62
+    if (formatted.startsWith('0')) {
+      return '+62${formatted.substring(1)}';
+    }
+
+    // Jika diawali dengan 62 tanpa +, tambahkan +
+    if (formatted.startsWith('62') && !formatted.startsWith('+')) {
+      return '+$formatted';
+    }
+
+    // Jika sudah benar formatnya, return as is
+    return formatted;
+  }
+
   Future<void> _makePhoneCall(String phoneNumber) async {
-    final Uri phoneUri = Uri.parse('tel:$phoneNumber');
+    // Format nomor telepon ke format internasional (+62xxx)
+    final String formattedPhone = _formatPhoneNumber(phoneNumber);
+    final Uri phoneUri = Uri.parse('tel:$formattedPhone');
+
     if (!await launchUrl(phoneUri)) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -169,9 +191,17 @@ class _PengambilanSampahScreenState extends State<PengambilanSampahScreen>
   }
 
   Future<void> _openChat(String phoneNumber) async {
-    final Uri whatsappUri = Uri.parse(
-      'https://wa.me/${phoneNumber.replaceAll('+', '').replaceAll('-', '').replaceAll(' ', '')}',
-    );
+    // Format nomor telepon ke format internasional (+62xxx)
+    final String formattedPhone = _formatPhoneNumber(phoneNumber);
+
+    // Untuk WhatsApp, hilangkan tanda + (butuh format 62xxx saja)
+    final String whatsappNumber = formattedPhone
+        .replaceAll('+', '')
+        .replaceAll('-', '')
+        .replaceAll(' ', '');
+
+    final Uri whatsappUri = Uri.parse('https://wa.me/$whatsappNumber');
+
     if (!await launchUrl(whatsappUri, mode: LaunchMode.externalApplication)) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

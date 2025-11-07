@@ -10,7 +10,8 @@ class RiwayatPembayaranScreen extends StatefulWidget {
   const RiwayatPembayaranScreen({super.key});
 
   @override
-  State<RiwayatPembayaranScreen> createState() => _RiwayatPembayaranScreenState();
+  State<RiwayatPembayaranScreen> createState() =>
+      _RiwayatPembayaranScreenState();
 }
 
 class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
@@ -18,7 +19,7 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
   bool _isLoading = true;
   double _totalBulanIni = 0;
   int _jumlahTransaksi = 0;
-  
+
   // Untuk sistem tagihan
   double _totalTagihanPending = 0;
   int _jumlahTagihanPending = 0;
@@ -33,46 +34,60 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
 
   Future<void> _loadRiwayatPembayaran() async {
     setState(() => _isLoading = true);
-    
+
     try {
       // Load from API for invoice payments
       final service = RiwayatPembayaranService();
-      final paymentHistory = await service.getPaymentHistory(page: 1, perPage: 50);
-      
+      final paymentHistory = await service.getPaymentHistory(
+        page: 1,
+        perPage: 50,
+      );
+
       // Load from local storage for waste pickups (legacy)
-      final localRiwayat = await RiwayatPembayaranService.getRiwayatPembayaran();
-      
+      final localRiwayat =
+          await RiwayatPembayaranService.getRiwayatPembayaran();
+
       // Combine both lists
       final combined = [...paymentHistory, ...localRiwayat];
-      
+
       // Sort by date
       combined.sort((a, b) {
-        final dateA = DateTime.parse(a['created_at'] ?? DateTime.now().toIso8601String());
-        final dateB = DateTime.parse(b['created_at'] ?? DateTime.now().toIso8601String());
+        final dateA = DateTime.parse(
+          a['created_at'] ?? DateTime.now().toIso8601String(),
+        );
+        final dateB = DateTime.parse(
+          b['created_at'] ?? DateTime.now().toIso8601String(),
+        );
         return dateB.compareTo(dateA);
       });
-      
+
       // Calculate totals for this month (only from payments)
       final now = DateTime.now();
       final thisMonth = paymentHistory.where((p) {
         final createdAt = DateTime.parse(p['created_at']);
         return createdAt.month == now.month && createdAt.year == now.year;
       }).toList();
-      
-      final totalBulanIni = thisMonth.where((p) => p['status'] == 'success').fold<double>(
-        0.0,
-        (sum, p) => sum + ((p['amount'] ?? 0) as num).toDouble(),
-      );
-      
-      final jumlahTransaksi = thisMonth.where((p) => p['status'] == 'success').length;
-      
+
+      final totalBulanIni = thisMonth
+          .where((p) => p['status'] == 'success')
+          .fold<double>(
+            0.0,
+            (sum, p) => sum + ((p['amount'] ?? 0) as num).toDouble(),
+          );
+
+      final jumlahTransaksi = thisMonth
+          .where((p) => p['status'] == 'success')
+          .length;
+
       // Calculate pending invoices
-      final pendingPayments = paymentHistory.where((p) => p['status'] == 'pending').toList();
+      final pendingPayments = paymentHistory
+          .where((p) => p['status'] == 'pending')
+          .toList();
       final totalTagihanPending = pendingPayments.fold<double>(
         0.0,
         (sum, p) => sum + ((p['amount'] ?? 0) as num).toDouble(),
       );
-      
+
       if (mounted) {
         setState(() {
           _riwayatList = combined;
@@ -171,9 +186,8 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
           final result = await Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => PaymentProcessScreen(
-                payment: pendingPayment,
-              ),
+              builder: (context) =>
+                  PaymentProcessScreen(payment: pendingPayment),
             ),
           );
 
@@ -247,14 +261,14 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
         case 'share_pdf':
           await _sharePdf();
           break;
+        case 'share_whatsapp':
+          await _shareToWhatsApp();
+          break;
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -272,18 +286,17 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
               color: Color.fromARGB(255, 21, 145, 137),
             ),
             const SizedBox(width: 20),
-            Text(
-              'Membuat PDF...',
-              style: GoogleFonts.poppins(),
-            ),
+            Text('Membuat PDF...', style: GoogleFonts.poppins()),
           ],
         ),
       ),
     );
 
     try {
-      final file = await PdfExportService.generateRiwayatPembayaranPdf(_riwayatList);
-      
+      final file = await PdfExportService.generateRiwayatPembayaranPdf(
+        _riwayatList,
+      );
+
       if (mounted) {
         Navigator.pop(context); // Close loading dialog
         ScaffoldMessenger.of(context).showSnackBar(
@@ -349,7 +362,7 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
 
     try {
       await PdfExportService.shareRiwayatPembayaran(_riwayatList);
-      
+
       if (mounted) {
         Navigator.pop(context); // Close loading dialog
       }
@@ -359,6 +372,46 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Gagal membagikan PDF: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _shareToWhatsApp() async {
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        content: Row(
+          children: [
+            const CircularProgressIndicator(
+              color: Color.fromARGB(255, 21, 145, 137),
+            ),
+            const SizedBox(width: 20),
+            Text(
+              'Menyiapkan PDF untuk WhatsApp...',
+              style: GoogleFonts.poppins(),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      await PdfExportService.shareToWhatsApp(_riwayatList);
+
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal mengirim ke WhatsApp: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -440,13 +493,23 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
                     ],
                   ),
                 ),
+                const PopupMenuItem<String>(
+                  value: 'share_whatsapp',
+                  child: Row(
+                    children: [
+                      Icon(Icons.chat, color: Color(0xFF25D366)),
+                      SizedBox(width: 8),
+                      Text('Kirim ke WhatsApp'),
+                    ],
+                  ),
+                ),
               ],
             ),
           ],
         ],
       ),
       body: _isLoading ? _buildLoadingWidget() : _buildContent(),
-      floatingActionButton: _riwayatList.isNotEmpty 
+      floatingActionButton: _riwayatList.isNotEmpty
           ? FloatingActionButton.extended(
               onPressed: () => _handleMenuAction('export_pdf'),
               backgroundColor: const Color.fromARGB(255, 21, 145, 137),
@@ -483,13 +546,13 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
                 children: [
                   _buildSummaryCard(),
                   const SizedBox(height: 16),
-                  
+
                   // Card untuk tagihan pending
                   if (_jumlahTagihanPending > 0) ...[
                     _buildTagihanPendingCard(),
                     const SizedBox(height: 16),
                   ],
-                  
+
                   Row(
                     children: [
                       Text(
@@ -529,24 +592,17 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
 
           // Riwayat List
           if (_riwayatList.isEmpty && _jumlahTagihanPending == 0)
-            SliverToBoxAdapter(
-              child: _buildEmptyState(),
-            )
+            SliverToBoxAdapter(child: _buildEmptyState())
           else
             SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final riwayat = _riwayatList[index];
-                  return _buildRiwayatItem(riwayat, index);
-                },
-                childCount: _riwayatList.length,
-              ),
+              delegate: SliverChildBuilderDelegate((context, index) {
+                final riwayat = _riwayatList[index];
+                return _buildRiwayatItem(riwayat, index);
+              }, childCount: _riwayatList.length),
             ),
 
           // Bottom padding
-          const SliverToBoxAdapter(
-            child: SizedBox(height: 20),
-          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 20)),
         ],
       ),
     );
@@ -560,7 +616,7 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
         gradient: const LinearGradient(
           colors: [
             Color.fromARGB(255, 255, 152, 0), // Orange
-            Color.fromARGB(255, 255, 193, 7),  // Amber
+            Color.fromARGB(255, 255, 193, 7), // Amber
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -607,10 +663,7 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
           const SizedBox(height: 8),
           Text(
             '$_jumlahTagihanPending tagihan menunggu pembayaran',
-            style: GoogleFonts.poppins(
-              color: Colors.white70,
-              fontSize: 14,
-            ),
+            style: GoogleFonts.poppins(color: Colors.white70, fontSize: 14),
           ),
           const SizedBox(height: 16),
           SizedBox(
@@ -643,8 +696,19 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
     final now = DateTime.now();
     // Gunakan format sederhana tanpa locale untuk menghindari LocaleDataException
     final monthNames = [
-      '', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+      '',
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
     ];
     final monthName = '${monthNames[now.month]} ${now.year}';
 
@@ -682,10 +746,7 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
               const SizedBox(width: 8),
               Text(
                 'Total Pembayaran $monthName',
-                style: GoogleFonts.poppins(
-                  color: Colors.white70,
-                  fontSize: 14,
-                ),
+                style: GoogleFonts.poppins(color: Colors.white70, fontSize: 14),
               ),
             ],
           ),
@@ -721,7 +782,9 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
         ],
       ),
     );
-  }  Widget _buildSummaryItem(String label, String value, IconData icon) {
+  }
+
+  Widget _buildSummaryItem(String label, String value, IconData icon) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Column(
@@ -733,10 +796,7 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
               const SizedBox(width: 4),
               Text(
                 label,
-                style: GoogleFonts.poppins(
-                  color: Colors.white70,
-                  fontSize: 12,
-                ),
+                style: GoogleFonts.poppins(color: Colors.white70, fontSize: 12),
               ),
             ],
           ),
@@ -757,7 +817,7 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
   Widget _buildRiwayatItem(Map<String, dynamic> riwayat, int index) {
     // Check if this is a payment from API or waste pickup from local storage
     final bool isPayment = riwayat.containsKey('order_id');
-    
+
     if (isPayment) {
       return _buildPaymentItem(riwayat, index);
     } else {
@@ -770,7 +830,7 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
     final invoice = payment['invoice'] as Map<String, dynamic>?;
     final status = payment['status'] ?? 'pending';
     final amount = (payment['amount'] ?? 0) as num;
-    
+
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       decoration: BoxDecoration(
@@ -799,7 +859,12 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: const Color.fromARGB(255, 21, 145, 137).withOpacity(0.1),
+                        color: const Color.fromARGB(
+                          255,
+                          21,
+                          145,
+                          137,
+                        ).withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Icon(
@@ -814,7 +879,9 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            invoice != null ? (invoice['invoice_number'] ?? 'Invoice') : 'Pembayaran Tagihan',
+                            invoice != null
+                                ? (invoice['invoice_number'] ?? 'Invoice')
+                                : 'Pembayaran Tagihan',
                             style: GoogleFonts.poppins(
                               fontWeight: FontWeight.w600,
                               fontSize: 16,
@@ -836,7 +903,9 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Text(
-                          RiwayatPembayaranService.formatCurrency(amount.toDouble()),
+                          RiwayatPembayaranService.formatCurrency(
+                            amount.toDouble(),
+                          ),
                           style: GoogleFonts.poppins(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
@@ -845,9 +914,14 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
                         ),
                         const SizedBox(height: 2),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
-                            color: _getPaymentStatusColor(status).withOpacity(0.1),
+                            color: _getPaymentStatusColor(
+                              status,
+                            ).withOpacity(0.1),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
@@ -880,9 +954,11 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
   }
 
   Widget _buildWastePickupItem(Map<String, dynamic> riwayat, int index) {
-    final tanggal = DateTime.parse(riwayat['tanggalPengambilan'] ?? DateTime.now().toIso8601String());
+    final tanggal = DateTime.parse(
+      riwayat['tanggalPengambilan'] ?? DateTime.now().toIso8601String(),
+    );
     final items = List<Map<String, dynamic>>.from(riwayat['items'] ?? []);
-    
+
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       decoration: BoxDecoration(
@@ -911,7 +987,12 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: const Color.fromARGB(255, 21, 145, 137).withOpacity(0.1),
+                        color: const Color.fromARGB(
+                          255,
+                          21,
+                          145,
+                          137,
+                        ).withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Icon(
@@ -959,16 +1040,23 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
                         ),
                         const SizedBox(height: 2),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
-                            color: _getStatusColor(riwayat['status'] ?? 'Lunas').withOpacity(0.1),
+                            color: _getStatusColor(
+                              riwayat['status'] ?? 'Lunas',
+                            ).withOpacity(0.1),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
                             riwayat['status'] ?? 'Lunas',
                             style: GoogleFonts.poppins(
                               fontSize: 10,
-                              color: _getStatusColor(riwayat['status'] ?? 'Lunas'),
+                              color: _getStatusColor(
+                                riwayat['status'] ?? 'Lunas',
+                              ),
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -1034,11 +1122,7 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
               color: Colors.grey[100],
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              Icons.receipt_long,
-              size: 50,
-              color: Colors.grey[400],
-            ),
+            child: Icon(Icons.receipt_long, size: 50, color: Colors.grey[400]),
           ),
           const SizedBox(height: 20),
           Text(
@@ -1053,10 +1137,7 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
           Text(
             'riwayat pembayaran akan muncul setelah kolektor membuat tagihan dari pengambilan sampah',
             textAlign: TextAlign.center,
-            style: GoogleFonts.poppins(
-              fontSize: 14,
-              color: Colors.grey[500],
-            ),
+            style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[500]),
           ),
         ],
       ),
@@ -1066,7 +1147,7 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
   void _showDetailDialog(Map<String, dynamic> riwayat) {
     final items = List<Map<String, dynamic>>.from(riwayat['items'] ?? []);
     final tanggal = DateTime.parse(riwayat['tanggalPengambilan']);
-    
+
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -1109,7 +1190,7 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
                   ],
                 ),
               ),
-              
+
               // Content
               Flexible(
                 child: SingleChildScrollView(
@@ -1117,12 +1198,21 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildDetailRow('Kolektor', riwayat['namaKolektor'] ?? ''),
+                      _buildDetailRow(
+                        'Kolektor',
+                        riwayat['namaKolektor'] ?? '',
+                      ),
                       _buildDetailRow('Alamat', riwayat['alamat'] ?? ''),
-                      _buildDetailRow('Tanggal', RiwayatPembayaranService.formatDate(tanggal)),
+                      _buildDetailRow(
+                        'Tanggal',
+                        RiwayatPembayaranService.formatDate(tanggal),
+                      ),
                       _buildDetailRow('Status', riwayat['status'] ?? ''),
-                      _buildDetailRow('Metode Bayar', riwayat['metodePembayaran'] ?? ''),
-                      
+                      _buildDetailRow(
+                        'Metode Bayar',
+                        riwayat['metodePembayaran'] ?? '',
+                      ),
+
                       const SizedBox(height: 20),
                       Text(
                         'Detail Sampah',
@@ -1133,9 +1223,9 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      
+
                       ...items.map((item) => _buildItemRow(item)).toList(),
-                      
+
                       const Divider(height: 30),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1164,7 +1254,7 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
                   ),
                 ),
               ),
-              
+
               // Footer
               Container(
                 padding: const EdgeInsets.all(20),
@@ -1181,7 +1271,9 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
                         ),
                         child: Text(
                           'Hapus',
-                          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),
@@ -1191,7 +1283,12 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
                       child: ElevatedButton(
                         onPressed: () => Navigator.pop(context),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color.fromARGB(255, 21, 145, 137),
+                          backgroundColor: const Color.fromARGB(
+                            255,
+                            21,
+                            145,
+                            137,
+                          ),
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
@@ -1200,7 +1297,9 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
                         ),
                         child: Text(
                           'Tutup',
-                          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),
@@ -1224,10 +1323,7 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
             width: 100,
             child: Text(
               label,
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
+              style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]),
             ),
           ),
           const Text(': '),
@@ -1272,8 +1368,8 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: item['category'] == 'Organik' 
-                  ? Colors.green[100] 
+              color: item['category'] == 'Organik'
+                  ? Colors.green[100]
                   : Colors.blue[100],
               borderRadius: BorderRadius.circular(6),
             ),
@@ -1282,8 +1378,8 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
               style: GoogleFonts.poppins(
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
-                color: item['category'] == 'Organik' 
-                    ? Colors.green[700] 
+                color: item['category'] == 'Organik'
+                    ? Colors.green[700]
                     : Colors.blue[700],
               ),
             ),
@@ -1312,7 +1408,9 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
             ),
           ),
           Text(
-            RiwayatPembayaranService.formatCurrency((item['total'] as num).toDouble()),
+            RiwayatPembayaranService.formatCurrency(
+              (item['total'] as num).toDouble(),
+            ),
             style: GoogleFonts.poppins(
               fontSize: 14,
               fontWeight: FontWeight.w600,
@@ -1326,31 +1424,147 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
 
   Color _getPaymentStatusColor(String status) {
     switch (status.toLowerCase()) {
-      case 'success': return Colors.green;
-      case 'pending': return Colors.orange;
+      case 'success':
+        return Colors.green;
+      case 'pending':
+        return Colors.orange;
       case 'failed':
-      case 'expired': return Colors.red;
-      default: return Colors.grey;
+      case 'expired':
+        return Colors.red;
+      default:
+        return Colors.grey;
     }
   }
 
   String _getPaymentStatusText(String status) {
     switch (status.toLowerCase()) {
-      case 'success': return 'Lunas';
-      case 'pending': return 'Pending';
-      case 'failed': return 'Gagal';
-      case 'expired': return 'Kadaluarsa';
-      default: return status;
+      case 'success':
+        return 'Lunas';
+      case 'pending':
+        return 'Pending';
+      case 'failed':
+        return 'Gagal';
+      case 'expired':
+        return 'Kadaluarsa';
+      default:
+        return status;
     }
   }
 
   void _showPaymentDetailDialog(Map<String, dynamic> payment) {
     final invoice = payment['invoice'] as Map<String, dynamic>?;
     // final tanggal = DateTime.parse(payment['created_at']);
-    showDialog(context: context, builder: (context) => Dialog(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), child: Column(mainAxisSize: MainAxisSize.min, children: [Container(padding: const EdgeInsets.all(20), decoration: const BoxDecoration(color: Color.fromARGB(255, 21, 145, 137), borderRadius: BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16))), child: Row(children: [const Icon(Icons.payment, color: Colors.white), const SizedBox(width: 12), Text('Detail Pembayaran', style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white))])), SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [_buildPaymentDetailRow('Order ID', payment['order_id'] ?? '-'), const SizedBox(height: 12), _buildPaymentDetailRow('Invoice', invoice?['invoice_number'] ?? '-'), const Divider(height: 30), Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('Total', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold)), Text(RiwayatPembayaranService.formatCurrency(((payment['amount'] ?? 0) as num).toDouble()), style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold, color: const Color.fromARGB(255, 21, 145, 137)))])])), Container(padding: const EdgeInsets.all(20), child: ElevatedButton(onPressed: () => Navigator.pop(context), style: ElevatedButton.styleFrom(backgroundColor: const Color.fromARGB(255, 21, 145, 137)), child: Text('Tutup', style: GoogleFonts.poppins(fontWeight: FontWeight.w600))))])));
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: const BoxDecoration(
+                color: Color.fromARGB(255, 21, 145, 137),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.payment, color: Colors.white),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Detail Pembayaran',
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildPaymentDetailRow(
+                    'Order ID',
+                    payment['order_id'] ?? '-',
+                  ),
+                  const SizedBox(height: 12),
+                  _buildPaymentDetailRow(
+                    'Invoice',
+                    invoice?['invoice_number'] ?? '-',
+                  ),
+                  const Divider(height: 30),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Total',
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        RiwayatPembayaranService.formatCurrency(
+                          ((payment['amount'] ?? 0) as num).toDouble(),
+                        ),
+                        style: GoogleFonts.poppins(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: const Color.fromARGB(255, 21, 145, 137),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.all(20),
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color.fromARGB(255, 21, 145, 137),
+                ),
+                child: Text(
+                  'Tutup',
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildPaymentDetailRow(String label, String value) {
-    return Row(children: [SizedBox(width: 120, child: Text(label, style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]))), const Text(': '), Expanded(child: Text(value, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500)))]);
+    return Row(
+      children: [
+        SizedBox(
+          width: 120,
+          child: Text(
+            label,
+            style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]),
+          ),
+        ),
+        const Text(': '),
+        Expanded(
+          child: Text(
+            value,
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
