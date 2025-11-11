@@ -4,7 +4,7 @@ import 'notification_service.dart';
 
 class NotificationScreen extends StatefulWidget {
   final bool isKolektor;
-  
+
   const NotificationScreen({super.key, this.isKolektor = false});
 
   @override
@@ -21,7 +21,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
   }
 
   Future<void> _loadNotifications() async {
-    final list = await NotificationService.getNotifications(isKolektor: widget.isKolektor);
+    final list = await NotificationService.getNotifications(
+      isKolektor: widget.isKolektor,
+    );
     setState(() {
       _notifications = list;
     });
@@ -33,7 +35,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
   }
 
   Future<void> _deleteNotification(String id) async {
-    await NotificationService.deleteNotification(id, isKolektor: widget.isKolektor);
+    await NotificationService.deleteNotification(
+      id,
+      isKolektor: widget.isKolektor,
+    );
     await _loadNotifications();
   }
 
@@ -42,11 +47,11 @@ class _NotificationScreenState extends State<NotificationScreen> {
     final title = notif['title'] as String? ?? '';
     final message = notif['message'] ?? '';
     final time = notif['time'] ?? '';
-    
+
     // Tentukan icon dan color berdasarkan tipe
     IconData iconData;
     Color iconColor;
-    
+
     switch (type) {
       case 'pickup_schedule':
         iconData = Icons.local_shipping;
@@ -106,7 +111,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                   ),
                 ),
               ),
-              
+
               // Icon
               Center(
                 child: Container(
@@ -115,16 +120,12 @@ class _NotificationScreenState extends State<NotificationScreen> {
                     color: iconColor.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(
-                    iconData,
-                    color: iconColor,
-                    size: 48,
-                  ),
+                  child: Icon(iconData, color: iconColor, size: 48),
                 ),
               ),
-              
+
               const SizedBox(height: 20),
-              
+
               // Title
               if (title.isNotEmpty) ...[
                 Text(
@@ -138,7 +139,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 ),
                 const SizedBox(height: 12),
               ],
-              
+
               // Message
               Container(
                 padding: const EdgeInsets.all(16),
@@ -156,14 +157,18 @@ class _NotificationScreenState extends State<NotificationScreen> {
                   ),
                 ),
               ),
-              
+
               const SizedBox(height: 16),
-              
+
               // Time
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.access_time, size: 16, color: Colors.grey.shade600),
+                  Icon(
+                    Icons.access_time,
+                    size: 16,
+                    color: Colors.grey.shade600,
+                  ),
                   const SizedBox(width: 6),
                   Text(
                     _formatTime(time),
@@ -174,9 +179,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 24),
-              
+
               // Action buttons
               Row(
                 children: [
@@ -184,7 +189,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                     child: OutlinedButton.icon(
                       onPressed: () async {
                         Navigator.pop(context);
-                        
+
                         // Konfirmasi hapus
                         final confirm = await showDialog<bool>(
                           context: context,
@@ -194,7 +199,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
                             ),
                             title: Text(
                               'Hapus Notifikasi',
-                              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                             content: Text(
                               'Apakah Anda yakin ingin menghapus notifikasi ini?',
@@ -205,7 +212,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
                                 onPressed: () => Navigator.pop(context, false),
                                 child: Text(
                                   'Batal',
-                                  style: GoogleFonts.poppins(color: Colors.grey),
+                                  style: GoogleFonts.poppins(
+                                    color: Colors.grey,
+                                  ),
                                 ),
                               ),
                               ElevatedButton(
@@ -219,13 +228,15 @@ class _NotificationScreenState extends State<NotificationScreen> {
                                 ),
                                 child: Text(
                                   'Hapus',
-                                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                                  style: GoogleFonts.poppins(
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
                             ],
                           ),
                         );
-                        
+
                         if (confirm == true) {
                           await _deleteNotification(notif['id']);
                           if (mounted) {
@@ -235,7 +246,12 @@ class _NotificationScreenState extends State<NotificationScreen> {
                                   'Notifikasi berhasil dihapus',
                                   style: GoogleFonts.poppins(),
                                 ),
-                                backgroundColor: const Color.fromARGB(255, 21, 145, 137),
+                                backgroundColor: const Color.fromARGB(
+                                  255,
+                                  21,
+                                  145,
+                                  137,
+                                ),
                               ),
                             );
                           }
@@ -266,7 +282,12 @@ class _NotificationScreenState extends State<NotificationScreen> {
                         style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
                       ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color.fromARGB(255, 21, 145, 137),
+                        backgroundColor: const Color.fromARGB(
+                          255,
+                          21,
+                          145,
+                          137,
+                        ),
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
@@ -316,7 +337,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
             PopupMenuButton<String>(
               onSelected: (value) async {
                 if (value == 'mark_all_read') {
-                  await NotificationService.markAllAsRead();
+                  await NotificationService.markAllAsRead(
+                    isKolektor: widget.isKolektor,
+                  );
                   await _loadNotifications();
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -325,7 +348,12 @@ class _NotificationScreenState extends State<NotificationScreen> {
                           'Semua notifikasi ditandai sudah dibaca',
                           style: GoogleFonts.poppins(),
                         ),
-                        backgroundColor: const Color.fromARGB(255, 21, 145, 137),
+                        backgroundColor: const Color.fromARGB(
+                          255,
+                          21,
+                          145,
+                          137,
+                        ),
                       ),
                     );
                   }
@@ -363,15 +391,19 @@ class _NotificationScreenState extends State<NotificationScreen> {
                           ),
                           child: Text(
                             'Hapus Semua',
-                            style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ],
                     ),
                   );
-                  
+
                   if (confirm == true) {
-                    await NotificationService.clearAll(isKolektor: widget.isKolektor);
+                    await NotificationService.clearAll(
+                      isKolektor: widget.isKolektor,
+                    );
                     await _loadNotifications();
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -380,7 +412,12 @@ class _NotificationScreenState extends State<NotificationScreen> {
                             'Semua notifikasi berhasil dihapus',
                             style: GoogleFonts.poppins(),
                           ),
-                          backgroundColor: const Color.fromARGB(255, 21, 145, 137),
+                          backgroundColor: const Color.fromARGB(
+                            255,
+                            21,
+                            145,
+                            137,
+                          ),
                         ),
                       );
                     }
@@ -406,11 +443,18 @@ class _NotificationScreenState extends State<NotificationScreen> {
                   value: 'delete_all',
                   child: Row(
                     children: [
-                      const Icon(Icons.delete_sweep, size: 20, color: Colors.red),
+                      const Icon(
+                        Icons.delete_sweep,
+                        size: 20,
+                        color: Colors.red,
+                      ),
                       const SizedBox(width: 12),
                       Text(
                         'Hapus semua',
-                        style: GoogleFonts.poppins(fontSize: 14, color: Colors.red),
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          color: Colors.red,
+                        ),
                       ),
                     ],
                   ),
@@ -475,11 +519,11 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 final type = notif['type'] as String?;
                 final title = notif['title'] as String? ?? '';
                 final message = notif['message'] ?? '';
-                
+
                 // Tentukan icon dan color berdasarkan tipe
                 IconData iconData;
                 Color iconColor;
-                
+
                 switch (type) {
                   case 'pickup_schedule':
                     iconData = Icons.local_shipping;
@@ -510,9 +554,12 @@ class _NotificationScreenState extends State<NotificationScreen> {
                     iconData = Icons.notifications;
                     iconColor = const Color.fromARGB(255, 21, 145, 137);
                 }
-                
+
                 return Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   elevation: isRead ? 0 : 2,
                   color: isRead ? Colors.grey.shade50 : Colors.white,
                   child: ListTile(
@@ -534,7 +581,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
                         ? Text(
                             title,
                             style: GoogleFonts.poppins(
-                              fontWeight: isRead ? FontWeight.w500 : FontWeight.w600,
+                              fontWeight: isRead
+                                  ? FontWeight.w500
+                                  : FontWeight.w600,
                               fontSize: 14,
                               color: isRead ? Colors.black54 : Colors.black87,
                             ),
@@ -549,7 +598,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.poppins(
-                            fontWeight: title.isEmpty && !isRead ? FontWeight.w600 : FontWeight.normal,
+                            fontWeight: title.isEmpty && !isRead
+                                ? FontWeight.w600
+                                : FontWeight.normal,
                             fontSize: title.isEmpty ? 14 : 13,
                             color: isRead ? Colors.black54 : Colors.black87,
                           ),
@@ -590,7 +641,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
                                 ),
                                 title: Text(
                                   'Hapus Notifikasi',
-                                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                                  style: GoogleFonts.poppins(
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                                 content: Text(
                                   'Apakah Anda yakin ingin menghapus notifikasi ini?',
@@ -598,14 +651,18 @@ class _NotificationScreenState extends State<NotificationScreen> {
                                 ),
                                 actions: [
                                   TextButton(
-                                    onPressed: () => Navigator.pop(context, false),
+                                    onPressed: () =>
+                                        Navigator.pop(context, false),
                                     child: Text(
                                       'Batal',
-                                      style: GoogleFonts.poppins(color: Colors.grey),
+                                      style: GoogleFonts.poppins(
+                                        color: Colors.grey,
+                                      ),
                                     ),
                                   ),
                                   ElevatedButton(
-                                    onPressed: () => Navigator.pop(context, true),
+                                    onPressed: () =>
+                                        Navigator.pop(context, true),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.red,
                                       foregroundColor: Colors.white,
@@ -615,13 +672,15 @@ class _NotificationScreenState extends State<NotificationScreen> {
                                     ),
                                     child: Text(
                                       'Hapus',
-                                      style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                                      style: GoogleFonts.poppins(
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
                                   ),
                                 ],
                               ),
                             );
-                            
+
                             if (confirm == true) {
                               await _deleteNotification(notif['id']);
                               if (mounted) {
@@ -631,7 +690,12 @@ class _NotificationScreenState extends State<NotificationScreen> {
                                       'Notifikasi berhasil dihapus',
                                       style: GoogleFonts.poppins(),
                                     ),
-                                    backgroundColor: const Color.fromARGB(255, 21, 145, 137),
+                                    backgroundColor: const Color.fromARGB(
+                                      255,
+                                      21,
+                                      145,
+                                      137,
+                                    ),
                                   ),
                                 );
                               }

@@ -11,6 +11,7 @@ import 'riwayat_sampah_screen.dart';
 import '../user/notification_screen.dart';
 import '../user/notification_service.dart';
 import 'dart:io';
+import 'dart:convert';
 
 class HomeScreensKolektor extends StatefulWidget {
   const HomeScreensKolektor({super.key});
@@ -19,7 +20,8 @@ class HomeScreensKolektor extends StatefulWidget {
   State<HomeScreensKolektor> createState() => _HomeScreensKolektorState();
 }
 
-class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
+class _HomeScreensKolektorState extends State<HomeScreensKolektor>
+    with WidgetsBindingObserver {
   List<Map<String, dynamic>> pengambilanList = [];
   List<Map<String, dynamic>> todayPickups = [];
   List<Map<String, dynamic>> pengangkutanList = []; // Riwayat pengangkutan
@@ -33,10 +35,40 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
   int _selectedIndex = 0;
   int _riwayatTabIndex = 0; // 0 = Pengambilan, 1 = Pengangkutan
 
+  // ✅ TAMBAHAN: Simpan semua RW yang ditugaskan ke kolektor (bisa lebih dari 1)
+  List<String> _kolektorRWList = [];
   @override
   void initState() {
     super.initState();
+    print('🎬 [HomeCollector] Screen initialized');
+
+    // Add lifecycle observer untuk detect app resume
+    WidgetsBinding.instance.addObserver(this);
+
     _initializeData();
+  }
+
+  @override
+  void dispose() {
+    print('🔚 [HomeCollector] Screen disposed');
+    // Remove lifecycle observer
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    print('🔄 [HomeCollector] App lifecycle changed: $state');
+
+    if (state == AppLifecycleState.resumed) {
+      // App kembali ke foreground - refresh data
+      print('✨ [HomeCollector] App resumed, refreshing pickups...');
+      _loadTodayPickups(forceRefresh: true);
+    } else if (state == AppLifecycleState.paused) {
+      print('⏸️ [HomeCollector] App paused');
+    } else if (state == AppLifecycleState.inactive) {
+      print('💤 [HomeCollector] App inactive');
+    }
   }
 
   /// Initialize semua data dan trigger notifikasi otomatis
@@ -56,11 +88,55 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
   Future<void> _loadUserData() async {
     final name = await UserStorage.getUserName();
     final prefs = await SharedPreferences.getInstance();
+
+    // ✅ PERBAIKAN: Load RW kolektor dari UserStorage
+    final kolektorRW = await UserStorage.getKolektorRW();
+
+    print('🔍 [HomeCollector] Loading user data...');
+    print('   - Name: $name');
+    print('   - Kolektor RW: $kolektorRW');
+
+    // Fallback: Jika tidak ada di UserStorage, coba dari SharedPreferences langsung
+    if (kolektorRW == null) {
+      final userData = prefs.getString('user_data');
+      if (userData != null) {
+        try {
+          final data = jsonDecode(userData) as Map<String, dynamic>;
+          final rwFromPrefs =
+              data['rw']?.toString() ?? data['assigned_rw']?.toString();
+          print('   - RW from prefs fallback: $rwFromPrefs');
+
+          if (mounted) {
+            setState(() {
+              _userName = name ?? 'Kolektor';
+              _profileImagePath = prefs.getString('profile_image_path') ?? '';
+              _kolektorRWList = rwFromPrefs != null ? [rwFromPrefs] : [];
+            });
+          }
+          return;
+        } catch (e) {
+          print('❌ [HomeCollector] Error parsing user_data: $e');
+        }
+      }
+    }
+
     if (mounted) {
       setState(() {
         _userName = name ?? 'Kolektor';
         _profileImagePath = prefs.getString('profile_image_path') ?? '';
+        _kolektorRWList = kolektorRW != null ? [kolektorRW] : [];
       });
+    }
+
+    if (_kolektorRWList.isEmpty) {
+      print('⚠️ [HomeCollector] WARNING: Kolektor RW list is EMPTY!');
+      print(
+        '   This means filtering will NOT work until RW is detected from pickups!',
+      );
+    } else {
+      print(
+        '✅ [HomeCollector] Kolektor RW loaded successfully: ${_kolektorRWList.join(", ")}',
+      );
     }
   }
 
@@ -92,7 +168,11 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
     }
   }
 
-  Future<void> _loadTodayPickups() async {
+  Future<void> _loadTodayPickups({bool forceRefresh = false}) async {
+    if (forceRefresh) {
+      print('🔄 [HomeCollector] Force refresh requested');
+    }
+
     setState(() {
       _isLoadingPickups = true;
       _errorMessage = null;
@@ -104,31 +184,130 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
       setState(() {
         _isLoadingPickups = false;
         if (success && data != null) {
-          todayPickups = data;
-          // Debug: Print data structure untuk melihat apa yang diterima dari API
+          print('📥 [HomeCollector] Received ${data.length} pickups from API');
+
+          // Debug: Print first pickup to see structure
           if (data.isNotEmpty) {
-            print('📦 [HomeKolektor] Sample pickup data: ${data.first}');
-            if (data.first['service_account'] != null) {
+            print('📦 [DEBUG] First pickup structure:');
+            print(jsonEncode(data.first));
+          }
+
+          // ✅ PERBAIKAN: Jika RW kolektor belum ada, detect SEMUA RW unik dari pickups
+          if (_kolektorRWList.isEmpty && data.isNotEmpty) {
+            Set<String> detectedRWs = {};
+            for (var pickup in data) {
+              final houseInfo = pickup['house_info'] as Map<String, dynamic>?;
+              if (houseInfo != null) {
+                final rwFromPickup = houseInfo['rw']?.toString();
+                if (rwFromPickup != null && rwFromPickup.isNotEmpty) {
+                  detectedRWs.add(rwFromPickup);
+                }
+              }
+            }
+
+            if (detectedRWs.isNotEmpty) {
+              _kolektorRWList = detectedRWs.toList();
               print(
-                '✅ [HomeKolektor] Service account data: ${data.first['service_account']}',
+                '🔍 [AutoDetect] Mendeteksi RW kolektor dari pickups: ${_kolektorRWList.join(", ")}',
+              );
+            }
+          }
+
+          // ✅ PERBAIKAN: Filter pickup berdasarkan SEMUA RW yang ditugaskan
+          List<Map<String, dynamic>> filteredPickups = data;
+
+          print(
+            '🔍 [Filter] Kolektor RW List: ${_kolektorRWList.join(", ")} (${_kolektorRWList.length} RW)',
+          );
+
+          if (_kolektorRWList.isNotEmpty) {
+            int filteredCount = 0;
+            filteredPickups = data.where((pickup) {
+              // Cek di berbagai kemungkinan lokasi data RW
+              String? pickupRW;
+
+              // Kemungkinan 1: RW ada di house_info
+              final houseInfo = pickup['house_info'] as Map<String, dynamic>?;
+              if (houseInfo != null) {
+                pickupRW = houseInfo['rw']?.toString();
+              }
+
+              // Kemungkinan 2: RW ada di service_account
+              if (pickupRW == null) {
+                final serviceAccount =
+                    pickup['service_account'] as Map<String, dynamic>?;
+                if (serviceAccount != null) {
+                  pickupRW = serviceAccount['rw']?.toString();
+                }
+              }
+
+              // Kemungkinan 3: RW ada langsung di pickup object
+              if (pickupRW == null) {
+                pickupRW = pickup['rw']?.toString();
+              }
+
+              // Filter: cek apakah pickup RW ada di list RW kolektor (case-insensitive)
+              final isMatch =
+                  pickupRW != null &&
+                  _kolektorRWList.any(
+                    (kolektorRW) =>
+                        pickupRW!.trim().toUpperCase() ==
+                        kolektorRW.trim().toUpperCase(),
+                  );
+
+              if (pickupRW != null) {
+                print(
+                  '🔍 [Filter] Pickup #${pickup['id']} - Name: ${pickup['name'] ?? houseInfo?['account_number'] ?? 'N/A'}, RW: $pickupRW, Match: ${isMatch ? "✅" : "❌"}',
+                );
+              }
+
+              if (!isMatch) {
+                filteredCount++;
+              }
+              return isMatch;
+            }).toList();
+
+            print(
+              '📊 [Filter] Original: ${data.length} pickups, Filtered out: $filteredCount, Remaining: ${filteredPickups.length} pickups untuk RW ${_kolektorRWList.join(", ")}',
+            );
+          } else {
+            print(
+              '⚠️ [Filter] Kolektor RW list is EMPTY - showing ALL pickups (NO FILTERING)',
+            );
+          }
+
+          todayPickups = filteredPickups;
+          print(
+            '✅ [HomeCollector] Loaded ${filteredPickups.length} pickups for RW ${_kolektorRWList.join(", ")}',
+          );
+
+          // Debug: Print data structure untuk melihat apa yang diterima dari API
+          if (filteredPickups.isNotEmpty) {
+            print(
+              '📦 [HomeKolektor] Sample filtered pickup data: ${filteredPickups.first}',
+            );
+            if (filteredPickups.first['service_account'] != null) {
+              print(
+                '✅ [HomeKolektor] Service account data: ${filteredPickups.first['service_account']}',
               );
             } else {
               print('⚠️ [HomeKolektor] No service_account in pickup data');
             }
-            if (data.first['house_info'] != null) {
+            if (filteredPickups.first['house_info'] != null) {
               print(
-                '🏠 [HomeKolektor] House info data: ${data.first['house_info']}',
+                '🏠 [HomeKolektor] House info data: ${filteredPickups.first['house_info']}',
               );
             }
           }
         } else {
+          print('❌ [HomeCollector] Failed to load pickups: $message');
           _errorMessage = message;
           todayPickups = [];
         }
       });
 
-      // Trigger notifikasi setelah data pickup dimuat
-      if (success && data != null && data.isNotEmpty) {
+      // Trigger notifikasi setelah data pickup dimuat (gunakan data yang sudah difilter)
+      if (success && todayPickups.isNotEmpty) {
         await _checkAndTriggerNotifications();
       }
     }
@@ -433,348 +612,428 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor> {
 
   Widget _buildBerandaPage(Color primaryColor, TextStyle titleStyle) {
     return SafeArea(
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Container(
-              color: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      // Profile Icon/Avatar
-                      _buildProfileAvatar(primaryColor),
-                      const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _userName,
-                            style: GoogleFonts.poppins(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black87,
+      child: RefreshIndicator(
+        onRefresh: () async {
+          print('↓ [HomeCollector] Pull to refresh triggered');
+          await _loadTodayPickups(forceRefresh: true);
+          await _loadPengambilanData();
+        },
+        color: primaryColor,
+        child: SingleChildScrollView(
+          physics:
+              const AlwaysScrollableScrollPhysics(), // Enable pull-to-refresh even when content is short
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Container(
+                color: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        // Profile Icon/Avatar
+                        _buildProfileAvatar(primaryColor),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _userName,
+                              style: GoogleFonts.poppins(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
                             ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    // Notification button dengan badge
+                    Stack(
+                      children: [
+                        IconButton(
+                          onPressed: () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const NotificationScreen(isKolektor: true),
+                              ),
+                            );
+                            // Refresh unread count setelah kembali dari notification screen
+                            await _loadUnreadNotifCount();
+                          },
+                          icon: const Icon(
+                            Icons.notifications_outlined,
+                            size: 26,
                           ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  Row(
-                    children: [
-                      // Notification button dengan badge
-                      Stack(
-                        children: [
-                          IconButton(
-                            onPressed: () async {
-                              await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const NotificationScreen(
-                                        isKolektor: true,
-                                      ),
+                          color: Colors.black87,
+                        ),
+                        // Badge untuk unread notifications
+                        if (_unreadNotifCount > 0)
+                          Positioned(
+                            right: 8,
+                            top: 8,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 1.5,
                                 ),
-                              );
-                              // Refresh unread count setelah kembali dari notification screen
-                              await _loadUnreadNotifCount();
-                            },
-                            icon: const Icon(
-                              Icons.notifications_outlined,
-                              size: 26,
-                            ),
-                            color: Colors.black87,
-                          ),
-                          // Badge untuk unread notifications
-                          if (_unreadNotifCount > 0)
-                            Positioned(
-                              right: 8,
-                              top: 8,
-                              child: Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: BoxDecoration(
-                                  color: Colors.red,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
+                              ),
+                              constraints: const BoxConstraints(
+                                minWidth: 18,
+                                minHeight: 18,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  _unreadNotifCount > 9
+                                      ? '9+'
+                                      : _unreadNotifCount.toString(),
+                                  style: GoogleFonts.poppins(
                                     color: Colors.white,
-                                    width: 1.5,
-                                  ),
-                                ),
-                                constraints: const BoxConstraints(
-                                  minWidth: 18,
-                                  minHeight: 18,
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    _unreadNotifCount > 9
-                                        ? '9+'
-                                        : _unreadNotifCount.toString(),
-                                    style: GoogleFonts.poppins(
-                                      color: Colors.white,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
                               ),
                             ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // Card Ringkasan
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [primaryColor, primaryColor.withOpacity(0.85)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: primaryColor.withOpacity(0.3),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      "Tugas Hari Ini",
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        color: Colors.white.withOpacity(0.9),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _formatTodayDate(),
-                      style: GoogleFonts.poppins(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 16,
-                        horizontal: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          _statItem(todayPickups.length.toString(), "Total"),
-                          Container(
-                            width: 1,
-                            height: 40,
-                            color: Colors.grey[300],
                           ),
-                          _statItem(_getCompletedCount().toString(), "Selesai"),
-                          Container(
-                            width: 1,
-                            height: 40,
-                            color: Colors.grey[300],
-                          ),
-                          _statItem(_getPendingCount().toString(), "Belum"),
-                        ],
-                      ),
+                      ],
                     ),
                   ],
                 ),
               ),
-            ),
 
-            const SizedBox(height: 24),
+              const SizedBox(height: 16),
 
-            // Daftar Tugas
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text("Daftar Tugas", style: titleStyle),
-                  Text(
-                    "Lainnya",
-                    style: GoogleFonts.poppins(
-                      color: primaryColor,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
+              // ✅ DEBUG INFO BOX - Tampilkan RW Kolektor
+              if (_kolektorRWList.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue.shade200),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            _isLoadingPickups
-                ? const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(32.0),
-                      child: CircularProgressIndicator(),
-                    ),
-                  )
-                : _errorMessage != null
-                ? Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
+                    child: Row(
                       children: [
-                        Text(
-                          _errorMessage!,
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            color: Colors.red[600],
-                          ),
-                          textAlign: TextAlign.center,
+                        Icon(
+                          Icons.info_outline,
+                          color: Colors.blue.shade700,
+                          size: 20,
                         ),
-                        const SizedBox(height: 12),
-                        ElevatedButton(
-                          onPressed: _loadTodayPickups,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: primaryColor,
-                          ),
+                        const SizedBox(width: 8),
+                        Expanded(
                           child: Text(
-                            'Coba Lagi',
-                            style: GoogleFonts.poppins(),
+                            'Kolektor ditugaskan di: ${_kolektorRWList.join(", ")}',
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: Colors.blue.shade900,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
                       ],
                     ),
-                  )
-                : todayPickups.isEmpty
-                ? Padding(
-                    padding: const EdgeInsets.all(32.0),
-                    child: Center(
-                      child: Text(
-                        'Tidak ada tugas pickup hari ini',
+                  ),
+                ),
+              if (_kolektorRWList.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.warning_amber,
+                          color: Colors.red.shade700,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'PERINGATAN: RW Kolektor tidak ditemukan! Filter tidak berfungsi. Silakan pull to refresh.',
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              color: Colors.red.shade900,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+              const SizedBox(height: 16),
+
+              // Card Ringkasan
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [primaryColor, primaryColor.withOpacity(0.85)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: primaryColor.withOpacity(0.3),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        "Tugas Hari Ini",
                         style: GoogleFonts.poppins(
                           fontSize: 14,
-                          color: Colors.grey[600],
+                          color: Colors.white.withOpacity(0.9),
                         ),
                       ),
-                    ),
-                  )
-                : ListView.builder(
-                    itemCount: todayPickups.length,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemBuilder: (context, index) {
-                      final pickup = todayPickups[index];
-                      final houseInfo =
-                          pickup['house_info'] as Map<String, dynamic>?;
-                      final serviceAccountInfo =
-                          pickup['service_account'] as Map<String, dynamic>?;
-
-                      // Prioritas: service_account > account_number > service_account_name > resident
-                      String displayName = 'N/A';
-                      if (serviceAccountInfo != null &&
-                          serviceAccountInfo['name'] != null) {
-                        displayName = serviceAccountInfo['name'].toString();
-                      } else if (houseInfo != null) {
-                        // PERBAIKAN: account_number adalah nama service account!
-                        if (houseInfo['account_number'] != null) {
-                          displayName = houseInfo['account_number'].toString();
-                        } else if (houseInfo['service_account_name'] != null) {
-                          displayName = houseInfo['service_account_name']
-                              .toString();
-                        } else if (houseInfo['resident_name'] != null) {
-                          displayName = houseInfo['resident_name'].toString();
-                        }
-                      }
-
-                      return _taskCard(
-                        displayName,
-                        houseInfo?['address']?.toString() ?? 'N/A',
-                        pickup['id']?.toString() ?? '',
-                        pickup['status']?.toString() ?? 'scheduled',
-                        houseInfo?['latitude'] as double? ?? 0.0,
-                        houseInfo?['longitude'] as double? ?? 0.0,
-                        primaryColor,
-                        context,
-                        pickup,
-                      );
-                    },
-                  ),
-
-            const SizedBox(height: 24),
-
-            // Pengambilan Terakhir
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text("Pengambilan Terakhir", style: titleStyle),
-                  Text(
-                    "Lainnya",
-                    style: GoogleFonts.poppins(
-                      color: primaryColor,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            SizedBox(
-              height: 180,
-              child: _isLoadingHistory
-                  ? const Center(child: CircularProgressIndicator())
-                  : pengambilanList.isEmpty
-                  ? Center(
-                      child: Text(
-                        'Belum ada pengambilan sampah',
+                      const SizedBox(height: 4),
+                      Text(
+                        _formatTodayDate(),
                         style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          color: Colors.grey[600],
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 16,
+                          horizontal: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            _statItem(todayPickups.length.toString(), "Total"),
+                            Container(
+                              width: 1,
+                              height: 40,
+                              color: Colors.grey[300],
+                            ),
+                            _statItem(
+                              _getCompletedCount().toString(),
+                              "Selesai",
+                            ),
+                            Container(
+                              width: 1,
+                              height: 40,
+                              color: Colors.grey[300],
+                            ),
+                            _statItem(_getPendingCount().toString(), "Belum"),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Daftar Tugas
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text("Daftar Tugas", style: titleStyle),
+                    Text(
+                      "Lainnya",
+                      style: GoogleFonts.poppins(
+                        color: primaryColor,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              _isLoadingPickups
+                  ? const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(32.0),
+                        child: CircularProgressIndicator(),
+                      ),
+                    )
+                  : _errorMessage != null
+                  ? Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        children: [
+                          Text(
+                            _errorMessage!,
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              color: Colors.red[600],
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 12),
+                          ElevatedButton(
+                            onPressed: _loadTodayPickups,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: primaryColor,
+                            ),
+                            child: Text(
+                              'Coba Lagi',
+                              style: GoogleFonts.poppins(),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : todayPickups.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.all(32.0),
+                      child: Center(
+                        child: Text(
+                          'Tidak ada tugas pickup hari ini',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
                         ),
                       ),
                     )
                   : ListView.builder(
-                      scrollDirection: Axis.horizontal,
+                      itemCount: todayPickups.length,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: pengambilanList.length,
                       itemBuilder: (context, index) {
-                        final item = pengambilanList[index];
-                        return _pickupCard(
-                          item["name"]?.toString() ?? "",
-                          item["address"]?.toString() ?? "",
-                          "Rp. ${(item["totalPrice"] as num?)?.toInt() ?? 0}",
-                          item["image"]?.toString() ??
-                              "assets/images/dummy.jpg",
+                        final pickup = todayPickups[index];
+                        final houseInfo =
+                            pickup['house_info'] as Map<String, dynamic>?;
+                        final serviceAccountInfo =
+                            pickup['service_account'] as Map<String, dynamic>?;
+
+                        // Prioritas: service_account > account_number > service_account_name > resident
+                        String displayName = 'N/A';
+                        if (serviceAccountInfo != null &&
+                            serviceAccountInfo['name'] != null) {
+                          displayName = serviceAccountInfo['name'].toString();
+                        } else if (houseInfo != null) {
+                          // PERBAIKAN: account_number adalah nama service account!
+                          if (houseInfo['account_number'] != null) {
+                            displayName = houseInfo['account_number']
+                                .toString();
+                          } else if (houseInfo['service_account_name'] !=
+                              null) {
+                            displayName = houseInfo['service_account_name']
+                                .toString();
+                          } else if (houseInfo['resident_name'] != null) {
+                            displayName = houseInfo['resident_name'].toString();
+                          }
+                        }
+
+                        return _taskCard(
+                          displayName,
+                          houseInfo?['address']?.toString() ?? 'N/A',
+                          pickup['id']?.toString() ?? '',
+                          pickup['status']?.toString() ?? 'scheduled',
+                          houseInfo?['latitude'] as double? ?? 0.0,
+                          houseInfo?['longitude'] as double? ?? 0.0,
                           primaryColor,
-                          item, // Pass the full item data
+                          context,
+                          pickup,
                         );
                       },
                     ),
-            ),
-            const SizedBox(height: 20),
-          ],
+
+              const SizedBox(height: 24),
+
+              // Pengambilan Terakhir
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text("Pengambilan Terakhir", style: titleStyle),
+                    Text(
+                      "Lainnya",
+                      style: GoogleFonts.poppins(
+                        color: primaryColor,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              SizedBox(
+                height: 180,
+                child: _isLoadingHistory
+                    ? const Center(child: CircularProgressIndicator())
+                    : pengambilanList.isEmpty
+                    ? Center(
+                        child: Text(
+                          'Belum ada pengambilan sampah',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: pengambilanList.length,
+                        itemBuilder: (context, index) {
+                          final item = pengambilanList[index];
+                          return _pickupCard(
+                            item["name"]?.toString() ?? "",
+                            item["address"]?.toString() ?? "",
+                            "Rp. ${(item["totalPrice"] as num?)?.toInt() ?? 0}",
+                            item["image"]?.toString() ??
+                                "assets/images/dummy.jpg",
+                            primaryColor,
+                            item, // Pass the full item data
+                          );
+                        },
+                      ),
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
         ),
-      ),
+      ), // Close RefreshIndicator
     );
   }
 

@@ -6,6 +6,7 @@ class UserStorage {
   static const String _keyUserName = 'user_name';
   static const String _keyUserEmail = 'user_email';
   static const String _keyUserRoles = 'user_roles';
+  static const String _keyUserData = 'user_data'; // ✅ TAMBAHAN: Full user data
 
   /// Simpan data user ke SharedPreferences
   static Future<void> saveUser({
@@ -13,16 +14,22 @@ class UserStorage {
     required String name,
     required String email,
     List<String>? roles,
+    Map<String, dynamic>? fullData, // ✅ TAMBAHAN: Simpan full data
   }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_keyUserId, id);
     await prefs.setString(_keyUserName, name);
     await prefs.setString(_keyUserEmail, email);
-    
+
     if (roles != null && roles.isNotEmpty) {
       await prefs.setString(_keyUserRoles, jsonEncode(roles));
     } else {
       await prefs.remove(_keyUserRoles);
+    }
+
+    // ✅ TAMBAHAN: Simpan full user data untuk akses RW dan field lainnya
+    if (fullData != null) {
+      await prefs.setString(_keyUserData, jsonEncode(fullData));
     }
   }
 
@@ -48,11 +55,11 @@ class UserStorage {
   static Future<List<String>> getUserRoles() async {
     final prefs = await SharedPreferences.getInstance();
     final rolesJson = prefs.getString(_keyUserRoles);
-    
+
     if (rolesJson == null || rolesJson.isEmpty) {
       return [];
     }
-    
+
     try {
       final List<dynamic> decoded = jsonDecode(rolesJson);
       return decoded.map((e) => e.toString()).toList();
@@ -93,12 +100,35 @@ class UserStorage {
       return null;
     }
 
-    return {
-      'id': id,
-      'name': name,
-      'email': email,
-      'roles': roles,
-    };
+    return {'id': id, 'name': name, 'email': email, 'roles': roles};
+  }
+
+  /// ✅ TAMBAHAN: Ambil full user data dari SharedPreferences
+  static Future<Map<String, dynamic>?> getFullUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userDataJson = prefs.getString(_keyUserData);
+
+    if (userDataJson == null || userDataJson.isEmpty) {
+      return null;
+    }
+
+    try {
+      return jsonDecode(userDataJson) as Map<String, dynamic>;
+    } catch (e) {
+      print('❌ [UserStorage] Error parsing full user data: $e');
+      return null;
+    }
+  }
+
+  /// ✅ TAMBAHAN: Ambil RW kolektor
+  static Future<String?> getKolektorRW() async {
+    final userData = await getFullUserData();
+    if (userData == null) return null;
+
+    // Cari RW di berbagai kemungkinan field
+    return userData['rw']?.toString() ??
+        userData['assigned_rw']?.toString() ??
+        userData['collector_rw']?.toString();
   }
 
   /// Hapus semua data user
@@ -108,5 +138,6 @@ class UserStorage {
     await prefs.remove(_keyUserName);
     await prefs.remove(_keyUserEmail);
     await prefs.remove(_keyUserRoles);
+    await prefs.remove(_keyUserData); // ✅ TAMBAHAN: Hapus full user data
   }
 }

@@ -15,32 +15,31 @@ class AuthService {
     try {
       final res = await _dio.post(
         ApiConfig.login,
-        data: {
-          'email': email,
-          'password': password,
-          'device_name': deviceName,
-        },
+        data: {'email': email, 'password': password, 'device_name': deviceName},
       );
 
       final data = res.data as Map<String, dynamic>;
       if (data['success'] == true) {
         final token = data['data']?['token'] as String?;
         final user = data['data']?['user'] as Map<String, dynamic>?;
-        
+
         if (token != null) {
           await TokenStorage.saveToken(token);
         }
-        
+
         // Simpan data user termasuk role
         if (user != null) {
           await UserStorage.saveUser(
             id: user['id'] as int,
             name: user['name'] as String,
             email: user['email'] as String,
-            roles: (user['roles'] as List<dynamic>?)?.map((e) => e.toString()).toList(),
+            roles: (user['roles'] as List<dynamic>?)
+                ?.map((e) => e.toString())
+                .toList(),
+            fullData: user, // ✅ TAMBAHAN: Simpan full user data untuk akses RW
           );
         }
-        
+
         return (true, null, user);
       } else {
         final msg = data['errors']?['message']?.toString() ?? 'Login gagal';
@@ -52,7 +51,7 @@ class AuthService {
         final body = e.response!.data as Map;
         final errorMsg = body['errors']?['message']?.toString() ?? '';
         // Ubah "Invalid credentials" menjadi "Email atau password salah"
-        if (errorMsg.toLowerCase().contains('invalid credentials') || 
+        if (errorMsg.toLowerCase().contains('invalid credentials') ||
             errorMsg.toLowerCase().contains('invalid') ||
             e.response?.statusCode == 401) {
           msg = 'Email atau password salah';
@@ -89,7 +88,8 @@ class AuthService {
       if (data['success'] == true) {
         return (true, null);
       } else {
-        final msg = data['errors']?['message']?.toString() ?? 'Registrasi gagal';
+        final msg =
+            data['errors']?['message']?.toString() ?? 'Registrasi gagal';
         return (false, msg);
       }
     } on DioException catch (e) {

@@ -146,6 +146,7 @@ class BuatLaporanScreen extends StatefulWidget {
 class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
   // Controller untuk mengelola input text
   final TextEditingController _deskripsiController = TextEditingController();
+  final TextEditingController _lokasiController = TextEditingController();
 
   // Pilihan Kategori sesuai API Documentation
   static const List<Map<String, String>> _types = [
@@ -180,6 +181,7 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
   @override
   void dispose() {
     _deskripsiController.dispose();
+    _lokasiController.dispose();
     super.dispose();
   }
 
@@ -247,6 +249,7 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
         'deskripsi': _deskripsiController.text.isNotEmpty
             ? _deskripsiController.text
             : 'Tidak ada deskripsi', // API field: description - dengan fallback
+        'lokasi': _lokasiController.text, // API field: location
       };
 
       // Tambahkan service account hanya jika dipilih
@@ -506,6 +509,29 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
               ),
               const SizedBox(height: 16),
 
+              // Field Lokasi
+              TextFormField(
+                controller: _lokasiController,
+                decoration: InputDecoration(
+                  labelText: "Lokasi",
+                  hintText: "Masukkan alamat lokasi kejadian",
+                  prefixIcon: const Icon(Icons.location_on),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  helperText: "Contoh: Jl. Sudirman No. 123, Jakarta",
+                  helperMaxLines: 2,
+                ),
+                maxLength: 255,
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Lokasi wajib diisi.';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+
               // Service Account Dropdown (Opsional)
               DropdownButtonFormField<String>(
                 value: _selectedServiceAccountId,
@@ -664,12 +690,14 @@ class DetailLaporanScreen extends StatelessWidget {
       print('📤 Sending complaint to API...');
       print('  Type: ${reportData['type']}');
       print('  Description: ${reportData['deskripsi']}');
+      print('  Location: ${reportData['lokasi']}');
       print('  Service Account: ${reportData['serviceAccount']}');
       print('  Has Image: ${imageFile != null}');
 
       final (success, message, data) = await ComplaintService.createComplaint(
         type: reportData['type']!, // Langsung dari dropdown value
         description: reportData['deskripsi']!,
+        location: reportData['lokasi']!, // Tambahkan lokasi
         serviceAccountId:
             reportData['serviceAccount'], // Kirim service account ke API
         image: imageFile,
@@ -710,7 +738,7 @@ class DetailLaporanScreen extends StatelessWidget {
         final newReport = Laporan(
           kota: 'Jakarta', // Default
           kategori: typeLabel, // Gunakan label untuk display
-          lokasi: '', // Tidak ada lagi
+          lokasi: reportData['lokasi'] ?? '', // Ambil dari form
           waktuPelanggaran: DateFormat(
             'dd MMMM yyyy HH:mm',
           ).format(DateTime.now()),
@@ -728,7 +756,7 @@ class DetailLaporanScreen extends StatelessWidget {
           final helper = NotificationHelper();
           await helper.notifyReportCreated(
             category: typeLabel,
-            location: 'Jakarta',
+            location: reportData['lokasi'] ?? 'Jakarta',
           );
         } catch (e) {
           print('⚠️ Notifikasi gagal: $e');
@@ -1004,6 +1032,10 @@ class DetailLaporanScreen extends StatelessWidget {
               reportData['type'] != null
                   ? _getTypeLabel(reportData['type']!)
                   : 'Tidak ada kategori',
+            ),
+            _buildDetailRow(
+              "Lokasi",
+              reportData['lokasi'] ?? 'Tidak ada lokasi',
             ),
             // Service Account - hanya tampilkan jika ada
             if (reportData['serviceAccount'] != null &&
@@ -1405,6 +1437,14 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
                       laporan.kategori,
                       Icons.category,
                     ),
+                    if (laporan.lokasi.isNotEmpty) ...[
+                      const Divider(height: 24),
+                      _buildDetailRow(
+                        "Lokasi",
+                        laporan.lokasi,
+                        Icons.location_on,
+                      ),
+                    ],
                     if (laporan.serviceAccount != null &&
                         laporan.serviceAccount!.isNotEmpty) ...[
                       const Divider(height: 24),
@@ -1540,6 +1580,10 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
       'dd MMMM yyyy HH:mm',
     ).format(complaint.createdAt);
 
+    // 📍 Debug lokasi dari API
+    print('📍 Location from API: ${complaint.location}');
+    print('📍 Is location empty? ${complaint.location?.isEmpty ?? true}');
+
     // Ambil URL foto pertama jika ada
     String? photoUrl;
     if (complaint.photos.isNotEmpty) {
@@ -1562,10 +1606,10 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
       print('📷 No photos available for this complaint');
     }
 
-    return Laporan(
+    final laporan = Laporan(
       kota: kota,
       kategori: complaint.typeText, // Gunakan getter typeText untuk display
-      lokasi: '', // Tidak ada lagi di API
+      lokasi: complaint.location ?? '', // Ambil lokasi dari API
       waktuPelanggaran: waktuPelanggaran,
       ciriCiri: complaint.description,
       serviceAccount: complaint.serviceAccountId, // Service account dari API
@@ -1574,6 +1618,11 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
       isAsset: complaint.photos.isNotEmpty, // Ada foto dari API
       status: complaint.status, // Ambil status dari database
     );
+
+    print('📍 Laporan object lokasi: ${laporan.lokasi}');
+    print('📍 Laporan lokasi isEmpty: ${laporan.lokasi.isEmpty}');
+
+    return laporan;
   }
 
   /// 🔹 Fungsi navigasi ke halaman Buat Laporan

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:blur/blur.dart'; 
+import 'package:blur/blur.dart';
 import 'artikel_detail_screen.dart';
 import '../../models/artikel_model.dart';
 import '../../services/artikel_service.dart';
@@ -17,7 +17,7 @@ class _ArtikelScreenState extends State<ArtikelScreen> {
   final ArtikelService _artikelService = ArtikelService();
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
-  
+
   List<ArtikelModel> _articles = [];
   bool _isLoading = false;
   bool _isLoadingMore = false;
@@ -41,7 +41,8 @@ class _ArtikelScreenState extends State<ArtikelScreen> {
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
       if (!_isLoadingMore && _hasMore) {
         _loadMoreArticles();
       }
@@ -69,6 +70,9 @@ class _ArtikelScreenState extends State<ArtikelScreen> {
         search: _searchQuery.isNotEmpty ? _searchQuery : null,
         sortBy: 'created_at',
         sortOrder: 'desc',
+        isFeatured: _searchQuery.isEmpty
+            ? true
+            : null, // Filter artikel featured jika tidak ada search
       );
 
       setState(() {
@@ -98,6 +102,9 @@ class _ArtikelScreenState extends State<ArtikelScreen> {
         search: _searchQuery.isNotEmpty ? _searchQuery : null,
         sortBy: 'created_at',
         sortOrder: 'desc',
+        isFeatured: _searchQuery.isEmpty
+            ? true
+            : null, // Filter artikel featured jika tidak ada search
       );
 
       setState(() {
@@ -112,7 +119,11 @@ class _ArtikelScreenState extends State<ArtikelScreen> {
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal memuat artikel: ${e.toString().replaceAll('Exception: ', '')}')),
+          SnackBar(
+            content: Text(
+              'Gagal memuat artikel: ${e.toString().replaceAll('Exception: ', '')}',
+            ),
+          ),
         );
       }
     }
@@ -133,11 +144,12 @@ class _ArtikelScreenState extends State<ArtikelScreen> {
           "Artikel",
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.bold,
-            color: Colors.black,
+            color: Colors.white,
           ),
         ),
         backgroundColor: const Color.fromARGB(255, 21, 145, 137),
         elevation: 4,
+        iconTheme: const IconThemeData(color: Colors.white),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(60),
           child: Container(
@@ -164,7 +176,10 @@ class _ArtikelScreenState extends State<ArtikelScreen> {
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
                 ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
               ),
               onSubmitted: _onSearch,
               onChanged: (value) {
@@ -218,7 +233,10 @@ class _ArtikelScreenState extends State<ArtikelScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF009688),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -238,10 +256,7 @@ class _ArtikelScreenState extends State<ArtikelScreen> {
             const SizedBox(height: 16),
             Text(
               'Tidak ada artikel',
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
+              style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey[600]),
             ),
           ],
         ),
@@ -263,24 +278,156 @@ class _ArtikelScreenState extends State<ArtikelScreen> {
               ),
             );
           }
-          return FancyArtikelCard(article: _articles[i], index: i);
+          // Gunakan card dengan style yang sama seperti di home screen
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: _buildArtikelCard(_articles[i]),
+          );
         },
+      ),
+    );
+  }
+
+  // Build artikel card dengan style yang sama seperti di home screen
+  Widget _buildArtikelCard(ArtikelModel artikel) {
+    return InkWell(
+      onTap: () {
+        // Navigate ke halaman detail artikel dengan objek artikel lengkap
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ArtikelDetailScreen(article: artikel),
+          ),
+        );
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        height: 200, // Sedikit lebih tinggi untuk list view
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Background Image
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: artikel.imageUrl != null && artikel.imageUrl!.isNotEmpty
+                  ? Image.network(
+                      artikel.imageUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: Colors.teal.shade100,
+                          child: const Icon(
+                            Icons.article,
+                            size: 60,
+                            color: Colors.teal,
+                          ),
+                        );
+                      },
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Shimmer.fromColors(
+                          baseColor: Colors.grey.shade300,
+                          highlightColor: Colors.grey.shade100,
+                          child: Container(color: Colors.grey.shade300),
+                        );
+                      },
+                    )
+                  : Container(
+                      color: Colors.teal.shade100,
+                      child: const Icon(
+                        Icons.article,
+                        size: 60,
+                        color: Colors.teal,
+                      ),
+                    ),
+            ),
+            // Gradient Overlay
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.transparent, Colors.black.withOpacity(0.7)],
+                ),
+              ),
+            ),
+            // Title and excerpt at bottom
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      artikel.title,
+                      style: GoogleFonts.poppins(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (artikel.excerpt != null && artikel.excerpt!.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          artikel.excerpt!.replaceAll(
+                            RegExp(r'<[^>]*>'),
+                            '',
+                          ), // Strip HTML tags
+                          style: GoogleFonts.poppins(
+                            color: Colors.white70,
+                            fontSize: 12,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
+// Hapus class FancyArtikelCard dan ArtikelCard yang lama
+// karena sudah diganti dengan _buildArtikelCard
 class FancyArtikelCard extends StatefulWidget {
   final ArtikelModel article;
   final int index;
 
-  const FancyArtikelCard({super.key, required this.article, required this.index});
+  const FancyArtikelCard({
+    super.key,
+    required this.article,
+    required this.index,
+  });
 
   @override
   State<FancyArtikelCard> createState() => _FancyArtikelCardState();
 }
 
-class _FancyArtikelCardState extends State<FancyArtikelCard> with SingleTickerProviderStateMixin {
+class _FancyArtikelCardState extends State<FancyArtikelCard>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<Offset> _slideAnimation;
   late Animation<double> _fadeAnimation;
@@ -290,10 +437,22 @@ class _FancyArtikelCardState extends State<FancyArtikelCard> with SingleTickerPr
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
-    _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
-    _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
-    _scaleAnimation = Tween<double>(begin: 0.95, end: 1).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.2),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+    _fadeAnimation = Tween<double>(
+      begin: 0,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+    _scaleAnimation = Tween<double>(
+      begin: 0.95,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
 
     Future.delayed(Duration(milliseconds: 150 * widget.index), () {
       if (mounted) _controller.forward();
@@ -321,7 +480,9 @@ class _FancyArtikelCardState extends State<FancyArtikelCard> with SingleTickerPr
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => ArtikelDetailScreen(article: widget.article)),
+                MaterialPageRoute(
+                  builder: (_) => ArtikelDetailScreen(article: widget.article),
+                ),
               );
             },
             child: AnimatedScale(
@@ -343,14 +504,21 @@ class ArtikelCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Use imageUrl from API or fallback to placeholder
-    final imageUrl = article.imageUrl ?? 'https://via.placeholder.com/400x220?text=No+Image';
-    
+    final imageUrl =
+        article.imageUrl ?? 'https://via.placeholder.com/400x220?text=No+Image';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       height: 220,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black26.withOpacity(0.15), blurRadius: 15, offset: const Offset(0, 8))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black26.withOpacity(0.15),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Stack(
         children: [
@@ -367,17 +535,14 @@ class ArtikelCard extends StatelessWidget {
                 return Shimmer.fromColors(
                   baseColor: Colors.grey.shade300,
                   highlightColor: Colors.grey.shade100,
-                  child: Container(
-                    color: Colors.grey.shade300,
-                  ),
-                ).blurred(
-                  blur: 5,
-                  blurColor: Colors.grey.shade300,
-                );
+                  child: Container(color: Colors.grey.shade300),
+                ).blurred(blur: 5, blurColor: Colors.grey.shade300);
               },
               errorBuilder: (context, error, stackTrace) => Container(
                 color: Colors.grey.shade300,
-                child: const Center(child: Icon(Icons.broken_image, color: Colors.grey, size: 50)),
+                child: const Center(
+                  child: Icon(Icons.broken_image, color: Colors.grey, size: 50),
+                ),
               ),
             ),
           ),
@@ -401,7 +566,13 @@ class ArtikelCard extends StatelessWidget {
                 color: Colors.white,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                shadows: [const Shadow(color: Colors.black45, offset: Offset(0, 1), blurRadius: 2)],
+                shadows: [
+                  const Shadow(
+                    color: Colors.black45,
+                    offset: Offset(0, 1),
+                    blurRadius: 2,
+                  ),
+                ],
               ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -419,11 +590,21 @@ class ArtikelCard extends StatelessWidget {
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
                     fontSize: 13,
-                    shadows: [const Shadow(color: Colors.black45, offset: Offset(0, 1), blurRadius: 2)],
+                    shadows: [
+                      const Shadow(
+                        color: Colors.black45,
+                        offset: Offset(0, 1),
+                        blurRadius: 2,
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 4),
-                const Icon(Icons.arrow_forward_ios, size: 12, color: Colors.white),
+                const Icon(
+                  Icons.arrow_forward_ios,
+                  size: 12,
+                  color: Colors.white,
+                ),
               ],
             ),
           ),

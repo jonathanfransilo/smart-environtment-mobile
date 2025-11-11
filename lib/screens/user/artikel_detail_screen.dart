@@ -231,7 +231,10 @@ class _ArtikelDetailScreenState extends State<ArtikelDetailScreen> {
           const SizedBox(height: 16),
 
           // Excerpt (if available) - render HTML safely so tags like <p>/<span> are displayed correctly
-          if (_article!.excerpt != null && _article!.excerpt!.isNotEmpty)
+          // Only show excerpt if it's different from the main content to avoid duplication
+          if (_article!.excerpt != null &&
+              _article!.excerpt!.isNotEmpty &&
+              _article!.excerpt != _article!.content)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Container(

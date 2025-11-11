@@ -26,6 +26,7 @@ class Complaint {
   final String? assigneeId;
   final String type; // Jenis keluhan
   final String description;
+  final String? location; // Lokasi kejadian
   final String status; // 'open', 'in_progress', 'resolved', 'rejected'
   final List<ComplaintPhoto> photos; // Evidence photos
   final DateTime createdAt;
@@ -38,6 +39,7 @@ class Complaint {
     this.assigneeId,
     required this.type,
     required this.description,
+    this.location,
     required this.status,
     this.photos = const [],
     required this.createdAt,
@@ -52,6 +54,20 @@ class Complaint {
               .toList()
         : <ComplaintPhoto>[];
 
+    // Parse dates with fallback
+    DateTime createdAt;
+    DateTime updatedAt;
+    try {
+      createdAt = DateTime.parse(json['created_at']);
+    } catch (e) {
+      createdAt = DateTime.now();
+    }
+    try {
+      updatedAt = DateTime.parse(json['updated_at'] ?? json['created_at']);
+    } catch (e) {
+      updatedAt = createdAt;
+    }
+
     return Complaint(
       id: json['id'].toString(),
       userId: json['user_id']?.toString() ?? '',
@@ -59,10 +75,11 @@ class Complaint {
       assigneeId: json['assignee_id']?.toString(),
       type: json['type'] ?? '',
       description: json['description'] ?? '',
+      location: json['address']?.toString(), // API menggunakan field 'address'
       status: json['status'] ?? 'open',
       photos: photos,
-      createdAt: DateTime.parse(json['created_at']),
-      updatedAt: DateTime.parse(json['updated_at']),
+      createdAt: createdAt,
+      updatedAt: updatedAt,
     );
   }
 
@@ -74,6 +91,7 @@ class Complaint {
       'assignee_id': assigneeId,
       'type': type,
       'description': description,
+      'location': location,
       'status': status,
       'photos': photos.map((p) => p.toJson()).toList(),
       'created_at': createdAt.toIso8601String(),

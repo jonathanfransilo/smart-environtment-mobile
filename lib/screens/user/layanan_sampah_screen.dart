@@ -1162,6 +1162,7 @@ class DetailAkunLayananScreen extends StatelessWidget {
             _infoCard(Icons.location_on, "Alamat Lengkap", akun.address),
             _infoCard(Icons.map, "Kecamatan", akun.kecamatanName ?? '-'),
             _infoCard(Icons.home_work, "Kelurahan", akun.kelurahanName ?? '-'),
+            _infoCard(Icons.home, "RW", akun.rwName ?? '-'),
 
             const SizedBox(height: 24),
 

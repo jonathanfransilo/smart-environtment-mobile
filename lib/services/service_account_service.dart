@@ -35,12 +35,16 @@ class ServiceAccountService {
       print(
         '   - Account JSON: ${json['name']} -> contact_phone: ${json['contact_phone']}',
       );
+      print('   - RW data: ${json['rw']}');
+      print('   - RW name: ${json['rw_name']}');
       return ServiceAccount.fromJson(json);
     }).toList();
 
     print('✅ [ServiceAccountService] Parsed ${accounts.length} accounts');
     for (final account in accounts) {
-      print('   - ${account.name}: contactPhone = ${account.contactPhone}');
+      print(
+        '   - ${account.name}: contactPhone = ${account.contactPhone}, RW = ${account.rwName}',
+      );
     }
 
     return accounts;
@@ -91,10 +95,14 @@ class ServiceAccountService {
       print(
         '📞 [ServiceAccountService] Contact phone from response: ${data['contact_phone']}',
       );
+      print('📋 [ServiceAccountService] RW data from response: ${data['rw']}');
+      print(
+        '📋 [ServiceAccountService] RW name from response: ${data['rw_name']}',
+      );
 
       final account = ServiceAccount.fromJson(data);
       print(
-        '✅ [ServiceAccountService] Account created - Phone: ${account.contactPhone}',
+        '✅ [ServiceAccountService] Account created - Phone: ${account.contactPhone}, RW: ${account.rwName}',
       );
 
       return account;
@@ -119,6 +127,10 @@ class ServiceAccountService {
       final data = body['data'] as Map<String, dynamic>?;
       if (data != null) {
         print('✅ [ServiceAccountService] Account fetched: ${data['name']}');
+        print('📋 [ServiceAccountService] RW data in response: ${data['rw']}');
+        print(
+          '📋 [ServiceAccountService] RW name in response: ${data['rw_name']}',
+        );
         return ServiceAccount.fromJson(data);
       }
 

@@ -9,6 +9,7 @@ import 'notification_screen.dart';
 import 'tips_detail_screen.dart';
 import 'payment_method_screen.dart';
 import 'payment_process_screen.dart';
+import 'artikel_detail_screen.dart';
 import '../../services/invoice_service.dart';
 import '../../services/service_account_service.dart';
 import '../../services/notification_helper.dart';
@@ -43,6 +44,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // unread notification counter
   int _unreadNotifCount = 0;
+
+  // Debounce untuk notifikasi otomatis - cegah duplikasi
+  DateTime? _lastNotificationCheck;
 
   // Invoice/Tagihan state
   final InvoiceService _invoiceService = InvoiceService();
@@ -111,17 +115,28 @@ class _HomeScreenState extends State<HomeScreen> {
     super.didChangeDependencies();
     // Refresh data ketika screen menjadi visible lagi (misalnya setelah kembali dari screen detail)
     // Ini akan memastikan jadwal selalu update
+    // ✅ SOLUSI 2: Hanya refresh data, JANGAN trigger notifikasi lagi
     if (mounted && _hasLoadedAkunOnce) {
-      _refreshAllData();
+      _refreshDataOnly();
     }
   }
 
-  /// Refresh semua data dari API
+  /// Refresh data saja tanpa trigger notifikasi otomatis
+  Future<void> _refreshDataOnly() async {
+    await _loadAkunLayanan(selectLastIfNotFound: false);
+    await _loadNextPickupSchedule();
+    await _loadUnpaidInvoices();
+    await _loadArtikel();
+  }
+
+  /// Refresh semua data dari API (untuk pull to refresh)
   Future<void> _refreshAllData() async {
     await _loadAkunLayanan(selectLastIfNotFound: false);
     await _loadNextPickupSchedule();
     await _loadUnpaidInvoices();
     await _loadArtikel();
+    // ✅ SOLUSI 3: Notifikasi otomatis hanya di-check saat PERTAMA KALI buka app (_initAll)
+    // TIDAK saat pull to refresh untuk menghindari duplikasi
   }
 
   @override
@@ -145,16 +160,34 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// Check semua notifikasi otomatis (jadwal, tagihan, artikel)
+  /// DENGAN DEBOUNCE untuk mencegah duplikasi
   Future<void> _checkAutomaticNotifications() async {
     try {
+      // ✅ SOLUSI 1: Debounce - Jangan check jika baru saja di-check (dalam 5 menit)
+      final now = DateTime.now();
+      if (_lastNotificationCheck != null) {
+        final difference = now.difference(_lastNotificationCheck!);
+        if (difference.inMinutes < 5) {
+          print(
+            '⏭️ [HomeScreen] Skipping notification check - last checked ${difference.inMinutes} minutes ago',
+          );
+          return;
+        }
+      }
+
+      print('🔔 [HomeScreen] Checking automatic notifications...');
+      _lastNotificationCheck = now;
+
       final helper = NotificationHelper();
       await helper.checkAndTriggerNotifications(
         serviceAccountId: _selectedAkun?['id']?.toString(),
       );
+
       // Refresh unread count setelah check notifikasi
       await _loadUnreadNotif();
+      print('✅ [HomeScreen] Notification check completed');
     } catch (e) {
-      print('Error checking automatic notifications: $e');
+      print('❌ [HomeScreen] Error checking automatic notifications: $e');
     }
   }
 
@@ -1382,10 +1415,11 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildHomeContent() {
     return RefreshIndicator(
       onRefresh: () async {
-        // Pull to refresh - reload semua data
+        // ✅ Pull to refresh - reload semua data TANPA trigger notifikasi otomatis
         await _refreshAllData();
         await _loadUnreadNotif();
-        await _checkAutomaticNotifications();
+        // Notifikasi otomatis sudah di-check saat pertama kali buka app
+        // Tidak perlu di-check lagi saat pull to refresh (mencegah duplikasi)
       },
       child: SafeArea(
         child: SingleChildScrollView(
@@ -2509,6 +2543,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               ?.toString(),
                           kelurahanName: currentAccountMap['kelurahan']
                               ?.toString(),
+                          rwName: currentAccountMap['rw']?.toString(),
                           hariPengangkutan:
                               currentAccountMap['hari_pengangkutan']
                                   ?.toString(),
@@ -2764,8 +2799,13 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildArtikelCard(ArtikelModel artikel) {
     return InkWell(
       onTap: () {
-        // Navigate ke halaman detail artikel
-        Navigator.pushNamed(context, '/artikel-detail', arguments: artikel.id);
+        // Navigate ke halaman detail artikel dengan objek artikel lengkap
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ArtikelDetailScreen(article: artikel),
+          ),
+        );
       },
       borderRadius: BorderRadius.circular(16),
       child: Container(

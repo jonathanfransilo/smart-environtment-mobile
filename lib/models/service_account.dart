@@ -26,14 +26,14 @@ class ServiceAccount {
   final String? hariPengangkutan;
 
   factory ServiceAccount.fromJson(Map<String, dynamic> json) {
-  final areaData = json['area'];
-  final areaMap = areaData is Map<String, dynamic> ? areaData : null;
-  final parentData = areaMap?['parent'];
-  final parentMap = parentData is Map<String, dynamic> ? parentData : null;
-  final rwData = json['rw'];
-  final rwMap = rwData is Map<String, dynamic> ? rwData : null;
+    final areaData = json['area'];
+    final areaMap = areaData is Map<String, dynamic> ? areaData : null;
+    final parentData = areaMap?['parent'];
+    final parentMap = parentData is Map<String, dynamic> ? parentData : null;
+    final rwData = json['rw'];
+    final rwMap = rwData is Map<String, dynamic> ? rwData : null;
 
-  return ServiceAccount(
+    return ServiceAccount(
       id: json['id'].toString(),
       name: (json['name'] ?? json['nama'] ?? '-') as String,
       address: (json['address'] ?? json['alamat_lengkap'] ?? '-') as String,
@@ -44,13 +44,18 @@ class ServiceAccount {
           ? (json['longitude'] as num).toDouble()
           : double.tryParse(json['longitude']?.toString() ?? '0') ?? 0,
       status: json['status']?.toString() ?? 'active',
-    contactPhone:
-      json['contact_phone']?.toString() ?? json['phone']?.toString(),
-    kecamatanName:
-      json['kecamatan']?.toString() ?? parentMap?['name']?.toString(),
-    kelurahanName:
-      json['kelurahan']?.toString() ?? areaMap?['name']?.toString(),
-      rwName: rwMap?['name']?.toString(),
+      contactPhone:
+          json['contact_phone']?.toString() ?? json['phone']?.toString(),
+      kecamatanName:
+          json['kecamatan']?.toString() ?? parentMap?['name']?.toString(),
+      kelurahanName:
+          json['kelurahan']?.toString() ?? areaMap?['name']?.toString(),
+      // Try multiple paths for RW name
+      rwName:
+          json['rw_name']?.toString() ??
+          rwMap?['name']?.toString() ??
+          rwMap?['code']?.toString() ??
+          json['rw']?.toString(),
       hariPengangkutan: json['hari_pengangkutan']?.toString(),
     );
   }

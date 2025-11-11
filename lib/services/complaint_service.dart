@@ -100,6 +100,7 @@ class ComplaintService {
     required String
     type, // Jenis keluhan (illegal_dumping, uncollected_waste, damaged_facility, other)
     required String description,
+    required String location, // Lokasi kejadian
     String? serviceAccountId, // ID service account (opsional)
     File? image,
   }) async {
@@ -115,6 +116,7 @@ class ComplaintService {
       // Add text fields
       request.fields['type'] = type;
       request.fields['description'] = description;
+      request.fields['address'] = location; // API menggunakan field 'address'
 
       if (serviceAccountId != null) {
         request.fields['service_account_id'] = serviceAccountId;
@@ -145,6 +147,7 @@ class ComplaintService {
       print(
         '  Description: ${description.substring(0, description.length > 50 ? 50 : description.length)}...',
       );
+      print('  Location: $location');
       print('  Service Account ID: ${serviceAccountId ?? 'null'}');
       print('  Has image: ${image != null}');
 
@@ -357,7 +360,8 @@ class ComplaintService {
       // Add text fields only if provided
       if (category != null) request.fields['category'] = category;
       if (description != null) request.fields['description'] = description;
-      if (location != null) request.fields['location'] = location;
+      if (location != null)
+        request.fields['address'] = location; // API menggunakan field 'address'
 
       // Add image file if provided
       if (image != null) {
