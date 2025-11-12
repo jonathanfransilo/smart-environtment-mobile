@@ -1582,6 +1582,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       Navigator.pushNamed(context, '/pelaporan');
                     },
                   ),
+                  _menuItem(
+                    "assets/images/express.jpeg",
+                    "Angkutan\nExpress",
+                    onTap: () {
+                      Navigator.pushNamed(context, '/express-request');
+                    },
+                  ),
                 ],
               ),
 
