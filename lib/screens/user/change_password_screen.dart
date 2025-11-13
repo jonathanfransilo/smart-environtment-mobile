@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../services/profile_service.dart';
 
 class ChangePasswordScreen extends StatefulWidget {
   const ChangePasswordScreen({super.key});
@@ -14,6 +15,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   final _currentPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _profileService = ProfileService();
 
   bool _isLoading = false;
   bool _isSaving = false;
@@ -42,41 +44,33 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     setState(() => _isSaving = true);
 
     try {
-      final prefs = await SharedPreferences.getInstance();
+      // Call API to change password
+      final (success, message) = await _profileService.changePassword(
+        currentPassword: _currentPasswordController.text.trim(),
+        newPassword: _newPasswordController.text.trim(),
+        newPasswordConfirmation: _confirmPasswordController.text.trim(),
+      );
 
-      // Verifikasi password lama
-      final savedPassword = prefs.getString('user_password');
-      if (savedPassword != null &&
-          savedPassword != _currentPasswordController.text.trim()) {
+      if (success) {
+        // Simpan notifikasi
+        await _savePasswordChangeNotification();
+
+        if (mounted) {
+          setState(() => _isSaving = false);
+
+          // Show success dialog
+          _showSuccessDialog();
+        }
+      } else {
         if (mounted) {
           setState(() => _isSaving = false);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Password lama tidak sesuai'),
+            SnackBar(
+              content: Text(message ?? 'Gagal mengubah password'),
               backgroundColor: Colors.red,
             ),
           );
         }
-        return;
-      }
-
-      // Simulasi API call untuk update password
-      await Future.delayed(const Duration(seconds: 2));
-
-      // Simpan password baru (dalam produksi, ini harus dikirim ke server)
-      await prefs.setString(
-        'user_password',
-        _newPasswordController.text.trim(),
-      );
-
-      // Simpan notifikasi
-      await _savePasswordChangeNotification();
-
-      if (mounted) {
-        setState(() => _isSaving = false);
-
-        // Show success dialog
-        _showSuccessDialog();
       }
     } catch (e) {
       if (mounted) {

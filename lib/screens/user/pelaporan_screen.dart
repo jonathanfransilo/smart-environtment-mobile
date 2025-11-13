@@ -1136,20 +1136,203 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
     );
   }
 
-  // Fungsi untuk mendapatkan warna badge berdasarkan status
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'open':
-        return Colors.orange; // Menunggu
-      case 'in_progress':
-        return primaryColor; // Diproses
-      case 'resolved':
-        return Colors.green; // Selesai
-      case 'rejected':
-        return Colors.red; // Ditolak
-      default:
-        return primaryColor;
-    }
+  // Widget untuk membuat progress timeline sesuai Figma
+  Widget _buildProgressTimeline(String currentStatus) {
+    // Status flow: Menunggu -> Diproses -> Selesai/Ditolak
+    final isOpen = currentStatus.toLowerCase() == 'open';
+    final isInProgress = currentStatus.toLowerCase() == 'in_progress';
+    final isResolved = currentStatus.toLowerCase() == 'resolved';
+    final isRejected = currentStatus.toLowerCase() == 'rejected';
+    final Color pendingColor =
+        (isOpen || isInProgress || isResolved || isRejected)
+        ? primaryColor
+        : Colors.grey.shade300;
+
+    final Color inProgressColor = (isInProgress || isResolved || isRejected)
+        ? primaryColor
+        : Colors.grey.shade300;
+
+    final Color resolvedColor = isResolved
+        ? Colors.green
+        : (isRejected ? Colors.red : Colors.grey.shade300);
+
+    // Line color logic
+    final Color line1Color = (isInProgress || isResolved || isRejected)
+        ? primaryColor
+        : Colors.grey.shade300;
+
+    final Color line2Color = (isResolved || isRejected)
+        ? primaryColor
+        : Colors.grey.shade300;
+
+    return Column(
+      children: [
+        // Row untuk progress dots dan lines
+        Row(
+          children: [
+            // 1. Pending (Menunggu)
+            Expanded(
+              child: Column(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isOpen ? pendingColor : Colors.white,
+                      border: Border.all(
+                        color: pendingColor,
+                        width: isOpen ? 3 : 2,
+                      ),
+                    ),
+                    child: isOpen
+                        ? Icon(Icons.schedule, color: Colors.white, size: 24)
+                        : (isInProgress || isResolved || isRejected)
+                        ? Icon(Icons.check, color: pendingColor, size: 24)
+                        : null,
+                  ),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        "Menunggu",
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          fontWeight: isOpen
+                              ? FontWeight.w600
+                              : FontWeight.w500,
+                          color: isOpen ? Colors.black87 : Colors.grey.shade600,
+                          height: 1.2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Line 1
+            Expanded(
+              flex: 2,
+              child: Container(
+                height: 3,
+                margin: const EdgeInsets.only(bottom: 36),
+                color: line1Color,
+              ),
+            ),
+
+            // 2. On Progress (Diproses)
+            Expanded(
+              child: Column(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isInProgress ? inProgressColor : Colors.white,
+                      border: Border.all(
+                        color: inProgressColor,
+                        width: isInProgress ? 3 : 2,
+                      ),
+                    ),
+                    child: isInProgress
+                        ? Icon(Icons.autorenew, color: Colors.white, size: 24)
+                        : (isResolved || isRejected)
+                        ? Icon(Icons.check, color: inProgressColor, size: 24)
+                        : null,
+                  ),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        "Diproses",
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          fontWeight: isInProgress
+                              ? FontWeight.w600
+                              : FontWeight.w500,
+                          color: isInProgress
+                              ? Colors.black87
+                              : Colors.grey.shade600,
+                          height: 1.2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Line 2
+            Expanded(
+              flex: 2,
+              child: Container(
+                height: 3,
+                margin: const EdgeInsets.only(bottom: 36),
+                color: line2Color,
+              ),
+            ),
+
+            // 3. Resolve (Selesai) - hijau atau merah tergantung status
+            Expanded(
+              child: Column(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: (isResolved || isRejected)
+                          ? resolvedColor
+                          : Colors.white,
+                      border: Border.all(
+                        color: resolvedColor,
+                        width: (isResolved || isRejected) ? 3 : 2,
+                      ),
+                    ),
+                    child: (isResolved || isRejected)
+                        ? Icon(
+                            isResolved ? Icons.check_circle : Icons.cancel,
+                            color: Colors.white,
+                            size: 24,
+                          )
+                        : null,
+                  ),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        "Selesai",
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          fontWeight: (isResolved || isRejected)
+                              ? FontWeight.w600
+                              : FontWeight.w500,
+                          color: (isResolved || isRejected)
+                              ? Colors.black87
+                              : Colors.grey.shade600,
+                          height: 1.2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 
   @override
@@ -1309,58 +1492,120 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
 
             const SizedBox(height: 20),
 
-            // Status Badge Floating
+            // Progress Timeline Status (Sesuai Figma)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            _getStatusColor(laporan.status),
-                            _getStatusColor(laporan.status).withOpacity(0.8),
-                          ],
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header Keterlambatan
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: primaryColor.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.shopping_bag_outlined,
+                            color: primaryColor,
+                            size: 24,
+                          ),
                         ),
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: _getStatusColor(
-                              laporan.status,
-                            ).withOpacity(0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            _getStatusIcon(laporan.status),
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            laporan.statusText.toUpperCase(),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            "Keterlambatan",
                             style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                              letterSpacing: 0.5,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
                             ),
                           ),
-                        ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    // Subtitle lokasi/kategori
+                    Text(
+                      "${laporan.lokasi.isNotEmpty ? laporan.lokasi : laporan.kategori} • Raka",
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        color: Colors.grey.shade600,
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 24),
+
+                    // Progress Bar dengan 4 Status
+                    _buildProgressTimeline(laporan.status),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Card Deskripsi (sesuai Figma)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header Deskripsi dengan icon
+                    Row(
+                      children: [
+                        Icon(Icons.menu, color: Colors.grey.shade600, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          "Deskripsi",
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    // Isi Deskripsi
+                    Text(
+                      laporan.ciriCiri,
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        color: Colors.grey.shade700,
+                        height: 1.6,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
 
@@ -1429,7 +1674,7 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
 
                     const SizedBox(height: 24),
 
-                    // Detail Data dengan Icon
+                    // Detail Data dengan Icon (TANPA Deskripsi karena sudah terpisah)
                     _buildDetailRow("Kota", laporan.kota, Icons.location_city),
                     const Divider(height: 24),
                     _buildDetailRow(
@@ -1460,8 +1705,6 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
                       laporan.waktuPelanggaran,
                       Icons.access_time,
                     ),
-                    const Divider(height: 24),
-                    _buildDetailRow("Deskripsi", laporan.ciriCiri, Icons.notes),
                   ],
                 ),
               ),
@@ -1472,22 +1715,6 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  // Helper untuk mendapatkan icon berdasarkan status
-  IconData _getStatusIcon(String status) {
-    switch (status.toLowerCase()) {
-      case 'open':
-        return Icons.schedule;
-      case 'in_progress':
-        return Icons.autorenew;
-      case 'resolved':
-        return Icons.check_circle;
-      case 'rejected':
-        return Icons.cancel;
-      default:
-        return Icons.info;
-    }
   }
 }
 

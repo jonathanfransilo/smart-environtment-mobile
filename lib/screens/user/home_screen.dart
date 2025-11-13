@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -44,6 +45,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // unread notification counter
   int _unreadNotifCount = 0;
+
+  // Profile image path
+  String _profileImagePath = '';
 
   // Debounce untuk notifikasi otomatis - cegah duplikasi
   DateTime? _lastNotificationCheck;
@@ -118,6 +122,8 @@ class _HomeScreenState extends State<HomeScreen> {
     // ✅ SOLUSI 2: Hanya refresh data, JANGAN trigger notifikasi lagi
     if (mounted && _hasLoadedAkunOnce) {
       _refreshDataOnly();
+      // Refresh foto profil juga saat kembali ke home
+      _refreshUser();
     }
   }
 
@@ -561,10 +567,15 @@ class _HomeScreenState extends State<HomeScreen> {
     // Gunakan UserStorage untuk mendapatkan nama user yang tersimpan saat login
     final savedName = await UserStorage.getUserName();
 
+    // Load profile image path dari SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    final profilePath = prefs.getString('profile_image') ?? '';
+
     await Future.delayed(const Duration(milliseconds: 300));
     if (!mounted) return;
     setState(() {
       _username = savedName ?? "User";
+      _profileImagePath = profilePath;
       _isLoading = false;
     });
   }
@@ -573,9 +584,15 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _refreshUser() async {
     // Gunakan UserStorage untuk mendapatkan nama user terbaru
     final savedName = await UserStorage.getUserName();
+
+    // Refresh profile image
+    final prefs = await SharedPreferences.getInstance();
+    final profilePath = prefs.getString('profile_image') ?? '';
+
     if (!mounted) return;
     setState(() {
       _username = savedName ?? "User";
+      _profileImagePath = profilePath;
     });
   }
 
@@ -1333,470 +1350,606 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "Halo ${_isLoading ? 'User' : _username},",
-              style: GoogleFonts.poppins(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
-            ),
-            Text(
-              "Selamat Datang",
-              style: GoogleFonts.poppins(fontSize: 14, color: Colors.black54),
-            ),
-          ],
-        ),
-        actions: [
-          // 🔔 Notifikasi dengan badge
-          Stack(
-            children: [
-              IconButton(
-                onPressed: () async {
-                  await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const NotificationScreen(),
-                    ),
-                  );
-                  await _loadUnreadNotif();
-                },
-                icon: const Icon(Icons.notifications, color: Colors.black),
-              ),
-              if (_unreadNotifCount > 0)
-                Positioned(
-                  right: 8,
-                  top: 8,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 16,
-                      minHeight: 16,
-                    ),
-                    child: Center(
-                      child: Text(
-                        _unreadNotifCount > 9 ? '9+' : '$_unreadNotifCount',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-
-          IconButton(
-            onPressed: () async {
-              await Navigator.pushNamed(context, '/profile');
-              await _refreshUser();
-              await _refreshAllData(); // Refresh semua data termasuk jadwal
-            },
-            icon: const Icon(Icons.person, color: Colors.black),
-          ),
-        ],
-      ),
+      backgroundColor: Colors.grey.shade50,
       body: _isLoading ? _buildShimmer() : _buildHomeContent(),
     );
   }
 
   Widget _buildHomeContent() {
-    return RefreshIndicator(
-      onRefresh: () async {
-        // ✅ Pull to refresh - reload semua data TANPA trigger notifikasi otomatis
-        await _refreshAllData();
-        await _loadUnreadNotif();
-        // Notifikasi otomatis sudah di-check saat pertama kali buka app
-        // Tidak perlu di-check lagi saat pull to refresh (mencegah duplikasi)
-      },
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            const Color(0xFFE0F7F4), // Mint light
+            const Color(0xFFF0F9F8), // Very light mint
+            Colors.grey.shade50,
+          ],
+          stops: const [0.0, 0.3, 0.6],
+        ),
+      ),
       child: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          physics:
-              const AlwaysScrollableScrollPhysics(), // Pastikan bisa di-scroll untuk pull to refresh
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ===== Card 1: Akun Layanan Sampah =====
-              _buildServiceAccountCard(),
-
-              const SizedBox(height: 16),
-
-              // ===== Card 2: Tagihan & Pembayaran =====
-              _buildTagihanCard(),
-
-              const SizedBox(height: 40),
-
-              // ===== Daftar layanan =====
-              Row(
+        child: Column(
+          children: [
+            // Custom Header (Halo Warga + Icons) - Bagian dari gradient
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    "Daftar Layanan",
-                    style: GoogleFonts.poppins(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  // Halo Warga Section
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Halo ${_isLoading ? 'User' : _username},",
+                        style: GoogleFonts.poppins(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
+                        ),
+                      ),
+                      Text(
+                        "Selamat Datang",
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              GridView.count(
-                crossAxisCount: 4,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 20,
-                crossAxisSpacing: 16,
-                childAspectRatio: 0.85,
-                children: [
-                  _menuItem(
-                    "assets/images/keranjang.png",
-                    "Riwayat Pengambilan\nSampah",
-                    onTap: () async {
-                      try {
-                        print('🔘 [HomeScreen] Riwayat Pengambilan clicked');
-
-                        // Navigasi ke riwayat pengambilan sampah
-                        if (_akunList.isEmpty) {
-                          print('⚠️ [HomeScreen] No account available');
-                          // Jika belum ada akun, tampilkan snackbar
-                          if (!mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'Anda belum memiliki akun layanan. Silakan buat akun terlebih dahulu.',
-                                style: GoogleFonts.poppins(),
+                  // Icons (Notification & Profile)
+                  Row(
+                    children: [
+                      // 🔔 Notification Icon with Badge
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          GestureDetector(
+                            onTap: () async {
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const NotificationScreen(),
+                                ),
+                              );
+                              await _loadUnreadNotif();
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.7),
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
                               ),
-                              backgroundColor: Colors.orange,
-                              duration: const Duration(seconds: 3),
-                            ),
-                          );
-                          return;
-                        }
-
-                        // Jika sudah ada akun, buka halaman riwayat
-                        final currentAccount = _selectedAkun ?? _akunList.first;
-                        final serviceAccountId =
-                            currentAccount['id_akun']?.toString() ??
-                            currentAccount['id']?.toString() ??
-                            '0';
-                        final accountName =
-                            currentAccount['nama']?.toString() ?? 'Akun';
-
-                        print(
-                          '📋 [HomeScreen] Opening history for account: $accountName (ID: $serviceAccountId)',
-                        );
-
-                        // Validasi ID
-                        if (serviceAccountId == '0' ||
-                            serviceAccountId.isEmpty) {
-                          print('❌ [HomeScreen] Invalid service account ID');
-                          if (!mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'ID akun tidak valid. Silakan refresh halaman.',
-                                style: GoogleFonts.poppins(),
+                              child: Image.asset(
+                                'assets/images/notification.png',
+                                width: 24,
+                                height: 24,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return const Icon(
+                                    Icons.notifications,
+                                    color: Color.fromRGBO(21, 145, 137, 1),
+                                    size: 24,
+                                  );
+                                },
                               ),
-                              backgroundColor: Colors.red,
-                              duration: const Duration(seconds: 3),
-                            ),
-                          );
-                          return;
-                        }
-
-                        if (!mounted) return;
-
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => RiwayatPengambilanScreen(
-                              serviceAccountId: serviceAccountId,
-                              accountName: accountName,
                             ),
                           ),
-                        );
-
-                        print(
-                          '✅ [HomeScreen] Returned from RiwayatPengambilan',
-                        );
-                      } catch (e, stackTrace) {
-                        print(
-                          '💥 [HomeScreen] Error opening RiwayatPengambilan: $e',
-                        );
-                        print('Stack trace: $stackTrace');
-
-                        if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Gagal membuka riwayat: ${e.toString()}',
-                              style: GoogleFonts.poppins(),
+                          if (_unreadNotifCount > 0)
+                            Positioned(
+                              right: -2,
+                              top: -2,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(
+                                  color: Colors.red,
+                                  shape: BoxShape.circle,
+                                ),
+                                constraints: const BoxConstraints(
+                                  minWidth: 18,
+                                  minHeight: 18,
+                                ),
+                                child: Text(
+                                  _unreadNotifCount > 9
+                                      ? '9+'
+                                      : '$_unreadNotifCount',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
                             ),
-                            backgroundColor: Colors.red,
-                            duration: const Duration(seconds: 3),
-                          ),
-                        );
-                      }
-                    },
-                  ),
-                  /* HIDDEN: Menu untuk menambahkan akun layanan (di-hide untuk single account mode)
-                _menuItem(
-                  "assets/images/keranjang.png",
-                  "Akun Layanan\nSampah",
-                  onTap: () async {
-                    await _openLayananSampahAndRefresh();
-                  },
-                ), */
-                  _menuItem(
-                    "assets/images/rekening.png",
-                    "Riwayat Pembayaran",
-                    onTap: () {
-                      Navigator.pushNamed(context, '/riwayat-pembayaran');
-                    },
-                  ),
-                  _menuItem(
-                    "assets/images/artikel.png",
-                    "Artikel",
-                    onTap: () {
-                      Navigator.pushNamed(context, '/artikel');
-                    },
-                  ),
-                  _menuItem(
-                    "assets/images/pelanggaran.png",
-                    "Pelaporan",
-                    onTap: () {
-                      Navigator.pushNamed(context, '/pelaporan');
-                    },
-                  ),
-                  _menuItem(
-                    "assets/images/express.jpeg",
-                    "Angkutan\nExpress",
-                    onTap: () {
-                      Navigator.pushNamed(context, '/express-request');
-                    },
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 40),
-
-              // ===================================================
-              // ===== Artikel Terbaru (TAPPABLE & BERWARNA) =====
-              // ===================================================
-              Text(
-                "Artikel Terbaru",
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              // --- PageView Artikel ---
-              _isLoadingArtikel
-                  ? _buildArtikelShimmer()
-                  : _artikelList.isEmpty
-                  ? _buildEmptyArtikel()
-                  : SizedBox(
-                      height: 180,
-                      child: PageView.builder(
-                        controller: _artikelController,
-                        itemCount: _artikelList.length,
-                        itemBuilder: (context, index) {
-                          final artikel = _artikelList[index];
-                          return _buildArtikelCard(artikel);
+                        ],
+                      ),
+                      const SizedBox(width: 12),
+                      // 👤 Profile Photo
+                      GestureDetector(
+                        onTap: () async {
+                          await Navigator.pushNamed(context, '/profile');
+                          await _refreshUser();
+                          await _refreshAllData();
                         },
-                      ),
-                    ),
-
-              // --- Indikator Halaman Artikel ---
-              if (!_isLoadingArtikel && _artikelList.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(
-                    _artikelList.length,
-                    (index) => AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      width: _currentArtikelPage == index ? 24 : 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: _currentArtikelPage == index
-                            ? Colors.teal
-                            : Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-
-              const SizedBox(height: 40),
-
-              // ===================================================
-              // ===== TIPS RAMAH LINGKUNGAN (TAPPABLE & BERWARNA) =====
-              // ===================================================
-              Text(
-                "Tips Ramah Lingkungan",
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              // --- PageView Tips ---
-              SizedBox(
-                height: 220,
-                child: PageView(
-                  controller: _tipsController,
-                  children: [
-                    _tipsCard(
-                      icon: Icons.recycling,
-                      title: "Pisahkan Sampah",
-                      subtitle:
-                          "Pisahkan sampah organik & anorganik agar mudah didaur ulang.",
-                      index: 0,
-                      backgroundColor: const Color.fromARGB(
-                        255,
-                        21,
-                        145,
-                        137,
-                      ), // Hijau utama
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const TipsDetailScreen(
-                              tipTitle: "Pisahkan Sampah",
-                              tipContent:
-                                  "Mulai dari sekarang, sediakan dua tempat sampah di rumah Anda. Satu untuk sampah organik (sisa makanan, daun, dll.) dan satu lagi untuk sampah anorganik (plastik, kertas, kaleng, botol). Pemilahan ini mempermudah proses daur ulang dan pengomposan. Pastikan sampah anorganik sudah bersih sebelum dibuang!",
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                    _tipsCard(
-                      icon: Icons.lightbulb_outline,
-                      title: "Hemat Energi",
-                      subtitle:
-                          "Matikan lampu & cabut charger saat tidak digunakan.",
-                      index: 1,
-                      backgroundColor:
-                          Colors.blue.shade600, // Biru untuk energi
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const TipsDetailScreen(
-                              tipTitle: "Hemat Energi",
-                              tipContent:
-                                  "Langkah kecil seperti mematikan lampu saat keluar ruangan, mencabut kabel charger yang tidak digunakan, dan meminimalkan penggunaan AC sangat membantu mengurangi emisi karbon. Pertimbangkan untuk beralih ke lampu LED yang lebih hemat energi.",
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                    _tipsCard(
-                      icon: Icons.water_drop_outlined,
-                      title: "Hemat Air",
-                      subtitle:
-                          "Gunakan air seperlunya, perbaiki keran bocor segera.",
-                      index: 2,
-                      backgroundColor:
-                          Colors.orange.shade700, // Oranye untuk air
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const TipsDetailScreen(
-                              tipTitle: "Hemat Air",
-                              tipContent:
-                                  "Air adalah sumber daya yang terbatas. Pastikan Anda menutup keran saat menyikat gigi, gunakan shower untuk mandi (lebih hemat dari bathtub), dan segera perbaiki keran atau pipa yang bocor. Selain ramah lingkungan, ini juga menghemat tagihan bulanan Anda!",
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                    _tipsCard(
-                      icon: Icons.shopping_bag_outlined,
-                      title: "Kurangi Plastik",
-                      subtitle:
-                          "Bawa tas belanja sendiri untuk mengurangi sampah plastik.",
-                      index: 3,
-                      backgroundColor:
-                          Colors.purple.shade600, // Ungu/Pink untuk plastik
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const TipsDetailScreen(
-                              tipTitle: "Kurangi Plastik",
-                              tipContent:
-                                  "Sampah plastik membutuhkan waktu ratusan tahun untuk terurai. Selalu bawa tas belanja kain (reusable bag), hindari sedotan plastik, dan bawa botol minum isi ulang (tumbler) saat bepergian. Aksi 3R (Reduce, Reuse, Recycle) sangat penting!",
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-
-              // --- Indikator Halaman dengan animasi smooth ---
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(
-                  4,
-                  (index) => AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    height: _currentPage == index ? 10 : 8,
-                    width: _currentPage == index ? 28 : 8,
-                    decoration: BoxDecoration(
-                      color: _currentPage == index
-                          ? const Color.fromARGB(255, 21, 145, 137)
-                          : Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(6),
-                      boxShadow: _currentPage == index
-                          ? [
+                        child: Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            // Border hijau dihilangkan
+                            boxShadow: [
                               BoxShadow(
-                                color: const Color.fromARGB(
-                                  255,
-                                  21,
-                                  145,
-                                  137,
-                                ).withAlpha(102),
+                                color: Colors.black.withOpacity(0.1),
                                 blurRadius: 8,
                                 offset: const Offset(0, 2),
                               ),
-                            ]
-                          : [],
-                    ),
+                            ],
+                          ),
+                          child: ClipOval(
+                            child: _profileImagePath.isNotEmpty
+                                ? (_profileImagePath.startsWith('http')
+                                      ? Image.network(
+                                          _profileImagePath,
+                                          fit: BoxFit.cover,
+                                          errorBuilder:
+                                              (context, error, stackTrace) {
+                                                return Icon(
+                                                  Icons.person,
+                                                  color: Colors.grey[400],
+                                                  size: 24,
+                                                );
+                                              },
+                                        )
+                                      : Image.file(
+                                          File(_profileImagePath),
+                                          fit: BoxFit.cover,
+                                          errorBuilder:
+                                              (context, error, stackTrace) {
+                                                return Icon(
+                                                  Icons.person,
+                                                  color: Colors.grey[400],
+                                                  size: 24,
+                                                );
+                                              },
+                                        ))
+                                : Icon(
+                                    Icons.person,
+                                    color: Colors.grey[400],
+                                    size: 24,
+                                  ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            // Scrollable Content
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  // ✅ Pull to refresh - reload semua data TANPA trigger notifikasi otomatis
+                  await _refreshUser(); // Refresh profile image
+                  await _refreshAllData();
+                  await _loadUnreadNotif();
+                  // Notifikasi otomatis sudah di-check saat pertama kali buka app
+                  // Tidak perlu di-check lagi saat pull to refresh (mencegah duplikasi)
+                },
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  physics:
+                      const AlwaysScrollableScrollPhysics(), // Pastikan bisa di-scroll untuk pull to refresh
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // ===== Card 1: Akun Layanan Sampah =====
+                      _buildServiceAccountCard(),
+
+                      const SizedBox(height: 16),
+
+                      // ===== Card 2: Tagihan & Pembayaran =====
+                      _buildTagihanCard(),
+
+                      const SizedBox(height: 40),
+
+                      // ===== Daftar layanan =====
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            "Daftar Layanan",
+                            style: GoogleFonts.poppins(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+
+                      GridView.count(
+                        crossAxisCount: 4,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        mainAxisSpacing: 20,
+                        crossAxisSpacing: 16,
+                        childAspectRatio: 0.85,
+                        children: [
+                          // 1. Jadwal (icon dari assets/images/calender.png)
+                          _menuItem(
+                            "assets/images/calender.png",
+                            "Ketersediaan\n Jadwal",
+                            onTap: () {
+                              // TODO: Navigasi ke halaman jadwal
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Fitur Jadwal akan segera hadir',
+                                    style: GoogleFonts.poppins(),
+                                  ),
+                                  backgroundColor: Colors.blue,
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            },
+                          ),
+                          // 2. Request Pengambilan
+                          _menuItem(
+                            "assets/images/express.jpeg",
+                            "Request\nPengambilan",
+                            onTap: () {
+                              Navigator.pushNamed(context, '/express-request');
+                            },
+                          ),
+                          // 3. Riwayat Pengambilan
+                          _menuItem(
+                            "assets/images/keranjang.png",
+                            "Riwayat\nPengambilan",
+                            onTap: () async {
+                              try {
+                                print(
+                                  '🔘 [HomeScreen] Riwayat Pengambilan clicked',
+                                );
+
+                                // Navigasi ke riwayat pengambilan sampah
+                                if (_akunList.isEmpty) {
+                                  print('⚠️ [HomeScreen] No account available');
+                                  // Jika belum ada akun, tampilkan snackbar
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Anda belum memiliki akun layanan. Silakan buat akun terlebih dahulu.',
+                                        style: GoogleFonts.poppins(),
+                                      ),
+                                      backgroundColor: Colors.orange,
+                                      duration: const Duration(seconds: 3),
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                // Jika sudah ada akun, buka halaman riwayat
+                                final currentAccount =
+                                    _selectedAkun ?? _akunList.first;
+                                final serviceAccountId =
+                                    currentAccount['id_akun']?.toString() ??
+                                    currentAccount['id']?.toString() ??
+                                    '0';
+                                final accountName =
+                                    currentAccount['nama']?.toString() ??
+                                    'Akun';
+
+                                print(
+                                  '📋 [HomeScreen] Opening history for account: $accountName (ID: $serviceAccountId)',
+                                );
+
+                                // Validasi ID
+                                if (serviceAccountId == '0' ||
+                                    serviceAccountId.isEmpty) {
+                                  print(
+                                    '❌ [HomeScreen] Invalid service account ID',
+                                  );
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'ID akun tidak valid. Silakan refresh halaman.',
+                                        style: GoogleFonts.poppins(),
+                                      ),
+                                      backgroundColor: Colors.red,
+                                      duration: const Duration(seconds: 3),
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                if (!mounted) return;
+
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        RiwayatPengambilanScreen(
+                                          serviceAccountId: serviceAccountId,
+                                          accountName: accountName,
+                                        ),
+                                  ),
+                                );
+
+                                print(
+                                  '✅ [HomeScreen] Returned from RiwayatPengambilan',
+                                );
+                              } catch (e, stackTrace) {
+                                print(
+                                  '💥 [HomeScreen] Error opening RiwayatPengambilan: $e',
+                                );
+                                print('Stack trace: $stackTrace');
+
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Gagal membuka riwayat: ${e.toString()}',
+                                      style: GoogleFonts.poppins(),
+                                    ),
+                                    backgroundColor: Colors.red,
+                                    duration: const Duration(seconds: 3),
+                                  ),
+                                );
+                              }
+                            },
+                          ),
+                          // 4. Riwayat Pembayaran
+                          _menuItem(
+                            "assets/images/rekening.png",
+                            "Riwayat\nPembayaran",
+                            onTap: () {
+                              Navigator.pushNamed(
+                                context,
+                                '/riwayat-pembayaran',
+                              );
+                            },
+                          ),
+                          // 5. Artikel
+                          _menuItem(
+                            "assets/images/artikel.png",
+                            "Artikel",
+                            onTap: () {
+                              Navigator.pushNamed(context, '/artikel');
+                            },
+                          ),
+                          // 6. Pelaporan
+                          _menuItem(
+                            "assets/images/pelanggaran.png",
+                            "Pelaporan",
+                            onTap: () {
+                              Navigator.pushNamed(context, '/pelaporan');
+                            },
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 40),
+
+                      // ===================================================
+                      // ===== Artikel Terbaru (TAPPABLE & BERWARNA) =====
+                      // ===================================================
+                      Text(
+                        "Artikel Terbaru",
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // --- PageView Artikel ---
+                      _isLoadingArtikel
+                          ? _buildArtikelShimmer()
+                          : _artikelList.isEmpty
+                          ? _buildEmptyArtikel()
+                          : SizedBox(
+                              height: 180,
+                              child: PageView.builder(
+                                controller: _artikelController,
+                                itemCount: _artikelList.length,
+                                itemBuilder: (context, index) {
+                                  final artikel = _artikelList[index];
+                                  return _buildArtikelCard(artikel);
+                                },
+                              ),
+                            ),
+
+                      // --- Indikator Halaman Artikel ---
+                      if (!_isLoadingArtikel && _artikelList.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: List.generate(
+                            _artikelList.length,
+                            (index) => AnimatedContainer(
+                              duration: const Duration(milliseconds: 300),
+                              margin: const EdgeInsets.symmetric(horizontal: 4),
+                              width: _currentArtikelPage == index ? 24 : 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: _currentArtikelPage == index
+                                    ? Colors.teal
+                                    : Colors.grey.shade300,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+
+                      const SizedBox(height: 40),
+
+                      // ===================================================
+                      // ===== TIPS RAMAH LINGKUNGAN (TAPPABLE & BERWARNA) =====
+                      // ===================================================
+                      Text(
+                        "Tips Ramah Lingkungan",
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // --- PageView Tips ---
+                      SizedBox(
+                        height: 220,
+                        child: PageView(
+                          controller: _tipsController,
+                          children: [
+                            _tipsCard(
+                              icon: Icons.recycling,
+                              title: "Pisahkan Sampah",
+                              subtitle:
+                                  "Pisahkan sampah organik & anorganik agar mudah didaur ulang.",
+                              index: 0,
+                              backgroundColor: const Color.fromARGB(
+                                255,
+                                21,
+                                145,
+                                137,
+                              ), // Hijau utama
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const TipsDetailScreen(
+                                      tipTitle: "Pisahkan Sampah",
+                                      tipContent:
+                                          "Mulai dari sekarang, sediakan dua tempat sampah di rumah Anda. Satu untuk sampah organik (sisa makanan, daun, dll.) dan satu lagi untuk sampah anorganik (plastik, kertas, kaleng, botol). Pemilahan ini mempermudah proses daur ulang dan pengomposan. Pastikan sampah anorganik sudah bersih sebelum dibuang!",
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                            _tipsCard(
+                              icon: Icons.lightbulb_outline,
+                              title: "Hemat Energi",
+                              subtitle:
+                                  "Matikan lampu & cabut charger saat tidak digunakan.",
+                              index: 1,
+                              backgroundColor:
+                                  Colors.blue.shade600, // Biru untuk energi
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const TipsDetailScreen(
+                                      tipTitle: "Hemat Energi",
+                                      tipContent:
+                                          "Langkah kecil seperti mematikan lampu saat keluar ruangan, mencabut kabel charger yang tidak digunakan, dan meminimalkan penggunaan AC sangat membantu mengurangi emisi karbon. Pertimbangkan untuk beralih ke lampu LED yang lebih hemat energi.",
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                            _tipsCard(
+                              icon: Icons.water_drop_outlined,
+                              title: "Hemat Air",
+                              subtitle:
+                                  "Gunakan air seperlunya, perbaiki keran bocor segera.",
+                              index: 2,
+                              backgroundColor:
+                                  Colors.orange.shade700, // Oranye untuk air
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const TipsDetailScreen(
+                                      tipTitle: "Hemat Air",
+                                      tipContent:
+                                          "Air adalah sumber daya yang terbatas. Pastikan Anda menutup keran saat menyikat gigi, gunakan shower untuk mandi (lebih hemat dari bathtub), dan segera perbaiki keran atau pipa yang bocor. Selain ramah lingkungan, ini juga menghemat tagihan bulanan Anda!",
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                            _tipsCard(
+                              icon: Icons.shopping_bag_outlined,
+                              title: "Kurangi Plastik",
+                              subtitle:
+                                  "Bawa tas belanja sendiri untuk mengurangi sampah plastik.",
+                              index: 3,
+                              backgroundColor: Colors
+                                  .purple
+                                  .shade600, // Ungu/Pink untuk plastik
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const TipsDetailScreen(
+                                      tipTitle: "Kurangi Plastik",
+                                      tipContent:
+                                          "Sampah plastik membutuhkan waktu ratusan tahun untuk terurai. Selalu bawa tas belanja kain (reusable bag), hindari sedotan plastik, dan bawa botol minum isi ulang (tumbler) saat bepergian. Aksi 3R (Reduce, Reuse, Recycle) sangat penting!",
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // --- Indikator Halaman dengan animasi smooth ---
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(
+                          4,
+                          (index) => AnimatedContainer(
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeInOut,
+                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                            height: _currentPage == index ? 10 : 8,
+                            width: _currentPage == index ? 28 : 8,
+                            decoration: BoxDecoration(
+                              color: _currentPage == index
+                                  ? const Color.fromARGB(255, 21, 145, 137)
+                                  : Colors.grey.shade300,
+                              borderRadius: BorderRadius.circular(6),
+                              boxShadow: _currentPage == index
+                                  ? [
+                                      BoxShadow(
+                                        color: const Color.fromARGB(
+                                          255,
+                                          21,
+                                          145,
+                                          137,
+                                        ).withAlpha(102),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ]
+                                  : [],
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 24),
+                    ],
                   ),
                 ),
               ),
-
-              const SizedBox(height: 24),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

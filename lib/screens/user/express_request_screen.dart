@@ -422,7 +422,7 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Request Angkutan Ekstra',
+          'Request Pengambilan',
           style: GoogleFonts.poppins(
             color: Colors.black87,
             fontWeight: FontWeight.w600,
@@ -1054,7 +1054,7 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
                 child: ElevatedButton(
                   onPressed: _submitRequest,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFF8A65),
+                    backgroundColor: primaryColor,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),

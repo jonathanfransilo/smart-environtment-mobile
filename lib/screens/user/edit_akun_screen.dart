@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/user_storage.dart';
+import '../../services/profile_service.dart';
 
 class EditAkunScreen extends StatefulWidget {
   const EditAkunScreen({super.key});
@@ -15,6 +16,7 @@ class _EditAkunScreenState extends State<EditAkunScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _profileService = ProfileService();
 
   bool _isLoading = false;
   bool _isSaving = false;
@@ -37,18 +39,43 @@ class _EditAkunScreenState extends State<EditAkunScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final email = await UserStorage.getUserEmail();
-      final name = await UserStorage.getUserName();
-      final prefs = await SharedPreferences.getInstance();
-      final phone = prefs.getString('user_phone') ?? '';
+      // Load profile from API
+      final (success, message, data) = await _profileService.getProfile();
 
-      if (mounted) {
-        setState(() {
-          _nameController.text = name ?? '';
-          _emailController.text = email ?? '';
-          _phoneController.text = phone;
-          _isLoading = false;
-        });
+      if (success && data != null) {
+        if (mounted) {
+          setState(() {
+            _nameController.text = data['name']?.toString() ?? '';
+            _emailController.text = data['email']?.toString() ?? '';
+            _phoneController.text = data['phone']?.toString() ?? '';
+            _isLoading = false;
+          });
+        }
+      } else {
+        // Fallback to local storage if API fails
+        final email = await UserStorage.getUserEmail();
+        final name = await UserStorage.getUserName();
+        final prefs = await SharedPreferences.getInstance();
+        final phone = prefs.getString('user_phone') ?? '';
+
+        if (mounted) {
+          setState(() {
+            _nameController.text = name ?? '';
+            _emailController.text = email ?? '';
+            _phoneController.text = phone;
+            _isLoading = false;
+          });
+        }
+
+        // Show warning if API failed
+        if (mounted && message != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Memuat data lokal: $message'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -71,40 +98,68 @@ class _EditAkunScreenState extends State<EditAkunScreen> {
     setState(() => _isSaving = true);
 
     try {
-      final prefs = await SharedPreferences.getInstance();
+      // Call API to update profile
+      final (success, message, data) = await _profileService.updateProfile(
+        name: _nameController.text.trim(),
+        phone: _phoneController.text.trim(),
+      );
 
-      // Simpan nama lengkap
-      await prefs.setString('user_name', _nameController.text.trim());
+      if (success) {
+        // Update local storage
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('user_name', _nameController.text.trim());
+        await prefs.setString('user_phone', _phoneController.text.trim());
 
-      // Simpan email (jika diubah)
-      await prefs.setString('user_email', _emailController.text.trim());
+        // Update UserStorage
+        if (data != null) {
+          await UserStorage.saveUser(
+            id: data['id'] as int,
+            name: data['name'] as String,
+            email: data['email'] as String,
+            roles: (data['roles'] as List<dynamic>?)
+                ?.map((e) => e.toString())
+                .toList(),
+            fullData: data,
+          );
+        }
 
-      // Simpan nomor telepon
-      await prefs.setString('user_phone', _phoneController.text.trim());
+        if (mounted) {
+          setState(() => _isSaving = false);
 
-      if (mounted) {
-        setState(() => _isSaving = false);
-
-        // Show success message
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle, color: Colors.white),
-                const SizedBox(width: 12),
-                Text('Data berhasil disimpan', style: GoogleFonts.poppins()),
-              ],
+          // Show success message
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Profil berhasil diperbarui',
+                    style: GoogleFonts.poppins(),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-        );
+          );
 
-        // Kembali ke halaman sebelumnya
-        Navigator.pop(context, true); // true = data updated
+          // Kembali ke halaman sebelumnya
+          Navigator.pop(context, true); // true = data updated
+        }
+      } else {
+        if (mounted) {
+          setState(() => _isSaving = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(message ?? 'Gagal memperbarui profil'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {

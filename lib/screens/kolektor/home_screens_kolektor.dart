@@ -670,11 +670,19 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
                             // Refresh unread count setelah kembali dari notification screen
                             await _loadUnreadNotifCount();
                           },
-                          icon: const Icon(
-                            Icons.notifications_outlined,
-                            size: 26,
+                          icon: Image.asset(
+                            'assets/images/notification.png',
+                            width: 26,
+                            height: 26,
+                            color: Colors.black87,
+                            errorBuilder: (context, error, stackTrace) {
+                              return const Icon(
+                                Icons.notifications_outlined,
+                                size: 26,
+                                color: Colors.black87,
+                              );
+                            },
                           ),
-                          color: Colors.black87,
                         ),
                         // Badge untuk unread notifications
                         if (_unreadNotifCount > 0)
