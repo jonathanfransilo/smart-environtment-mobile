@@ -102,7 +102,8 @@ class ComplaintService {
     required String description,
     required String location, // Lokasi kejadian
     String? serviceAccountId, // ID service account (opsional)
-    File? image,
+    File? image, // Single image (backward compatibility)
+    List<File>? images, // Multiple images
   }) async {
     try {
       final token = await TokenStorage.getToken();
@@ -122,22 +123,31 @@ class ComplaintService {
         request.fields['service_account_id'] = serviceAccountId;
       }
 
-      // Add image file if provided (sesuai dokumentasi: evidence_photos[])
-      if (image != null) {
+      // Add images - support both single and multiple
+      final filesToUpload = <File>[];
+      if (images != null && images.isNotEmpty) {
+        filesToUpload.addAll(images);
+      } else if (image != null) {
+        filesToUpload.add(image);
+      }
+
+      // Add all image files (sesuai dokumentasi: evidence_photos[])
+      for (var file in filesToUpload) {
         if (kIsWeb) {
           // Untuk web, gunakan fromBytes
-          final bytes = await image.readAsBytes();
+          final bytes = await file.readAsBytes();
           request.files.add(
             http.MultipartFile.fromBytes(
               'evidence_photos[]', // Array field name sesuai API docs
               bytes,
-              filename: 'complaint_image.jpg',
+              filename:
+                  'complaint_image_${DateTime.now().millisecondsSinceEpoch}.jpg',
             ),
           );
         } else {
           // Untuk mobile, gunakan fromPath
           request.files.add(
-            await http.MultipartFile.fromPath('evidence_photos[]', image.path),
+            await http.MultipartFile.fromPath('evidence_photos[]', file.path),
           );
         }
       }
@@ -149,7 +159,7 @@ class ComplaintService {
       );
       print('  Location: $location');
       print('  Service Account ID: ${serviceAccountId ?? 'null'}');
-      print('  Has image: ${image != null}');
+      print('  Number of images: ${filesToUpload.length}');
 
       final streamedResponse = await request.send().timeout(
         const Duration(seconds: 60),

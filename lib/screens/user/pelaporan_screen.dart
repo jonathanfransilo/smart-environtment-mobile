@@ -49,7 +49,8 @@ class Laporan {
   final String ciriCiri;
   final String? serviceAccount; // Service account yang dilaporkan
   final custom_file.File? imageFile;
-  final String? photoUrl; // URL foto dari API
+  final String? photoUrl; // URL foto dari API (deprecated - use photoUrls)
+  final List<String> photoUrls; // Multiple photo URLs dari API
   final bool isAsset;
   final DateTime createdAt;
   final String
@@ -64,6 +65,7 @@ class Laporan {
     this.serviceAccount,
     this.imageFile,
     this.photoUrl,
+    this.photoUrls = const [], // Default empty list
     required this.isAsset,
     this.status = 'open', // Default status
   }) : id = DateTime.now().microsecondsSinceEpoch.toString(),
@@ -100,6 +102,7 @@ class Laporan {
       'serviceAccount': serviceAccount,
       'imagePath': imageFile?.path,
       'photoUrl': photoUrl,
+      'photoUrls': photoUrls,
       'isAsset': isAsset,
       'status': status,
       'createdAt': createdAt.toIso8601String(),
@@ -119,6 +122,7 @@ class Laporan {
           ? custom_file.File(json['imagePath'] as String)
           : null,
       photoUrl: json['photoUrl'] as String?,
+      photoUrls: (json['photoUrls'] as List<dynamic>?)?.cast<String>() ?? [],
       isAsset: json['isAsset'] as bool? ?? false,
       status: json['status'] as String? ?? 'open',
     );
@@ -176,6 +180,10 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
   void initState() {
     super.initState();
     _loadServiceAccounts();
+    // Tambahkan image dari parent jika ada
+    if (widget.imageFile != null) {
+      _selectedImages.add(widget.imageFile!);
+    }
   }
 
   @override
@@ -260,16 +268,13 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
 
       print('🔍 reportData: $reportData');
 
-      // Gunakan foto yang dipilih user, fallback ke foto dari parent
-      final finalImage = _selectedImage ?? widget.imageFile;
-
-      // Navigasi ke DetailLaporanScreen
+      // Navigasi ke DetailLaporanScreen dengan list images
       Navigator.of(context)
           .push(
             MaterialPageRoute<Laporan>(
               builder: (ctx) => DetailLaporanScreen(
                 reportData: reportData,
-                imageFile: finalImage,
+                imageFiles: _selectedImages,
                 isAsset: widget.isAsset,
               ),
             ),
@@ -297,7 +302,7 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
         final customFile = createFileFromBytes(pickedFile.path, bytes);
 
         setState(() {
-          _selectedImage = customFile;
+          _selectedImages.add(customFile);
         });
       }
     } catch (e) {
@@ -351,26 +356,161 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
     );
   }
 
-  custom_file.File? _selectedImage;
+  final List<custom_file.File> _selectedImages = [];
 
   @override
   Widget build(BuildContext context) {
     // Tentukan widget gambar yang akan ditampilkan
     Widget imageWidget;
 
-    // Gunakan foto yang baru dipilih, atau foto yang dibawa dari parent
-    final imageToShow = _selectedImage ?? widget.imageFile;
+    // Gunakan foto yang sudah dipilih
+    final hasImages = _selectedImages.isNotEmpty;
 
-    if (imageToShow != null) {
-      // Menggunakan buildPlatformImage untuk cross-platform compatibility
-      imageWidget = buildPlatformImage(
-        imageToShow,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: 200,
+    if (hasImages) {
+      // Tampilkan horizontal scroll untuk multiple images
+      imageWidget = Container(
+        height: 220,
+        margin: const EdgeInsets.only(bottom: 8),
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          itemCount: _selectedImages.length + 1, // +1 untuk tombol tambah
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          itemBuilder: (context, index) {
+            if (index == _selectedImages.length) {
+              // Tombol untuk tambah foto
+              return GestureDetector(
+                onTap: _showPickerOptions,
+                child: Container(
+                  width: 160,
+                  height: 200,
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.grey.shade400,
+                      width: 2,
+                      style: BorderStyle.solid,
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.add_photo_alternate,
+                        size: 48,
+                        color: Colors.grey.shade600,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Tambah Foto',
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            // Tampilkan foto yang sudah dipilih
+            return Container(
+              width: 280,
+              height: 200,
+              margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+              child: Stack(
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: primaryColor, width: 3),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(9),
+                      child: buildPlatformImage(
+                        _selectedImages[index],
+                        fit: BoxFit.cover,
+                        width: 280,
+                        height: 200,
+                      ),
+                    ),
+                  ),
+                  // Badge nomor foto
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.6),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${index + 1}/${_selectedImages.length}',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Tombol hapus foto
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _selectedImages.removeAt(index);
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.3),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.close,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       );
     } else {
-      // Placeholder untuk upload foto (menggunakan image dari assets)
+      // Placeholder untuk upload foto pertama
       imageWidget = GestureDetector(
         onTap: _showPickerOptions,
         child: Container(
@@ -475,6 +615,48 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
                   ),
                 ),
               ),
+
+              // Info jumlah foto jika ada multiple images
+              if (_selectedImages.length > 1)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12, bottom: 0),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: primaryColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: primaryColor.withOpacity(0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.photo_library,
+                          size: 18,
+                          color: primaryColor,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${_selectedImages.length} foto siap diupload',
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            color: primaryColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const Spacer(),
+                        Icon(Icons.check_circle, size: 18, color: primaryColor),
+                      ],
+                    ),
+                  ),
+                ),
+
               const SizedBox(height: 24),
 
               // --- FORM FIELDS YANG DIPERLUKAN API ---
@@ -640,13 +822,13 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
 
 class DetailLaporanScreen extends StatelessWidget {
   final Map<String, String> reportData;
-  final custom_file.File? imageFile;
+  final List<custom_file.File> imageFiles;
   final bool isAsset;
 
   const DetailLaporanScreen({
     super.key,
     required this.reportData,
-    required this.imageFile,
+    required this.imageFiles,
     required this.isAsset,
   });
 
@@ -692,15 +874,16 @@ class DetailLaporanScreen extends StatelessWidget {
       print('  Description: ${reportData['deskripsi']}');
       print('  Location: ${reportData['lokasi']}');
       print('  Service Account: ${reportData['serviceAccount']}');
-      print('  Has Image: ${imageFile != null}');
+      print('  Has Images: ${imageFiles.length}');
 
+      // Kirim semua foto ke API
       final (success, message, data) = await ComplaintService.createComplaint(
         type: reportData['type']!, // Langsung dari dropdown value
         description: reportData['deskripsi']!,
         location: reportData['lokasi']!, // Tambahkan lokasi
         serviceAccountId:
             reportData['serviceAccount'], // Kirim service account ke API
-        image: imageFile,
+        images: imageFiles, // Kirim semua foto
       );
 
       print('📥 API Response - Success: $success, Message: $message');
@@ -746,8 +929,8 @@ class DetailLaporanScreen extends StatelessWidget {
               reportData['deskripsi'] ??
               'Tidak ada deskripsi', // Fallback jika null
           serviceAccount: reportData['serviceAccount'], // Ambil dari form
-          imageFile: imageFile,
-          isAsset: isAsset,
+          imageFile: imageFiles.isNotEmpty ? imageFiles.first : null,
+          isAsset: imageFiles.isNotEmpty,
         );
         print('✅ newReport created: ${newReport.id}');
 
@@ -956,12 +1139,10 @@ class DetailLaporanScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     // Tentukan widget gambar yang akan ditampilkan
     Widget imageWidget;
-    if (imageFile != null) {
-      imageWidget = buildPlatformImage(
-        imageFile!,
-        fit: BoxFit.cover,
-        height: 200,
-        width: double.infinity,
+    if (imageFiles.isNotEmpty) {
+      imageWidget = _InstagramStylePhotoGallery(
+        imageFiles: imageFiles,
+        isAsset: isAsset,
       );
     } else if (isAsset) {
       // Fallback jika ada flag isAsset (tidak digunakan lagi)
@@ -1011,10 +1192,8 @@ class DetailLaporanScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Area Foto (Tanpa tombol ubah)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: imageWidget,
-            ),
+            imageWidget,
+
             const SizedBox(height: 24),
 
             Text(
@@ -1339,80 +1518,41 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     // Tentukan widget gambar yang akan ditampilkan
     Widget imageWidget;
-    if (laporan.photoUrl != null) {
-      // Prioritaskan foto dari URL (API)
-      print('🖼️ Loading image from URL: ${laporan.photoUrl}');
-      imageWidget = Image.network(
-        laporan.photoUrl!,
-        fit: BoxFit.cover,
-        height: 250,
-        width: double.infinity,
-        errorBuilder: (context, error, stackTrace) {
-          print('❌ Image load error: $error');
-          print('   URL: ${laporan.photoUrl}');
-          return Container(
-            height: 250,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Colors.grey.shade200, Colors.grey.shade400],
-              ),
-            ),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.broken_image,
-                    size: 60,
-                    color: Colors.grey.shade600,
-                  ),
-                  SizedBox(height: 12),
-                  Text(
-                    "Gagal memuat gambar",
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey.shade700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) {
-            print('✅ Image loaded successfully');
-            return child;
-          }
-          return Container(
-            height: 250,
-            width: double.infinity,
-            color: Colors.grey.shade200,
-            child: Center(
-              child: CircularProgressIndicator(
-                value: loadingProgress.expectedTotalBytes != null
-                    ? loadingProgress.cumulativeBytesLoaded /
-                          loadingProgress.expectedTotalBytes!
-                    : null,
-                strokeWidth: 3,
-                color: primaryColor,
-              ),
-            ),
-          );
-        },
+
+    // Prioritaskan photoUrls (multiple photos dari API)
+    if (laporan.photoUrls.isNotEmpty) {
+      print('🖼️ Loading ${laporan.photoUrls.length} images from API');
+      imageWidget = _InstagramStylePhotoGalleryNetwork(
+        photoUrls: laporan.photoUrls,
+      );
+    } else if (laporan.photoUrl != null) {
+      // Fallback untuk single photo (backward compatibility)
+      print('🖼️ Loading single image from URL: ${laporan.photoUrl}');
+      imageWidget = _InstagramStylePhotoGalleryNetwork(
+        photoUrls: [laporan.photoUrl!],
       );
     } else if (laporan.imageFile != null) {
-      imageWidget = buildPlatformImage(
-        laporan.imageFile!,
-        fit: BoxFit.cover,
+      // File dari local (jarang digunakan untuk detail terkirim)
+      imageWidget = Container(
         height: 250,
         width: double.infinity,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade300, width: 1),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: buildPlatformImage(
+            laporan.imageFile!,
+            fit: BoxFit.cover,
+            height: 250,
+            width: double.infinity,
+          ),
+        ),
       );
     } else {
+      // No image available
       imageWidget = Container(
         height: 250,
         width: double.infinity,
@@ -1422,6 +1562,7 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
             end: Alignment.bottomRight,
             colors: [Colors.grey.shade200, Colors.grey.shade400],
           ),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Center(
           child: Column(
@@ -1540,9 +1681,17 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    // Subtitle lokasi/kategori
+                    // Subtitle lokasi/kategori dan service account
                     Text(
-                      "${laporan.lokasi.isNotEmpty ? laporan.lokasi : laporan.kategori} • Raka",
+                      laporan.lokasi.isNotEmpty
+                          ? (laporan.serviceAccount != null &&
+                                    laporan.serviceAccount!.isNotEmpty
+                                ? "${laporan.lokasi} • ${laporan.serviceAccount}"
+                                : "${laporan.lokasi} • None")
+                          : (laporan.serviceAccount != null &&
+                                    laporan.serviceAccount!.isNotEmpty
+                                ? "${laporan.kategori} • ${laporan.serviceAccount}"
+                                : "${laporan.kategori} • None"),
                       style: GoogleFonts.poppins(
                         fontSize: 14,
                         color: Colors.grey.shade600,
@@ -1811,24 +1960,37 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
     print('📍 Location from API: ${complaint.location}');
     print('📍 Is location empty? ${complaint.location?.isEmpty ?? true}');
 
-    // Ambil URL foto pertama jika ada
-    String? photoUrl;
+    // Ambil semua URL foto dari API
+    String? photoUrl; // Backward compatibility
+    List<String> photoUrls = [];
     if (complaint.photos.isNotEmpty) {
+      // Ambil foto pertama untuk backward compatibility
       photoUrl = complaint.photos.first.url;
       print('📷 Original Photo URL from API: $photoUrl');
 
-      // Jika URL relatif (dimulai dengan /), tambahkan base URL
-      if (photoUrl.isNotEmpty && photoUrl.startsWith('/')) {
-        // Ambil base URL tanpa /api/v1
-        final baseUrlWithoutApi = ApiConfig.baseUrl.replaceAll('/api/v1', '');
-        photoUrl = '$baseUrlWithoutApi$photoUrl';
-        print('📷 Full Photo URL: $photoUrl');
-      } else if (photoUrl.isNotEmpty && !photoUrl.startsWith('http')) {
-        // Jika relatif tanpa slash awal
-        final baseUrlWithoutApi = ApiConfig.baseUrl.replaceAll('/api/v1', '');
-        photoUrl = '$baseUrlWithoutApi/$photoUrl';
-        print('📷 Full Photo URL: $photoUrl');
+      // Process semua foto
+      for (var photo in complaint.photos) {
+        String fullUrl = photo.url;
+
+        // Jika URL relatif (dimulai dengan /), tambahkan base URL
+        if (fullUrl.isNotEmpty && fullUrl.startsWith('/')) {
+          final baseUrlWithoutApi = ApiConfig.baseUrl.replaceAll('/api/v1', '');
+          fullUrl = '$baseUrlWithoutApi$fullUrl';
+        } else if (fullUrl.isNotEmpty && !fullUrl.startsWith('http')) {
+          // Jika relatif tanpa slash awal
+          final baseUrlWithoutApi = ApiConfig.baseUrl.replaceAll('/api/v1', '');
+          fullUrl = '$baseUrlWithoutApi/$fullUrl';
+        }
+
+        photoUrls.add(fullUrl);
       }
+
+      // Update photoUrl untuk backward compatibility
+      if (photoUrls.isNotEmpty) {
+        photoUrl = photoUrls.first;
+      }
+
+      print('📷 Loaded ${photoUrls.length} photos from API');
     } else {
       print('📷 No photos available for this complaint');
     }
@@ -1841,7 +2003,8 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
       ciriCiri: complaint.description,
       serviceAccount: complaint.serviceAccountId, // Service account dari API
       imageFile: null, // API returns URL, bukan File
-      photoUrl: photoUrl, // Simpan URL foto
+      photoUrl: photoUrl, // Simpan URL foto pertama (backward compatibility)
+      photoUrls: photoUrls, // Simpan semua URL foto
       isAsset: complaint.photos.isNotEmpty, // Ada foto dari API
       status: complaint.status, // Ambil status dari database
     );
@@ -2365,6 +2528,436 @@ class _OptionButton extends StatelessWidget {
                 fontWeight: FontWeight.w500,
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 🔹 Instagram-style Photo Gallery dengan PageView dan Dot Indicators
+class _InstagramStylePhotoGallery extends StatefulWidget {
+  final List<custom_file.File> imageFiles;
+  final bool isAsset;
+
+  const _InstagramStylePhotoGallery({
+    required this.imageFiles,
+    required this.isAsset,
+  });
+
+  @override
+  State<_InstagramStylePhotoGallery> createState() =>
+      _InstagramStylePhotoGalleryState();
+}
+
+class _InstagramStylePhotoGalleryState
+    extends State<_InstagramStylePhotoGallery> {
+  late PageController _pageController;
+  int _currentPage = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          children: [
+            // PageView untuk foto
+            SizedBox(
+              height: 300,
+              child: PageView.builder(
+                controller: _pageController,
+                onPageChanged: (index) {
+                  setState(() {
+                    _currentPage = index;
+                  });
+                },
+                itemCount: widget.imageFiles.length,
+                itemBuilder: (context, index) {
+                  return buildPlatformImage(
+                    widget.imageFiles[index],
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: 300,
+                  );
+                },
+              ),
+            ),
+
+            // Counter badge di kanan atas (seperti Instagram)
+            if (widget.imageFiles.length > 1)
+              Positioned(
+                top: 12,
+                right: 12,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.6),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '${_currentPage + 1}/${widget.imageFiles.length}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+
+            // Dot indicators di bawah (seperti Instagram)
+            if (widget.imageFiles.length > 1)
+              Positioned(
+                bottom: 12,
+                left: 0,
+                right: 0,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(
+                    widget.imageFiles.length,
+                    (index) => Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _currentPage == index
+                            ? Colors.white
+                            : Colors.white.withOpacity(0.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: 2,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+            // Arrow navigasi kiri (muncul jika bukan foto pertama)
+            if (widget.imageFiles.length > 1 && _currentPage > 0)
+              Positioned(
+                left: 8,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: GestureDetector(
+                    onTap: () {
+                      _pageController.previousPage(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut,
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.5),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.chevron_left,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+            // Arrow navigasi kanan (muncul jika bukan foto terakhir)
+            if (widget.imageFiles.length > 1 &&
+                _currentPage < widget.imageFiles.length - 1)
+              Positioned(
+                right: 8,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: GestureDetector(
+                    onTap: () {
+                      _pageController.nextPage(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut,
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.5),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.chevron_right,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 🔹 Instagram-style Photo Gallery untuk Network Images (dari API)
+class _InstagramStylePhotoGalleryNetwork extends StatefulWidget {
+  final List<String> photoUrls;
+
+  const _InstagramStylePhotoGalleryNetwork({required this.photoUrls});
+
+  @override
+  State<_InstagramStylePhotoGalleryNetwork> createState() =>
+      _InstagramStylePhotoGalleryNetworkState();
+}
+
+class _InstagramStylePhotoGalleryNetworkState
+    extends State<_InstagramStylePhotoGalleryNetwork> {
+  late PageController _pageController;
+  int _currentPage = 0;
+  static const Color primaryColor = Color.fromARGB(255, 21, 145, 137);
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          children: [
+            // PageView untuk foto dari network
+            SizedBox(
+              height: 300,
+              child: PageView.builder(
+                controller: _pageController,
+                onPageChanged: (index) {
+                  setState(() {
+                    _currentPage = index;
+                  });
+                },
+                itemCount: widget.photoUrls.length,
+                itemBuilder: (context, index) {
+                  return Image.network(
+                    widget.photoUrls[index],
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: 300,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Container(
+                        color: Colors.grey.shade200,
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            value: loadingProgress.expectedTotalBytes != null
+                                ? loadingProgress.cumulativeBytesLoaded /
+                                      loadingProgress.expectedTotalBytes!
+                                : null,
+                            strokeWidth: 3,
+                            color: primaryColor,
+                          ),
+                        ),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        color: Colors.grey.shade200,
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.broken_image,
+                                size: 60,
+                                color: Colors.grey.shade600,
+                              ),
+                              SizedBox(height: 12),
+                              Text(
+                                'Gagal memuat gambar',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+
+            // Counter badge di kanan atas (seperti Instagram)
+            if (widget.photoUrls.length > 1)
+              Positioned(
+                top: 12,
+                right: 12,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.6),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '${_currentPage + 1}/${widget.photoUrls.length}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+
+            // Dot indicators di bawah (seperti Instagram)
+            if (widget.photoUrls.length > 1)
+              Positioned(
+                bottom: 12,
+                left: 0,
+                right: 0,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(
+                    widget.photoUrls.length,
+                    (index) => Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _currentPage == index
+                            ? Colors.white
+                            : Colors.white.withOpacity(0.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: 2,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+            // Arrow navigasi kiri (muncul jika bukan foto pertama)
+            if (widget.photoUrls.length > 1 && _currentPage > 0)
+              Positioned(
+                left: 8,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: GestureDetector(
+                    onTap: () {
+                      _pageController.previousPage(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut,
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.5),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.chevron_left,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+            // Arrow navigasi kanan (muncul jika bukan foto terakhir)
+            if (widget.photoUrls.length > 1 &&
+                _currentPage < widget.photoUrls.length - 1)
+              Positioned(
+                right: 8,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: GestureDetector(
+                    onTap: () {
+                      _pageController.nextPage(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut,
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.5),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.chevron_right,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),

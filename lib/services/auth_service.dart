@@ -29,15 +29,29 @@ class AuthService {
 
         // Simpan data user termasuk role
         if (user != null) {
-          await UserStorage.saveUser(
-            id: user['id'] as int,
-            name: user['name'] as String,
-            email: user['email'] as String,
-            roles: (user['roles'] as List<dynamic>?)
-                ?.map((e) => e.toString())
-                .toList(),
-            fullData: user, // ✅ TAMBAHAN: Simpan full user data untuk akses RW
-          );
+          // Safely extract id - handle both int and string
+          int? userId;
+          if (user['id'] != null) {
+            if (user['id'] is int) {
+              userId = user['id'] as int;
+            } else if (user['id'] is String) {
+              userId = int.tryParse(user['id'] as String);
+            }
+          }
+
+          // Only save if we have valid user id
+          if (userId != null) {
+            await UserStorage.saveUser(
+              id: userId,
+              name: user['name']?.toString() ?? '',
+              email: user['email']?.toString() ?? email,
+              roles: (user['roles'] as List<dynamic>?)
+                  ?.map((e) => e.toString())
+                  .toList(),
+              fullData:
+                  user, // ✅ TAMBAHAN: Simpan full user data untuk akses RW
+            );
+          }
         }
 
         return (true, null, user);

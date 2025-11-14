@@ -112,15 +112,28 @@ class _EditAkunScreenState extends State<EditAkunScreen> {
 
         // Update UserStorage
         if (data != null) {
-          await UserStorage.saveUser(
-            id: data['id'] as int,
-            name: data['name'] as String,
-            email: data['email'] as String,
-            roles: (data['roles'] as List<dynamic>?)
-                ?.map((e) => e.toString())
-                .toList(),
-            fullData: data,
-          );
+          // Safely extract id - handle both int and string
+          int? userId;
+          if (data['id'] != null) {
+            if (data['id'] is int) {
+              userId = data['id'] as int;
+            } else if (data['id'] is String) {
+              userId = int.tryParse(data['id'] as String);
+            }
+          }
+
+          // Only save if we have valid user id
+          if (userId != null) {
+            await UserStorage.saveUser(
+              id: userId,
+              name: data['name']?.toString() ?? _nameController.text.trim(),
+              email: data['email']?.toString() ?? _emailController.text.trim(),
+              roles: (data['roles'] as List<dynamic>?)
+                  ?.map((e) => e.toString())
+                  .toList(),
+              fullData: data,
+            );
+          }
         }
 
         if (mounted) {
