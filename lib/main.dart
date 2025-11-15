@@ -38,8 +38,8 @@ class SirkularApp extends StatelessWidget {
         },
       ),
 
-      // 🔹 Route awal - langsung ke home tanpa login
-      initialRoute: '/home',
+      // 🔹 Route awal
+      initialRoute: '/',
 
       // 🔹 Daftar route
       routes: {
