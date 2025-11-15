@@ -2020,20 +2020,28 @@ class _HomeScreenState extends State<HomeScreen> {
           scale: value,
           child: Column(
             children: [
-              Ink(
+              Container(
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(20),
+                  // Drop shadow only - no border
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withAlpha(13),
-                      blurRadius: 8,
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 15,
+                      spreadRadius: 0,
                       offset: const Offset(0, 4),
+                    ),
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 6,
+                      spreadRadius: 0,
+                      offset: const Offset(0, 2),
                     ),
                   ],
                 ),
                 child: InkWell(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(20),
                   onTap: onTap,
                   splashColor: const Color.fromARGB(
                     255,
@@ -2047,12 +2055,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     145,
                     137,
                   ).withAlpha(25),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.all(14),
+                  child: Container(
+                    padding: const EdgeInsets.all(18),
                     child: Image.asset(
                       asset,
-                      height: 38,
+                      height: 36,
                       filterQuality: FilterQuality.high,
                     ),
                   ),
