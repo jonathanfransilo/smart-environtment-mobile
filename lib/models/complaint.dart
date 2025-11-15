@@ -29,6 +29,7 @@ class Complaint {
   final String? location; // Lokasi kejadian
   final String status; // 'open', 'in_progress', 'resolved', 'rejected'
   final List<ComplaintPhoto> photos; // Evidence photos
+  final Map<String, dynamic>? reporter; // Reporter information for collector view
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -42,6 +43,7 @@ class Complaint {
     this.location,
     required this.status,
     this.photos = const [],
+    this.reporter,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -78,6 +80,7 @@ class Complaint {
       location: json['address']?.toString(), // API menggunakan field 'address'
       status: json['status'] ?? 'open',
       photos: photos,
+      reporter: json['reporter'] as Map<String, dynamic>?,
       createdAt: createdAt,
       updatedAt: updatedAt,
     );
@@ -94,6 +97,7 @@ class Complaint {
       'location': location,
       'status': status,
       'photos': photos.map((p) => p.toJson()).toList(),
+      'reporter': reporter,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
     };
@@ -154,6 +158,7 @@ class Complaint {
     String? description,
     String? status,
     List<ComplaintPhoto>? photos,
+    Map<String, dynamic>? reporter,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -166,6 +171,7 @@ class Complaint {
       description: description ?? this.description,
       status: status ?? this.status,
       photos: photos ?? this.photos,
+      reporter: reporter ?? this.reporter,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

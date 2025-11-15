@@ -1588,7 +1588,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           // 1. Jadwal (icon dari assets/images/calender.png)
                           _menuItem(
                             "assets/images/calender.png",
-                            "Ketersediaan\n Jadwal",
+                            "Jadwal\n Pengambilan",
                             onTap: () {
                               // TODO: Navigasi ke halaman jadwal
                               ScaffoldMessenger.of(context).showSnackBar(
@@ -2024,19 +2024,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(20),
-                  // Drop shadow only - no border
+                  // Drop shadow: blur 7, offset Y=4, X=0
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
-                      blurRadius: 15,
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 7,
                       spreadRadius: 0,
                       offset: const Offset(0, 4),
-                    ),
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
-                      blurRadius: 6,
-                      spreadRadius: 0,
-                      offset: const Offset(0, 2),
                     ),
                   ],
                 ),

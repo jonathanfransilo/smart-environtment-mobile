@@ -10,8 +10,11 @@ import 'profile_screen.dart';
 import 'riwayat_sampah_screen.dart';
 import '../user/notification_screen.dart';
 import '../user/notification_service.dart';
+import '../../services/collector_complaint_service.dart';
+import '../../models/complaint.dart';
 import 'dart:io';
 import 'dart:convert';
+import 'dart:async';
 
 class HomeScreensKolektor extends StatefulWidget {
   const HomeScreensKolektor({super.key});
@@ -29,6 +32,10 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
   String _profileImagePath = ''; // Tambahkan untuk menyimpan path foto profile
   bool _isLoadingPickups = false;
   bool _isLoadingHistory = false;
+  
+  // ✅ COMPLAINT STATE
+  List<Complaint> assignedComplaints = [];
+  bool _isLoadingComplaints = false;
   String? _errorMessage;
   int _unreadNotifCount = 0;
   bool _hasShownWelcomeMessage = false;
@@ -64,6 +71,9 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
       // App kembali ke foreground - refresh data
       print('✨ [HomeCollector] App resumed, refreshing pickups...');
       _loadTodayPickups(forceRefresh: true);
+      
+      // ✅ REFRESH COMPLAINTS JUGA
+      _loadAssignedComplaints();
     } else if (state == AppLifecycleState.paused) {
       print('⏸️ [HomeCollector] App paused');
     } else if (state == AppLifecycleState.inactive) {
@@ -74,8 +84,13 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
   /// Initialize semua data dan trigger notifikasi otomatis
   Future<void> _initializeData() async {
     await _loadUserData();
-    await _loadTodayPickups();
-    await _loadPengambilanData();
+    
+    // ✅ OPTIMASI: Load data secara parallel untuk mengurangi waktu loading
+    await Future.wait([
+      _loadTodayPickups(),
+      _loadAssignedComplaints(),
+      _loadPengambilanData(),
+    ]);
 
     // Trigger notifikasi otomatis setelah data dimuat
     await _checkAndTriggerNotifications();
@@ -165,6 +180,82 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
       setState(() {
         _unreadNotifCount = count;
       });
+    }
+  }
+
+  /// ✅ METHOD BARU: Load Assigned Complaints
+  Future<void> _loadAssignedComplaints() async {
+    if (!mounted) return;
+    
+    setState(() {
+      _isLoadingComplaints = true;
+    });
+
+    try {
+      print('📋 [Complaints] ===== LOADING ASSIGNED COMPLAINTS =====');
+      print('📋 [Complaints] API URL: /mobile/collector/complaints');
+      
+      final service = CollectorComplaintService();
+      
+      // Load semua complaint yang assigned ke kolektor ini
+      final complaints = await service.getAssignedComplaints();
+
+      print('📋 [Complaints] Received ${complaints.length} complaints from API');
+      
+      // Debug: print setiap complaint
+      if (complaints.isNotEmpty) {
+        for (var complaint in complaints) {
+          print('   - Complaint #${complaint.id}: ${complaint.type}, Status: ${complaint.status}');
+        }
+      } else {
+        print('⚠️ [Complaints] API returned EMPTY list!');
+      }
+
+      // Filter hanya complaint yang belum selesai (pending, assigned, in_progress, open)
+      final activeComplaints = complaints.where((c) => 
+        c.status == 'pending' || 
+        c.status == 'assigned' || 
+        c.status == 'in_progress' ||
+        c.status == 'open'  // ✅ TAMBAHAN: "open" = sudah di-assign ke kolektor
+      ).toList();
+
+      print('✅ [Complaints] ${activeComplaints.length} active complaints (not resolved)');
+      print('═══════════════════════════════════════════════════════');
+
+      if (mounted) {
+        setState(() {
+          assignedComplaints = activeComplaints;
+          _isLoadingComplaints = false;
+        });
+      }
+    } on SocketException catch (e) {
+      // Network error - retry after delay
+      print('⚠️ [Complaints] Network error: ${e.message}');
+      print('   Will retry in 3 seconds...');
+      
+      if (mounted) {
+        setState(() {
+          assignedComplaints = [];
+          _isLoadingComplaints = false;
+        });
+        
+        // Retry setelah 3 detik
+        await Future.delayed(const Duration(seconds: 3));
+        if (mounted) {
+          print('🔄 [Complaints] Retrying to load complaints...');
+          _loadAssignedComplaints();
+        }
+      }
+    } catch (e) {
+      print('❌ [Complaints] Error loading: $e');
+      print('   Stack trace: ${StackTrace.current}');
+      
+      if (mounted) {
+        setState(() {
+          assignedComplaints = [];
+          _isLoadingComplaints = false;
+        });
+      }
     }
   }
 
@@ -611,11 +702,19 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
   }
 
   Widget _buildBerandaPage(Color primaryColor, TextStyle titleStyle) {
+    // ✅ GABUNGKAN total tugas (pickup + complaint)
+    final totalTasks = todayPickups.length + assignedComplaints.length;
+    final completedPickups = _getCompletedCount();
+    final completedComplaints = assignedComplaints.where((c) => c.status == 'resolved').length;
+    final totalCompleted = completedPickups + completedComplaints;
+    final totalPending = totalTasks - totalCompleted;
+
     return SafeArea(
       child: RefreshIndicator(
         onRefresh: () async {
           print('↓ [HomeCollector] Pull to refresh triggered');
           await _loadTodayPickups(forceRefresh: true);
+          await _loadAssignedComplaints(); // ✅ REFRESH COMPLAINTS
           await _loadPengambilanData();
         },
         color: primaryColor,
@@ -725,7 +824,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
 
               const SizedBox(height: 16),
 
-              // ✅ DEBUG INFO BOX - Tampilkan RW Kolektor
+              // ✅ INFO BOX - Tampilkan RW Kolektor dan info complaint
               if (_kolektorRWList.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -745,13 +844,26 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: Text(
-                            'Kolektor ditugaskan di: ${_kolektorRWList.join(", ")}',
-                            style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              color: Colors.blue.shade900,
-                              fontWeight: FontWeight.w500,
-                            ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Kolektor ditugaskan di: ${_kolektorRWList.join(", ")}',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  color: Colors.blue.shade900,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              // ✅ TAMPILKAN INFO COMPLAINT
+                              Text(
+                                '${todayPickups.length} pickup reguler • ${assignedComplaints.length} pelaporan',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 11,
+                                  color: Colors.blue.shade700,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -845,22 +957,19 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
                           children: [
-                            _statItem(todayPickups.length.toString(), "Total"),
+                            _statItem(totalTasks.toString(), "Total"),
                             Container(
                               width: 1,
                               height: 40,
                               color: Colors.grey[300],
                             ),
-                            _statItem(
-                              _getCompletedCount().toString(),
-                              "Selesai",
-                            ),
+                            _statItem(totalCompleted.toString(), "Selesai"),
                             Container(
                               width: 1,
                               height: 40,
                               color: Colors.grey[300],
                             ),
-                            _statItem(_getPendingCount().toString(), "Belum"),
+                            _statItem(totalPending.toString(), "Belum"),
                           ],
                         ),
                       ),
@@ -891,97 +1000,109 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
               ),
               const SizedBox(height: 12),
 
-              _isLoadingPickups
-                  ? const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(32.0),
-                        child: CircularProgressIndicator(),
+              // ✅ LOADING STATE - gabungkan pickup dan complaint
+              if (_isLoadingPickups || _isLoadingComplaints)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(32.0),
+                    child: CircularProgressIndicator(),
+                  ),
+                )
+              else if (_errorMessage != null)
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      Text(
+                        _errorMessage!,
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          color: Colors.red[600],
+                        ),
+                        textAlign: TextAlign.center,
                       ),
-                    )
-                  : _errorMessage != null
-                  ? Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        children: [
-                          Text(
-                            _errorMessage!,
-                            style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              color: Colors.red[600],
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 12),
-                          ElevatedButton(
-                            onPressed: _loadTodayPickups,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: primaryColor,
-                            ),
-                            child: Text(
-                              'Coba Lagi',
-                              style: GoogleFonts.poppins(),
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  : todayPickups.isEmpty
-                  ? Padding(
-                      padding: const EdgeInsets.all(32.0),
-                      child: Center(
+                      const SizedBox(height: 12),
+                      ElevatedButton(
+                        onPressed: () {
+                          _loadTodayPickups();
+                          _loadAssignedComplaints(); // ✅ RETRY COMPLAINTS
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryColor,
+                        ),
                         child: Text(
-                          'Tidak ada tugas pickup hari ini',
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            color: Colors.grey[600],
-                          ),
+                          'Coba Lagi',
+                          style: GoogleFonts.poppins(),
                         ),
                       ),
-                    )
-                  : ListView.builder(
-                      itemCount: todayPickups.length,
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemBuilder: (context, index) {
-                        final pickup = todayPickups[index];
-                        final houseInfo =
-                            pickup['house_info'] as Map<String, dynamic>?;
-                        final serviceAccountInfo =
-                            pickup['service_account'] as Map<String, dynamic>?;
-
-                        // Prioritas: service_account > account_number > service_account_name > resident
-                        String displayName = 'N/A';
-                        if (serviceAccountInfo != null &&
-                            serviceAccountInfo['name'] != null) {
-                          displayName = serviceAccountInfo['name'].toString();
-                        } else if (houseInfo != null) {
-                          // PERBAIKAN: account_number adalah nama service account!
-                          if (houseInfo['account_number'] != null) {
-                            displayName = houseInfo['account_number']
-                                .toString();
-                          } else if (houseInfo['service_account_name'] !=
-                              null) {
-                            displayName = houseInfo['service_account_name']
-                                .toString();
-                          } else if (houseInfo['resident_name'] != null) {
-                            displayName = houseInfo['resident_name'].toString();
-                          }
-                        }
-
-                        return _taskCard(
-                          displayName,
-                          houseInfo?['address']?.toString() ?? 'N/A',
-                          pickup['id']?.toString() ?? '',
-                          pickup['status']?.toString() ?? 'scheduled',
-                          houseInfo?['latitude'] as double? ?? 0.0,
-                          houseInfo?['longitude'] as double? ?? 0.0,
-                          primaryColor,
-                          context,
-                          pickup,
-                        );
-                      },
+                    ],
+                  ),
+                )
+              else if (todayPickups.isEmpty && assignedComplaints.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(32.0),
+                  child: Center(
+                    child: Text(
+                      'Tidak ada tugas hari ini',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                      ),
                     ),
+                  ),
+                )
+              else
+                // ✅ GABUNGKAN: Complaint (dengan strip merah) + Pickup reguler
+                ListView(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  children: [
+                    // 1️⃣ TAMPILKAN COMPLAINT DULU (prioritas tinggi dengan strip merah)
+                    ...assignedComplaints.map((complaint) {
+                      return _buildComplaintCard(
+                        complaint: complaint,
+                        primaryColor: primaryColor,
+                        context: context,
+                      );
+                    }).toList(),
+
+                    // 2️⃣ LALU TAMPILKAN PICKUP REGULER
+                    ...todayPickups.map((pickup) {
+                      final houseInfo =
+                          pickup['house_info'] as Map<String, dynamic>?;
+                      final serviceAccountInfo =
+                          pickup['service_account'] as Map<String, dynamic>?;
+
+                      String displayName = 'N/A';
+                      if (serviceAccountInfo != null &&
+                          serviceAccountInfo['name'] != null) {
+                        displayName = serviceAccountInfo['name'].toString();
+                      } else if (houseInfo != null) {
+                        if (houseInfo['account_number'] != null) {
+                          displayName = houseInfo['account_number'].toString();
+                        } else if (houseInfo['service_account_name'] != null) {
+                          displayName =
+                              houseInfo['service_account_name'].toString();
+                        } else if (houseInfo['resident_name'] != null) {
+                          displayName = houseInfo['resident_name'].toString();
+                        }
+                      }
+
+                      return _taskCard(
+                        displayName,
+                        houseInfo?['address']?.toString() ?? 'N/A',
+                        pickup['id']?.toString() ?? '',
+                        pickup['status']?.toString() ?? 'scheduled',
+                        houseInfo?['latitude'] as double? ?? 0.0,
+                        houseInfo?['longitude'] as double? ?? 0.0,
+                        primaryColor,
+                        context,
+                        pickup,
+                      );
+                    }).toList(),
+                  ],
+                ),
 
               const SizedBox(height: 24),
 
@@ -2280,27 +2401,20 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
         .length;
   }
 
-  int _getPendingCount() {
-    return todayPickups
-        .where(
-          (p) =>
-              p['status'] == 'pending' ||
-              p['status'] == 'scheduled' ||
-              p['status'] == 'on_progress',
-        )
-        .length;
-  }
-
   Map<String, dynamic> _getStatusConfig(String status) {
     switch (status) {
       case 'pending':
       case 'scheduled':
+      case 'assigned':
+      case 'open':  // ✅ TAMBAHAN: "open" = complaint sudah di-assign
         return {'label': 'Dijadwalkan', 'color': Colors.blue[600]};
       case 'on_progress':
+      case 'in_progress':
         return {'label': 'Dalam Proses', 'color': Colors.orange[600]};
       case 'collected':
         return {'label': 'Selesai', 'color': Colors.green[600]};
       case 'completed':
+      case 'resolved':
         return {'label': 'Selesai', 'color': Colors.green[600]};
       case 'cancelled':
         return {'label': 'Dibatalkan', 'color': Colors.red[600]};
@@ -2309,6 +2423,210 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
       default:
         return {'label': status, 'color': Colors.grey[600]};
     }
+  }
+
+  /// ✅ METHOD BARU: Build Complaint Card dengan Strip Merah
+  Widget _buildComplaintCard({
+    required Complaint complaint,
+    required Color primaryColor,
+    required BuildContext context,
+  }) {
+    // Map status complaint ke status config
+    String displayStatus = complaint.status;
+    if (displayStatus == 'assigned' || displayStatus == 'open') {
+      displayStatus = 'pending';  // Map ke pending untuk tampilan
+    }
+
+    final statusConfig = _getStatusConfig(displayStatus);
+
+    // Extract reporter info
+    final reporterName = complaint.reporter?['name']?.toString() ?? 'Pelapor';
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          // Main content
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    // Badge PELAPORAN (merah)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.report_problem, size: 14, color: Colors.red.shade700),
+                          const SizedBox(width: 4),
+                          Text(
+                            'PELAPORAN',
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              color: Colors.red.shade700,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Status badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: statusConfig['color'].withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        statusConfig['label'],
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: statusConfig['color'],
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      "#${complaint.id}",
+                      style: GoogleFonts.poppins(fontSize: 13, color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                
+                // Tipe Complaint
+                Text(
+                  _formatComplaintType(complaint.type),
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                
+                // Pelapor
+                Row(
+                  children: [
+                    Icon(Icons.person, size: 14, color: Colors.grey[600]),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Dilaporkan oleh: $reporterName',
+                      style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                
+                // Alamat
+                if (complaint.location != null && complaint.location!.isNotEmpty)
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.location_on, size: 14, color: Colors.grey[600]),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          complaint.location!,
+                          style: GoogleFonts.poppins(fontSize: 13, color: Colors.grey[600]),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                
+                const SizedBox(height: 12),
+                
+                // Tombol aksi
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: displayStatus == 'resolved' 
+                        ? null 
+                        : () {
+                            // TODO: Navigate ke CollectorComplaintDetailScreen
+                            print('🚀 Navigate to complaint detail: ${complaint.id}');
+                            
+                            // Untuk sementara, tampilkan dialog info
+                            showDialog(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: Text('Detail Pelaporan', style: GoogleFonts.poppins()),
+                                content: Text(
+                                  'Fitur detail pelaporan akan segera hadir.\\n\\nComplaint ID: ${complaint.id}\\nTipe: ${_formatComplaintType(complaint.type)}\\nStatus: $displayStatus',
+                                  style: GoogleFonts.poppins(),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx),
+                                    child: Text('OK', style: GoogleFonts.poppins()),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: Text(
+                      displayStatus == 'in_progress' 
+                          ? "Lanjutkan Proses" 
+                          : displayStatus == 'resolved'
+                          ? "Selesai"
+                          : "Mulai Proses",
+                      style: GoogleFonts.poppins(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// ✅ HELPER: Format complaint type
+  String _formatComplaintType(String type) {
+    final Map<String, String> typeLabels = {
+      'sampah_tidak_diangkut': 'Sampah Tidak Diangkut',
+      'jadwal_tidak_sesuai': 'Jadwal Tidak Sesuai',
+      'petugas_tidak_sopan': 'Petugas Tidak Sopan',
+      'tempat_sampah_rusak': 'Tempat Sampah Rusak',
+      'lainnya': 'Lainnya',
+    };
+    return typeLabels[type] ?? type;
   }
 
   /// Widget untuk menampilkan profile avatar
