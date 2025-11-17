@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -2301,17 +2302,64 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ===== Card 1: Service Account dengan Jadwal =====
   Widget _buildServiceAccountCard() {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 600),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, child) {
-        return Transform.translate(
-          offset: Offset(0, 20 * (1 - value)),
-          child: Opacity(opacity: value, child: child),
-        );
-      },
-      child: Material(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Tambah akun layanan button with dashed border
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: InkWell(
+            onTap: _openLayananSampahAndRefresh,
+            borderRadius: BorderRadius.circular(12),
+            child: CustomPaint(
+              painter: DashedBorderPainter(
+                color: const Color(0xFF00897B),
+                strokeWidth: 2,
+                dashWidth: 8,
+                dashSpace: 4,
+                borderRadius: 12,
+              ),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.add_circle_outline,
+                      size: 20,
+                      color: Color(0xFF00897B),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Tambah akun layanan',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF00897B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        // Service account card
+        TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.0, end: 1.0),
+          duration: const Duration(milliseconds: 600),
+          curve: Curves.easeOutCubic,
+          builder: (context, value, child) {
+            return Transform.translate(
+              offset: Offset(0, 20 * (1 - value)),
+              child: Opacity(opacity: value, child: child),
+            );
+          },
+          child: Material(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(18),
         elevation: 4,
@@ -2328,33 +2376,39 @@ class _HomeScreenState extends State<HomeScreen> {
               borderRadius: BorderRadius.circular(18),
             ),
             padding: const EdgeInsets.all(18),
-            child: Row(
+            child: Stack(
               children: [
-                // Icon box
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withAlpha(10),
-                        blurRadius: 6,
-                        offset: const Offset(0, 3),
+                // Main content row
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Icon box
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withAlpha(10),
+                            blurRadius: 6,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.home_outlined,
-                    size: 40,
-                    color: Color.fromARGB(255, 21, 145, 137),
-                  ),
-                ),
-                const SizedBox(width: 12),
+                      child: const Icon(
+                        Icons.home_outlined,
+                        size: 40,
+                        color: Color.fromARGB(255, 21, 145, 137),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
 
-                // Service Account info
-                Expanded(
-                  child: AnimatedSwitcher(
+                    // Service Account info
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 20),
+                        child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 300),
                     switchInCurve: Curves.easeInOut,
                     switchOutCurve: Curves.easeInOut,
@@ -2395,7 +2449,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // Badge: Tap untuk melihat semua akun + Status
+                              // Badge: Status inactive (jika ada)
                               Row(
                                 children: [
                                   // Badge status inactive (prioritas tinggi)
@@ -2429,78 +2483,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                               color: Colors.white,
                                               fontWeight: FontWeight.w600,
                                             ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  if (_selectedAkun == null ||
-                                      _selectedAkun!['status']
-                                              ?.toString()
-                                              .toLowerCase() !=
-                                          'inactive')
-                                    if (_akunList.length > 1)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 3,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: const Color.fromARGB(
-                                            255,
-                                            21,
-                                            145,
-                                            137,
-                                          ),
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(
-                                              "Tap untuk ganti akun",
-                                              style: GoogleFonts.poppins(
-                                                fontSize: 9,
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 4),
-                                            const Icon(
-                                              Icons.keyboard_arrow_down,
-                                              color: Colors.white,
-                                              size: 12,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                  if (_akunList.length == 1)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 3,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.orange.shade600,
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            "Tap untuk tambah akun",
-                                            style: GoogleFonts.poppins(
-                                              fontSize: 9,
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 4),
-                                          const Icon(
-                                            Icons.add_circle_outline,
-                                            color: Colors.white,
-                                            size: 12,
                                           ),
                                         ],
                                       ),
@@ -2666,14 +2648,17 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                             ],
                           ),
-                  ),
-                ),
-
-                // Tombol Create/Detail
-                const SizedBox(width: 12),
-                SizedBox(
-                  height: 42,
-                  child: ElevatedButton(
+                        ),
+                      ),
+                    ),
+                    
+                    // Tombol Detail di samping kanan
+                    const SizedBox(width: 12),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 20),
+                      child: SizedBox(
+                        height: 42,
+                        child: ElevatedButton(
                     onPressed: () async {
                       if (_akunList.isEmpty) {
                         // Jika belum ada akun, buka halaman create
@@ -2757,11 +2742,64 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ),
+                ),
+                  ],
+                ),
+              
+              // Ganti akun layanan button - positioned at top right
+              if (_akunList.isNotEmpty)
+                Positioned(
+                    top: 0,
+                    right: 0,
+                    child: InkWell(
+                      onTap: _showAkunSelector,
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              "Ganti akun layanan",
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF00897B),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Image.asset(
+                                'assets/images/switch account.png',
+                                width: 20,
+                                height: 20,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
         ),
       ),
+        ),
+      ],
     );
   }
 
@@ -2807,7 +2845,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ],
                 ),
-                child: Image.asset("assets/images/wallet.png", height: 40),
+                child: Image.asset("assets/images/wallet.png", height: 30),
               ),
               const SizedBox(width: 12),
 
@@ -2828,7 +2866,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             Text(
                               "Memuat tagihan...",
                               style: GoogleFonts.poppins(
-                                fontSize: 14,
+                                fontSize: 12,
                                 color: Colors.black54,
                               ),
                             ),
@@ -2842,7 +2880,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             Text(
                               "Belum ada akun",
                               style: GoogleFonts.poppins(
-                                fontSize: 16,
+                                fontSize: 14,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.black,
                               ),
@@ -3147,4 +3185,120 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+}
+
+// Custom painter for dashed border
+class DashedBorderPainter extends CustomPainter {
+  final Color color;
+  final double strokeWidth;
+  final double dashWidth;
+  final double dashSpace;
+  final double borderRadius;
+
+  DashedBorderPainter({
+    required this.color,
+    required this.strokeWidth,
+    required this.dashWidth,
+    required this.dashSpace,
+    required this.borderRadius,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke;
+
+    final rrect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      Radius.circular(borderRadius),
+    );
+
+    // Create dashed path
+    final dashPath = _createDashedPath(rrect, dashWidth, dashSpace);
+    canvas.drawPath(dashPath, paint);
+  }
+
+  Path _createDashedPath(RRect rrect, double dashWidth, double dashSpace) {
+    final path = Path();
+    final rect = rrect.outerRect;
+    final radius = rrect.tlRadius.x;
+
+    // Top side
+    double startX = rect.left + radius;
+    final topY = rect.top;
+    while (startX < rect.right - radius) {
+      final endX = (startX + dashWidth).clamp(rect.left + radius, rect.right - radius);
+      path.moveTo(startX, topY);
+      path.lineTo(endX, topY);
+      startX = endX + dashSpace;
+    }
+
+    // Right side
+    double startY = rect.top + radius;
+    final rightX = rect.right;
+    while (startY < rect.bottom - radius) {
+      final endY = (startY + dashWidth).clamp(rect.top + radius, rect.bottom - radius);
+      path.moveTo(rightX, startY);
+      path.lineTo(rightX, endY);
+      startY = endY + dashSpace;
+    }
+
+    // Bottom side
+    startX = rect.right - radius;
+    final bottomY = rect.bottom;
+    while (startX > rect.left + radius) {
+      final endX = (startX - dashWidth).clamp(rect.left + radius, rect.right - radius);
+      path.moveTo(startX, bottomY);
+      path.lineTo(endX, bottomY);
+      startX = endX - dashSpace;
+    }
+
+    // Left side
+    startY = rect.bottom - radius;
+    final leftX = rect.left;
+    while (startY > rect.top + radius) {
+      final endY = (startY - dashWidth).clamp(rect.top + radius, rect.bottom - radius);
+      path.moveTo(leftX, startY);
+      path.lineTo(leftX, endY);
+      startY = endY - dashSpace;
+    }
+
+    // Top-left corner
+    _drawDashedArc(path, rect.left + radius, rect.top + radius, radius, 180, 270, dashWidth, dashSpace);
+
+    // Top-right corner
+    _drawDashedArc(path, rect.right - radius, rect.top + radius, radius, 270, 360, dashWidth, dashSpace);
+
+    // Bottom-right corner
+    _drawDashedArc(path, rect.right - radius, rect.bottom - radius, radius, 0, 90, dashWidth, dashSpace);
+
+    // Bottom-left corner
+    _drawDashedArc(path, rect.left + radius, rect.bottom - radius, radius, 90, 180, dashWidth, dashSpace);
+
+    return path;
+  }
+
+  void _drawDashedArc(Path path, double cx, double cy, double radius, double startAngle, double endAngle, double dashWidth, double dashSpace) {
+    final totalAngle = endAngle - startAngle;
+    final circumference = (totalAngle / 360) * 2 * 3.14159 * radius;
+    final dashCount = (circumference / (dashWidth + dashSpace)).floor();
+
+    for (int i = 0; i < dashCount; i++) {
+      final angle1 = startAngle + (totalAngle * i * (dashWidth + dashSpace) / circumference);
+      final angle2 = startAngle + (totalAngle * (i * (dashWidth + dashSpace) + dashWidth) / circumference);
+
+      final x1 = cx + radius * cos(angle1 * 3.14159 / 180);
+      final y1 = cy + radius * sin(angle1 * 3.14159 / 180);
+      final x2 = cx + radius * cos(angle2 * 3.14159 / 180);
+      final y2 = cy + radius * sin(angle2 * 3.14159 / 180);
+
+      path.moveTo(x1, y1);
+      path.lineTo(x2, y2);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

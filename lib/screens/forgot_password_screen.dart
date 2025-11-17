@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../services/auth_service.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -10,6 +11,7 @@ class ForgotPasswordScreen extends StatefulWidget {
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _emailController = TextEditingController();
+  final _authService = AuthService();
   bool _loading = false;
 
   Future<void> _resetPassword() async {
@@ -22,21 +24,72 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       return;
     }
 
+    // Validasi format email
+    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Format email tidak valid")),
+      );
+      return;
+    }
+
     setState(() => _loading = true);
 
-    // 🔹 Dummy delay biar mirip proses request server
-    await Future.delayed(const Duration(seconds: 2));
+    // Call API forgot password
+    final (success, message) = await _authService.forgotPassword(email: email);
 
     if (!mounted) return;
 
     setState(() => _loading = false);
 
-    // 🔹 Dummy: anggap email selalu benar
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Link reset password dikirim ke $email")),
-    );
-
-    Navigator.pop(context); // kembali ke login
+    if (success) {
+      // Tampilkan dialog sukses
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Row(
+            children: [
+              const Icon(Icons.check_circle, color: Colors.green, size: 28),
+              const SizedBox(width: 12),
+              Text(
+                'Berhasil',
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            message ?? 'Link reset password telah dikirim ke email Anda. Silakan cek inbox atau folder spam.',
+            style: GoogleFonts.poppins(fontSize: 14),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context); // Close dialog
+                Navigator.pop(context); // Back to login
+              },
+              child: Text(
+                'OK',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: const Color.fromARGB(255, 21, 145, 137),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      // Tampilkan error
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message ?? 'Gagal mengirim link reset password'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override

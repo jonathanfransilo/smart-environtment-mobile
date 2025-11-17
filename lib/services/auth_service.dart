@@ -138,4 +138,45 @@ class AuthService {
     await TokenStorage.clearToken();
     await UserStorage.clearUser();
   }
+
+  /// Kirim email untuk reset password
+  Future<(bool success, String? message)> forgotPassword({
+    required String email,
+  }) async {
+    try {
+      final res = await _dio.post(
+        ApiConfig.forgotPassword,
+        data: {'email': email},
+      );
+
+      final data = res.data as Map<String, dynamic>;
+      if (data['success'] == true) {
+        final msg = data['message']?.toString() ?? 
+                   'Link reset password telah dikirim ke email Anda';
+        return (true, msg);
+      } else {
+        final msg = data['errors']?['message']?.toString() ?? 
+                   data['message']?.toString() ??
+                   'Gagal mengirim link reset password';
+        return (false, msg);
+      }
+    } on DioException catch (e) {
+      String msg = 'Terjadi kesalahan jaringan';
+      if (e.response?.data is Map) {
+        final body = e.response!.data as Map;
+        // Coba ambil pesan error dari berbagai kemungkinan struktur
+        msg = body['errors']?['message']?.toString() ?? 
+              body['message']?.toString() ??
+              body['errors']?['email']?.first?.toString() ?? // Validation error
+              msg;
+      } else if (e.response?.statusCode == 404) {
+        msg = 'Email tidak terdaftar';
+      } else if (e.response?.statusCode == 422) {
+        msg = 'Email tidak valid';
+      }
+      return (false, msg);
+    } catch (e) {
+      return (false, 'Terjadi kesalahan: $e');
+    }
+  }
 }

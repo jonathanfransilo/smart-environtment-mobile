@@ -41,6 +41,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
   bool _hasShownWelcomeMessage = false;
   int _selectedIndex = 0;
   int _riwayatTabIndex = 0; // 0 = Pengambilan, 1 = Pengangkutan
+  int _tugasTabIndex = 0; // 0 = Pengambilan, 1 = Pelaporan
 
   // ✅ TAMBAHAN: Simpan semua RW yang ditugaskan ke kolektor (bisa lebih dari 1)
   List<String> _kolektorRWList = [];
@@ -980,27 +981,130 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
 
               const SizedBox(height: 24),
 
-              // Daftar Tugas
+              // Daftar Tugas Header dengan Tab
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text("Daftar Tugas", style: titleStyle),
-                    Text(
-                      "Lainnya",
-                      style: GoogleFonts.poppins(
-                        color: primaryColor,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
+                    TextButton(
+                      onPressed: () {
+                        // Navigate ke halaman riwayat atau list lengkap
+                        setState(() {
+                          _selectedIndex = 2; // Pindah ke tab Riwayat
+                        });
+                      },
+                      child: Text(
+                        "Lainnya",
+                        style: GoogleFonts.poppins(
+                          color: primaryColor,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 12),
 
-              // ✅ LOADING STATE - gabungkan pickup dan complaint
+              // Tab Navigation untuk Pengambilan dan Pelaporan
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _tugasTabIndex = 0;
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            decoration: BoxDecoration(
+                              color: _tugasTabIndex == 0
+                                  ? Colors.white
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(8),
+                              border: _tugasTabIndex == 0
+                                  ? Border(
+                                      bottom: BorderSide(
+                                        color: primaryColor,
+                                        width: 3,
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                            child: Center(
+                              child: Text(
+                                "Pengambilan",
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  fontWeight: _tugasTabIndex == 0
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
+                                  color: _tugasTabIndex == 0
+                                      ? Colors.black87
+                                      : Colors.grey[600],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _tugasTabIndex = 1;
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            decoration: BoxDecoration(
+                              color: _tugasTabIndex == 1
+                                  ? Colors.white
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(8),
+                              border: _tugasTabIndex == 1
+                                  ? Border(
+                                      bottom: BorderSide(
+                                        color: primaryColor,
+                                        width: 3,
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                            child: Center(
+                              child: Text(
+                                "Pelaporan",
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  fontWeight: _tugasTabIndex == 1
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
+                                  color: _tugasTabIndex == 1
+                                      ? Colors.black87
+                                      : Colors.grey[600],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // ✅ LOADING STATE
               if (_isLoadingPickups || _isLoadingComplaints)
                 const Center(
                   child: Padding(
@@ -1042,67 +1146,33 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
                 Padding(
                   padding: const EdgeInsets.all(32.0),
                   child: Center(
-                    child: Text(
-                      'Tidak ada tugas hari ini',
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        color: Colors.grey[600],
-                      ),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.inbox_outlined,
+                          size: 64,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          _tugasTabIndex == 0
+                              ? 'Belum ada pengambilan sampah'
+                              : 'Belum ada pengambilan sampah',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 )
               else
-                // ✅ GABUNGKAN: Complaint (dengan strip merah) + Pickup reguler
-                ListView(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  children: [
-                    // 1️⃣ TAMPILKAN COMPLAINT DULU (prioritas tinggi dengan strip merah)
-                    ...assignedComplaints.map((complaint) {
-                      return _buildComplaintCard(
-                        complaint: complaint,
-                        primaryColor: primaryColor,
-                        context: context,
-                      );
-                    }).toList(),
-
-                    // 2️⃣ LALU TAMPILKAN PICKUP REGULER
-                    ...todayPickups.map((pickup) {
-                      final houseInfo =
-                          pickup['house_info'] as Map<String, dynamic>?;
-                      final serviceAccountInfo =
-                          pickup['service_account'] as Map<String, dynamic>?;
-
-                      String displayName = 'N/A';
-                      if (serviceAccountInfo != null &&
-                          serviceAccountInfo['name'] != null) {
-                        displayName = serviceAccountInfo['name'].toString();
-                      } else if (houseInfo != null) {
-                        if (houseInfo['account_number'] != null) {
-                          displayName = houseInfo['account_number'].toString();
-                        } else if (houseInfo['service_account_name'] != null) {
-                          displayName =
-                              houseInfo['service_account_name'].toString();
-                        } else if (houseInfo['resident_name'] != null) {
-                          displayName = houseInfo['resident_name'].toString();
-                        }
-                      }
-
-                      return _taskCard(
-                        displayName,
-                        houseInfo?['address']?.toString() ?? 'N/A',
-                        pickup['id']?.toString() ?? '',
-                        pickup['status']?.toString() ?? 'scheduled',
-                        houseInfo?['latitude'] as double? ?? 0.0,
-                        houseInfo?['longitude'] as double? ?? 0.0,
-                        primaryColor,
-                        context,
-                        pickup,
-                      );
-                    }).toList(),
-                  ],
-                ),
+                // ✅ TAMPILKAN BERDASARKAN TAB
+                _tugasTabIndex == 0
+                    ? _buildPengambilanList(primaryColor)
+                    : _buildPelaporanList(primaryColor),
 
               const SizedBox(height: 24),
 
@@ -1163,6 +1233,114 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
           ),
         ),
       ), // Close RefreshIndicator
+    );
+  }
+
+  /// ✅ METHOD BARU: Build list pengambilan sampah reguler
+  Widget _buildPengambilanList(Color primaryColor) {
+    if (todayPickups.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(
+                Icons.inbox_outlined,
+                size: 64,
+                color: Colors.grey[400],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Belum ada pengambilan sampah',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      children: todayPickups.map((pickup) {
+        final houseInfo = pickup['house_info'] as Map<String, dynamic>?;
+        final serviceAccountInfo =
+            pickup['service_account'] as Map<String, dynamic>?;
+
+        String displayName = 'N/A';
+        if (serviceAccountInfo != null &&
+            serviceAccountInfo['name'] != null) {
+          displayName = serviceAccountInfo['name'].toString();
+        } else if (houseInfo != null) {
+          if (houseInfo['account_number'] != null) {
+            displayName = houseInfo['account_number'].toString();
+          } else if (houseInfo['service_account_name'] != null) {
+            displayName = houseInfo['service_account_name'].toString();
+          } else if (houseInfo['resident_name'] != null) {
+            displayName = houseInfo['resident_name'].toString();
+          }
+        }
+
+        return _taskCard(
+          displayName,
+          houseInfo?['address']?.toString() ?? 'N/A',
+          pickup['id']?.toString() ?? '',
+          pickup['status']?.toString() ?? 'scheduled',
+          houseInfo?['latitude'] as double? ?? 0.0,
+          houseInfo?['longitude'] as double? ?? 0.0,
+          primaryColor,
+          context,
+          pickup,
+        );
+      }).toList(),
+    );
+  }
+
+  /// ✅ METHOD BARU: Build list pelaporan/complaint
+  Widget _buildPelaporanList(Color primaryColor) {
+    if (assignedComplaints.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(
+                Icons.inbox_outlined,
+                size: 64,
+                color: Colors.grey[400],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Belum ada pelaporan',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      children: assignedComplaints.map((complaint) {
+        return _buildComplaintCard(
+          complaint: complaint,
+          primaryColor: primaryColor,
+          context: context,
+        );
+      }).toList(),
     );
   }
 

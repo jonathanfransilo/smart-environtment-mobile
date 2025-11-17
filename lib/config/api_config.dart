@@ -27,6 +27,7 @@ class ApiConfig {
   static const String register = '/auth/register';
   static const String me = '/auth/me';
   static const String logout = '/auth/logout';
+  static const String forgotPassword = '/mobile/auth/password/forgot';
 
   // Mobile endpoints
   static const String mobileDashboard = '/mobile/dashboard';
