@@ -65,6 +65,7 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
   bool _isLoading = true;
   bool _isKelurahanLoading = false;
   bool _isSubmitting = false;
+  bool _isLoadingAddress = false;
 
   String? _provinceName;
   String? _cityName;
@@ -256,6 +257,87 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
 
   Future<void> _getAddressFromCoordinates(double lat, double lng) async {
     debugPrint('Koordinat dipilih: $lat, $lng');
+    
+    setState(() {
+      _isLoadingAddress = true;
+    });
+    
+    try {
+      if (kIsWeb) {
+        // Gunakan Nominatim API untuk web
+        final response = await _geocodeClient.get<Map<String, dynamic>>(
+          '/reverse',
+          queryParameters: {
+            'format': 'json',
+            'lat': lat.toString(),
+            'lon': lng.toString(),
+            'zoom': '18',
+            'addressdetails': '1',
+          },
+        );
+
+        final data = response.data;
+        if (data != null && data['display_name'] != null) {
+          final address = data['display_name'] as String;
+          if (mounted) {
+            setState(() {
+              _detailAlamatController.text = address;
+            });
+          }
+          debugPrint('Alamat ditemukan (Web): $address');
+        } else {
+          _showSnackBar('Alamat tidak ditemukan untuk koordinat ini');
+        }
+      } else {
+        // Gunakan geocoding package untuk mobile
+        final placemarks = await placemarkFromCoordinates(lat, lng);
+        if (placemarks.isNotEmpty) {
+          final place = placemarks.first;
+          final addressParts = <String>[];
+          
+          if (place.street != null && place.street!.isNotEmpty) {
+            addressParts.add(place.street!);
+          }
+          if (place.subLocality != null && place.subLocality!.isNotEmpty) {
+            addressParts.add(place.subLocality!);
+          }
+          if (place.locality != null && place.locality!.isNotEmpty) {
+            addressParts.add(place.locality!);
+          }
+          if (place.subAdministrativeArea != null && 
+              place.subAdministrativeArea!.isNotEmpty) {
+            addressParts.add(place.subAdministrativeArea!);
+          }
+          if (place.administrativeArea != null && 
+              place.administrativeArea!.isNotEmpty) {
+            addressParts.add(place.administrativeArea!);
+          }
+          if (place.country != null && place.country!.isNotEmpty) {
+            addressParts.add(place.country!);
+          }
+
+          final fullAddress = addressParts.join(', ');
+          
+          if (mounted) {
+            setState(() {
+              _detailAlamatController.text = fullAddress;
+            });
+          }
+          debugPrint('Alamat ditemukan (Mobile): $fullAddress');
+        } else {
+          _showSnackBar('Alamat tidak ditemukan untuk koordinat ini');
+        }
+      }
+    } catch (error) {
+      debugPrint('Error mendapatkan alamat dari koordinat: $error');
+      _showSnackBar('Gagal mendapatkan alamat. Silakan coba lagi.');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingAddress = false;
+        });
+      }
+    }
   }
 
   void _showValidationError({
@@ -1215,15 +1297,49 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
               ),
               const SizedBox(height: 16),
               _buildLabel('Preview Lokasi (Titik Merah = Lokasi Dipilih)'),
-              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: Text(
+                  '💡 Klik pada peta untuk memilih lokasi',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
               _buildMapPreview(),
               const SizedBox(height: 16),
               _buildLabel('Detail Alamat'),
               _buildTextFormField(
                 controller: _detailAlamatController,
-                hintText: 'Contoh: nama bangunan, nomor unit',
+                hintText: _isLoadingAddress 
+                    ? 'Sedang mengambil alamat...' 
+                    : 'Contoh: nama bangunan, nomor unit',
                 onFieldSubmitted: _searchAddress,
               ),
+              if (_isLoadingAddress)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Row(
+                    children: [
+                      const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Mengambil alamat dari peta...',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               const SizedBox(height: 80),
             ],
           ),
@@ -1396,6 +1512,11 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
                               _longitude = result.longitude;
                             });
                             _mapController.move(result, _currentZoom);
+                            // Update alamat berdasarkan koordinat yang dipilih
+                            _getAddressFromCoordinates(
+                              result.latitude,
+                              result.longitude,
+                            );
                           }
                         });
                       },

@@ -47,7 +47,8 @@ class Laporan {
   final String lokasi;
   final String waktuPelanggaran;
   final String ciriCiri;
-  final String? serviceAccount; // Service account yang dilaporkan
+  final String? serviceAccount; // Service account ID yang dilaporkan
+  final String? serviceAccountName; // Service account name untuk display
   final custom_file.File? imageFile;
   final String? photoUrl; // URL foto dari API (deprecated - use photoUrls)
   final List<String> photoUrls; // Multiple photo URLs dari API
@@ -63,6 +64,7 @@ class Laporan {
     required this.waktuPelanggaran,
     required this.ciriCiri,
     this.serviceAccount,
+    this.serviceAccountName,
     this.imageFile,
     this.photoUrl,
     this.photoUrls = const [], // Default empty list
@@ -100,6 +102,7 @@ class Laporan {
       'waktuPelanggaran': waktuPelanggaran,
       'ciriCiri': ciriCiri,
       'serviceAccount': serviceAccount,
+      'serviceAccountName': serviceAccountName,
       'imagePath': imageFile?.path,
       'photoUrl': photoUrl,
       'photoUrls': photoUrls,
@@ -118,6 +121,7 @@ class Laporan {
       waktuPelanggaran: json['waktuPelanggaran'] as String,
       ciriCiri: json['ciriCiri'] as String,
       serviceAccount: json['serviceAccount'] as String?,
+      serviceAccountName: json['serviceAccountName'] as String?,
       imageFile: json['imagePath'] != null
           ? custom_file.File(json['imagePath'] as String)
           : null,
@@ -167,7 +171,7 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
 
   // State untuk service account
   List<ServiceAccount> _serviceAccounts = [];
-  String? _selectedServiceAccountId;
+  String? _selectedServiceAccountId = ''; // ✅ Set default ke empty string agar cocok dengan item pertama
   bool _isLoadingServiceAccounts = false;
 
   // Kunci form untuk validasi
@@ -726,43 +730,112 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
                   helperText: "Kosongkan jika tidak tahu ID service account",
                   helperMaxLines: 2,
                 ),
-                items: [
-                  // Option untuk tidak memilih service account
-                  const DropdownMenuItem<String>(
-                    value: null,
-                    child: Text('Tidak ada'),
-                  ),
-                  // Service accounts dari API
-                  ..._serviceAccounts.map((account) {
-                    return DropdownMenuItem<String>(
-                      value: account.id,
-                      child: Text(
-                        account.name,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    );
-                  }),
-                ],
+                isExpanded: true, // ✅ PENTING: Agar dropdown full width
+                items: _serviceAccounts.isEmpty
+                    ? [
+                        const DropdownMenuItem<String>(
+                          value: '',
+                          child: Text('Tidak ada service account tersedia'),
+                        ),
+                      ]
+                    : [
+                        // Option untuk tidak memilih service account
+                        const DropdownMenuItem<String>(
+                          value: '',
+                          child: Text('-- Pilih Service Account --'),
+                        ),
+                        // Service accounts dari API
+                        ..._serviceAccounts.map((account) {
+                          return DropdownMenuItem<String>(
+                            value: account.id,
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.location_city,
+                                  size: 18,
+                                  color: primaryColor,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        account.name,
+                                        style: GoogleFonts.poppins(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 14,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      if (account.rwName != null && account.rwName!.isNotEmpty)
+                                        Text(
+                                          // ✅ PERBAIKAN: Cek apakah rwName sudah mengandung "RW"
+                                          account.rwName!.toUpperCase().startsWith('RW') 
+                                              ? account.rwName! 
+                                              : 'RW ${account.rwName}',
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 11,
+                                            color: Colors.grey.shade600,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
                 onChanged: _isLoadingServiceAccounts
                     ? null
                     : (value) {
+                        print('🔍 Service Account Selected: $value');
                         setState(() {
-                          _selectedServiceAccountId = value;
+                          // ✅ PERBAIKAN: Set ke null jika empty string
+                          _selectedServiceAccountId = (value == null || value.isEmpty) ? null : value;
                         });
                       },
+                selectedItemBuilder: (BuildContext context) {
+                  // ✅ PENTING: Custom builder untuk menampilkan selected value
+                  return [
+                    // Empty option
+                    Text('-- Pilih Service Account --', style: GoogleFonts.poppins(fontSize: 14)),
+                    // Service accounts
+                    ..._serviceAccounts.map((account) {
+                      return Text(
+                        account.name,
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      );
+                    }),
+                  ];
+                },
                 hint: _isLoadingServiceAccounts
-                    ? const Row(
+                    ? Row(
                         children: [
-                          SizedBox(
+                          const SizedBox(
                             width: 16,
                             height: 16,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           ),
-                          SizedBox(width: 8),
-                          Text('Memuat data...'),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Memuat service account...',
+                            style: GoogleFonts.poppins(fontSize: 14),
+                          ),
                         ],
                       )
-                    : const Text('Pilih Service Account'),
+                    : Text(
+                        _serviceAccounts.isEmpty
+                            ? 'Tidak ada data'
+                            : 'Pilih Service Account',
+                        style: GoogleFonts.poppins(fontSize: 14),
+                      ),
                 // Tidak ada validator - field ini opsional
               ),
               const SizedBox(height: 16),
@@ -1533,7 +1606,7 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 4),
                     child: Text(
                       isInProgress || isResolved || isRejected
-                          ? "Petugas: Ahmad Fauzi\nSedang dalam perjalanan"
+                          ? "Sampah telah di proses oleh admin"
                           : "",
                       textAlign: TextAlign.center,
                       style: GoogleFonts.poppins(
@@ -1805,14 +1878,8 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
                     // Subtitle lokasi/kategori dan service account
                     Text(
                       laporan.lokasi.isNotEmpty
-                          ? (laporan.serviceAccount != null &&
-                                    laporan.serviceAccount!.isNotEmpty
-                                ? "${laporan.lokasi} • ${laporan.serviceAccount}"
-                                : "${laporan.lokasi} • None")
-                          : (laporan.serviceAccount != null &&
-                                    laporan.serviceAccount!.isNotEmpty
-                                ? "${laporan.kategori} • ${laporan.serviceAccount}"
-                                : "${laporan.kategori} • None"),
+                          ? "${laporan.lokasi} • ${laporan.serviceAccountName ?? 'None'}"
+                          : "${laporan.kategori} • ${laporan.serviceAccountName ?? 'None'}",
                       style: GoogleFonts.poppins(
                         fontSize: 14,
                         color: Colors.grey.shade600,
@@ -2014,6 +2081,9 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
 
   // State untuk menyimpan daftar laporan yang sudah dikirim
   final List<Laporan> _submittedReports = [];
+  
+  // Cache untuk service account names (serviceAccountId -> name)
+  final Map<String, String> _serviceAccountNames = {};
 
   static const Color primaryColor = Color.fromARGB(255, 21, 145, 137);
 
@@ -2036,6 +2106,9 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
       );
 
       if (success && data != null) {
+        // Load service accounts untuk mapping ID ke nama
+        await _loadServiceAccountNames();
+        
         // Convert API response ke Laporan objects untuk kompatibilitas UI
         final List<Laporan> loadedReports = data.map((item) {
           final complaint = Complaint.fromJson(item);
@@ -2074,6 +2147,27 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
           ),
         );
       }
+    }
+  }
+  
+  /// 🔹 Load service account names untuk mapping
+  Future<void> _loadServiceAccountNames() async {
+    try {
+      final serviceAccountService = ServiceAccountService();
+      final accounts = await serviceAccountService.fetchAccounts();
+      
+      // Build mapping dari ID ke nama
+      _serviceAccountNames.clear(); // Clear existing cache
+      for (var account in accounts) {
+        _serviceAccountNames[account.id] = account.name;
+        print('📋 Mapped Service Account: ID=${account.id}, Name=${account.name}');
+      }
+      
+      print('✅ Loaded ${accounts.length} service account names');
+      print('📋 Service Account Cache: $_serviceAccountNames');
+    } catch (e) {
+      print('❌ Error loading service account names: $e');
+      // Continue even if this fails
     }
   }
 
@@ -2124,13 +2218,33 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
       print('📷 No photos available for this complaint');
     }
 
+    // Get service account name from cache
+    String? serviceAccountName;
+    if (complaint.serviceAccountId != null && complaint.serviceAccountId!.isNotEmpty) {
+      serviceAccountName = _serviceAccountNames[complaint.serviceAccountId];
+      print('📋 Service Account Lookup:');
+      print('   - ID from API: ${complaint.serviceAccountId}');
+      print('   - Name from cache: ${serviceAccountName ?? "NOT FOUND IN CACHE"}');
+      print('   - Cache has ${_serviceAccountNames.length} entries');
+      
+      // If not found, try to reload service accounts
+      if (serviceAccountName == null) {
+        print('⚠️ Service account name not found in cache, will show ID as fallback');
+        // Fallback: use ID as display name
+        serviceAccountName = 'Service Account #${complaint.serviceAccountId}';
+      }
+    } else {
+      print('📋 No service account ID in complaint');
+    }
+    
     final laporan = Laporan(
       kota: kota,
       kategori: complaint.typeText, // Gunakan getter typeText untuk display
       lokasi: complaint.location ?? '', // Ambil lokasi dari API
       waktuPelanggaran: waktuPelanggaran,
       ciriCiri: complaint.description,
-      serviceAccount: complaint.serviceAccountId, // Service account dari API
+      serviceAccount: complaint.serviceAccountId, // Service account ID dari API
+      serviceAccountName: serviceAccountName, // Service account name dari cache
       imageFile: null, // API returns URL, bukan File
       photoUrl: photoUrl, // Simpan URL foto pertama (backward compatibility)
       photoUrls: photoUrls, // Simpan semua URL foto

@@ -2328,10 +2328,21 @@ class _HomeScreenState extends State<HomeScreen> {
                               // Jadwal Pengambilan dengan background berbeda (CLICKABLE) - DUMMY DATA
                               InkWell(
                                 onTap: () {
-                                  // Navigate ke JadwalPengambilanScreen dengan dummy ID
-                                  final serviceAccountId = _selectedAkun != null
-                                      ? _selectedAkun!['id']
-                                      : 1; // Dummy ID untuk testing
+                                  // Navigate ke JadwalPengambilanScreen dengan ID dari selected akun
+                                  int? serviceAccountId;
+                                  
+                                  if (_selectedAkun != null) {
+                                    // Coba ambil dari id_akun atau id, kemudian parse ke int
+                                    final idValue = _selectedAkun!['id_akun'] ?? _selectedAkun!['id'];
+                                    if (idValue != null) {
+                                      serviceAccountId = int.tryParse(idValue.toString());
+                                    }
+                                  }
+                                  
+                                  // Fallback ke 1 jika tidak ada
+                                  serviceAccountId ??= 1;
+                                  
+                                  print('🔍 Navigating to JadwalPengambilanScreen with ID: $serviceAccountId');
                                   
                                   Navigator.push(
                                     context,
@@ -2349,10 +2360,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                     vertical: 6,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: Colors.orange.shade50,
+                                    color: const Color(0xFFE0F2F1),
                                     borderRadius: BorderRadius.circular(8),
                                     border: Border.all(
-                                      color: Colors.orange.shade200,
+                                      color: const Color(0xFF00897B),
                                       width: 1,
                                     ),
                                   ),
@@ -2362,15 +2373,17 @@ class _HomeScreenState extends State<HomeScreen> {
                                       Icon(
                                         Icons.access_time,
                                         size: 14,
-                                        color: Colors.orange.shade700,
+                                        color: const Color(0xFF00897B),
                                       ),
                                       const SizedBox(width: 6),
                                       Flexible(
                                         child: Text(
-                                          "Jadwal: Senin • 08:00",
+                                          _selectedAkun != null && _selectedAkun!['hari_pengangkutan'] != null
+                                              ? "Jadwal: ${_selectedAkun!['hari_pengangkutan']} • ${_selectedAkun!['jam_pengangkutan'] ?? '07:00'}"
+                                              : "Jadwal: Belum diatur",
                                           style: GoogleFonts.poppins(
                                             fontSize: 10,
-                                            color: Colors.orange.shade800,
+                                            color: const Color(0xFF00897B),
                                             fontWeight: FontWeight.w600,
                                           ),
                                           overflow: TextOverflow.ellipsis,
@@ -2380,7 +2393,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       Icon(
                                         Icons.arrow_forward_ios,
                                         size: 10,
-                                        color: Colors.orange.shade700,
+                                        color: const Color(0xFF00897B),
                                       ),
                                     ],
                                   ),
@@ -2510,22 +2523,22 @@ class _HomeScreenState extends State<HomeScreen> {
                               style: GoogleFonts.poppins(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
-                                color: Colors.black,
+                                color: const Color.fromARGB(255, 233, 33, 33),
                               ),
                             ),
                             const SizedBox(width: 6),
                             Container(
                               padding: const EdgeInsets.all(6),
                               decoration: const BoxDecoration(
-                                color: Color(0xFF00897B),
+                                color: Color.fromARGB(255, 230, 47, 37),
                                 shape: BoxShape.circle,
                               ),
                               child: Image.asset(
                                 'assets/images/switch account.png',
-                                width: 20,
-                                height: 20,
+                                width: 14,
+                                height: 16,
                                 color: Colors.white,
-                              ),
+                              ),  
                             ),
                           ],
                         ),

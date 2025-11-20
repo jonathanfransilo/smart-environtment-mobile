@@ -270,6 +270,12 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
       _errorMessage = null;
     });
 
+    // ✅ Ambil user_id collector yang sedang login untuk filtering
+    final prefs = await SharedPreferences.getInstance();
+    final userIdRaw = prefs.get('user_id');
+    final currentCollectorId = userIdRaw?.toString();
+    print('👤 [HomeCollector] Current collector ID: $currentCollectorId');
+
     final (success, message, data) = await PickupService.getTodayPickups();
 
     if (mounted) {
@@ -284,32 +290,84 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
             print(jsonEncode(data.first));
           }
 
-          // ✅ PERBAIKAN: Jika RW kolektor belum ada, detect SEMUA RW unik dari pickups
-          if (_kolektorRWList.isEmpty && data.isNotEmpty) {
+          // ✅ PERBAIKAN KRITIS: HANYA detect RW dari pickup yang ASSIGNED ke collector ini
+          // Filter by collector_id untuk memastikan hanya RW yang ditugaskan yang muncul
+          if (data.isNotEmpty && currentCollectorId != null) {
             Set<String> detectedRWs = {};
+            int assignedPickupCount = 0;
+            int otherCollectorCount = 0;
+            
+            print('🔍 [AutoDetect] Scanning ${data.length} pickups untuk detect RW yang ASSIGNED ke collector #$currentCollectorId...');
+            
             for (var pickup in data) {
-              final houseInfo = pickup['house_info'] as Map<String, dynamic>?;
-              if (houseInfo != null) {
-                final rwFromPickup = houseInfo['rw']?.toString();
-                if (rwFromPickup != null && rwFromPickup.isNotEmpty) {
-                  detectedRWs.add(rwFromPickup);
+              // ✅ KUNCI: Hanya proses pickup yang assigned ke collector ini
+              final pickupCollectorId = pickup['collector_id']?.toString();
+              
+              if (pickupCollectorId == currentCollectorId) {
+                assignedPickupCount++;
+                String? rwFromPickup;
+                
+                // Cek di house_info
+                final houseInfo = pickup['house_info'] as Map<String, dynamic>?;
+                if (houseInfo != null) {
+                  rwFromPickup = houseInfo['rw']?.toString();
                 }
+                
+                // Cek di service_account jika belum ketemu
+                if (rwFromPickup == null) {
+                  final serviceAccount = pickup['service_account'] as Map<String, dynamic>?;
+                  if (serviceAccount != null) {
+                    rwFromPickup = serviceAccount['rw']?.toString();
+                  }
+                }
+                
+                // Cek langsung di pickup object jika belum ketemu
+                if (rwFromPickup == null) {
+                  rwFromPickup = pickup['rw']?.toString();
+                }
+                
+                if (rwFromPickup != null && rwFromPickup.isNotEmpty) {
+                  detectedRWs.add(rwFromPickup.trim().toUpperCase());
+                  print('   ✅ Pickup #${pickup['id']}: RW $rwFromPickup (Assigned to me)');
+                }
+              } else {
+                otherCollectorCount++;
+                print('   ⏭️ Pickup #${pickup['id']}: Assigned to collector #$pickupCollectorId (Skip)');
               }
             }
 
+            print('📊 [AutoDetect] Scan result:');
+            print('   - Total pickups scanned: ${data.length}');
+            print('   - Assigned to me: $assignedPickupCount');
+            print('   - Assigned to others: $otherCollectorCount');
+
             if (detectedRWs.isNotEmpty) {
-              _kolektorRWList = detectedRWs.toList();
+              // Merge dengan RW yang sudah ada dari UserStorage (jika ada)
+              final existingRWs = _kolektorRWList.map((rw) => rw.trim().toUpperCase()).toSet();
+              detectedRWs.addAll(existingRWs);
+              
+              _kolektorRWList = detectedRWs.toList()..sort();
               print(
-                '🔍 [AutoDetect] Mendeteksi RW kolektor dari pickups: ${_kolektorRWList.join(", ")}',
+                '✅ [AutoDetect] Total ${_kolektorRWList.length} RW terdeteksi untuk collector ini: ${_kolektorRWList.join(", ")}',
               );
+            } else {
+              print('⚠️ [AutoDetect] TIDAK ADA RW terdeteksi dari $assignedPickupCount pickups yang assigned!');
             }
+          } else if (currentCollectorId == null) {
+            print('❌ [AutoDetect] GAGAL: Collector ID tidak ditemukan!');
           }
 
           // ✅ PERBAIKAN: Filter pickup berdasarkan SEMUA RW yang ditugaskan
           List<Map<String, dynamic>> filteredPickups = data;
 
           print(
-            '🔍 [Filter] Kolektor RW List: ${_kolektorRWList.join(", ")} (${_kolektorRWList.length} RW)',
+            '🔍 [Filter] ===== FILTERING PICKUPS =====',
+          );
+          print(
+            '🔍 [Filter] Kolektor assigned to ${_kolektorRWList.length} RW(s): ${_kolektorRWList.join(", ")}',
+          );
+          print(
+            '🔍 [Filter] Total pickups to filter: ${data.length}',
           );
 
           if (_kolektorRWList.isNotEmpty) {
@@ -317,11 +375,13 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
             filteredPickups = data.where((pickup) {
               // Cek di berbagai kemungkinan lokasi data RW
               String? pickupRW;
+              String? displayName;
 
               // Kemungkinan 1: RW ada di house_info
               final houseInfo = pickup['house_info'] as Map<String, dynamic>?;
               if (houseInfo != null) {
                 pickupRW = houseInfo['rw']?.toString();
+                displayName = houseInfo['resident_name']?.toString() ?? houseInfo['account_number']?.toString();
               }
 
               // Kemungkinan 2: RW ada di service_account
@@ -330,6 +390,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
                     pickup['service_account'] as Map<String, dynamic>?;
                 if (serviceAccount != null) {
                   pickupRW = serviceAccount['rw']?.toString();
+                  displayName ??= serviceAccount['name']?.toString();
                 }
               }
 
@@ -337,6 +398,9 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
               if (pickupRW == null) {
                 pickupRW = pickup['rw']?.toString();
               }
+              
+              // Ambil name dari pickup jika belum ada
+              displayName ??= pickup['name']?.toString() ?? 'N/A';
 
               // Filter: cek apakah pickup RW ada di list RW kolektor (case-insensitive)
               final isMatch =
@@ -347,11 +411,10 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
                         kolektorRW.trim().toUpperCase(),
                   );
 
-              if (pickupRW != null) {
-                print(
-                  '🔍 [Filter] Pickup #${pickup['id']} - Name: ${pickup['name'] ?? houseInfo?['account_number'] ?? 'N/A'}, RW: $pickupRW, Match: ${isMatch ? "✅" : "❌"}',
-                );
-              }
+              // Log setiap pickup untuk debugging
+              print(
+                '   ${isMatch ? "✅" : "❌"} Pickup #${pickup['id']}: $displayName (RW ${pickupRW ?? "?"}) - ${pickup['status'] ?? "?"}, Date: ${pickup['pickup_date'] ?? "?"}',
+              );
 
               if (!isMatch) {
                 filteredCount++;
@@ -360,11 +423,35 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
             }).toList();
 
             print(
-              '📊 [Filter] Original: ${data.length} pickups, Filtered out: $filteredCount, Remaining: ${filteredPickups.length} pickups untuk RW ${_kolektorRWList.join(", ")}',
+              '📊 [Filter] HASIL:',
+            );
+            print(
+              '   - Original pickups: ${data.length}',
+            );
+            print(
+              '   - Filtered out: $filteredCount',
+            );
+            print(
+              '   - Remaining (matched): ${filteredPickups.length} pickups',
+            );
+            print(
+              '   - RW matched: ${_kolektorRWList.join(", ")}',
+            );
+            print(
+              '═══════════════════════════════════════════════════════',
             );
           } else {
             print(
-              '⚠️ [Filter] Kolektor RW list is EMPTY - showing ALL pickups (NO FILTERING)',
+              '⚠️ [Filter] WARNING: Kolektor RW list is EMPTY!',
+            );
+            print(
+              '⚠️ [Filter] Showing ALL ${data.length} pickups (NO FILTERING)',
+            );
+            print(
+              '⚠️ [Filter] This should NOT happen if collector is assigned!',
+            );
+            print(
+              '═══════════════════════════════════════════════════════',
             );
           }
 
