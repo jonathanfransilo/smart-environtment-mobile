@@ -1332,7 +1332,7 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
         : Colors.grey.shade300;
 
     final Color resolvedColor = isResolved
-        ? Colors.green
+        ? primaryColor
         : (isRejected ? Colors.red : Colors.grey.shade300);
 
     // Line color logic
@@ -1344,15 +1344,74 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
         ? primaryColor
         : Colors.grey.shade300;
 
+    // Format tanggal dan waktu (gunakan data dari laporan jika ada)
+    final now = DateTime.now();
+    
+    // Format manual untuk menghindari locale issue
+    String formatDate(DateTime date) {
+      final months = [
+        'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+        'Jul', 'Agu', 'Sep', 'Oct', 'Nov', 'Des'
+      ];
+      return '${date.day} ${months[date.month - 1]} ${date.year}';
+    }
+    
+    String formatTime(DateTime date) {
+      return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    }
+    
+    final createdDate = formatDate(laporan.createdAt);
+    final createdTime = formatTime(laporan.createdAt);
+    
+    // Simulasi waktu untuk status lainnya (bisa diganti dengan data real dari API)
+    final processDateTime = laporan.createdAt.add(const Duration(hours: 2));
+    final processDate = isInProgress || isResolved || isRejected 
+        ? formatDate(processDateTime)
+        : formatDate(now);
+    final processTime = isInProgress || isResolved || isRejected
+        ? formatTime(processDateTime)
+        : formatTime(now);
+    
+    final completedDateTime = laporan.createdAt.add(const Duration(hours: 4));
+    final completedDate = isResolved || isRejected
+        ? formatDate(completedDateTime)
+        : formatDate(now);
+    final completedTime = isResolved || isRejected
+        ? formatTime(completedDateTime)
+        : formatTime(now);
+
     return Column(
       children: [
         // Row untuk progress dots dan lines
         Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // 1. Pending (Menunggu)
             Expanded(
               child: Column(
                 children: [
+                  // Tanggal dan Waktu
+                  Text(
+                    createdDate,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: primaryColor,
+                      height: 1.2,
+                    ),
+                  ),
+                  Text(
+                    createdTime,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: primaryColor,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   Container(
                     width: 48,
                     height: 48,
@@ -1371,21 +1430,27 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
                         : null,
                   ),
                   const SizedBox(height: 8),
+                  Text(
+                    "Menunggu",
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        "Menunggu",
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.poppins(
-                          fontSize: 11,
-                          fontWeight: isOpen
-                              ? FontWeight.w600
-                              : FontWeight.w500,
-                          color: isOpen ? Colors.black87 : Colors.grey.shade600,
-                          height: 1.2,
-                        ),
+                    child: Text(
+                      "Laporan sedang menunggu untuk diproses",
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w400,
+                        color: primaryColor,
+                        height: 1.3,
                       ),
                     ),
                   ),
@@ -1395,10 +1460,10 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
 
             // Line 1
             Expanded(
-              flex: 2,
+              flex: 1,
               child: Container(
                 height: 3,
-                margin: const EdgeInsets.only(bottom: 36),
+                margin: const EdgeInsets.only(top: 65),
                 color: line1Color,
               ),
             ),
@@ -1407,6 +1472,32 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
             Expanded(
               child: Column(
                 children: [
+                  // Tanggal dan Waktu
+                  Text(
+                    processDate,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: isInProgress || isResolved || isRejected
+                          ? primaryColor
+                          : Colors.grey.shade400,
+                      height: 1.2,
+                    ),
+                  ),
+                  Text(
+                    processTime,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: isInProgress || isResolved || isRejected
+                          ? primaryColor
+                          : Colors.grey.shade400,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   Container(
                     width: 48,
                     height: 48,
@@ -1425,23 +1516,31 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
                         : null,
                   ),
                   const SizedBox(height: 8),
+                  Text(
+                    "Di-proses",
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: isInProgress || isResolved || isRejected
+                          ? Colors.black87
+                          : Colors.grey.shade600,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        "Diproses",
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.poppins(
-                          fontSize: 11,
-                          fontWeight: isInProgress
-                              ? FontWeight.w600
-                              : FontWeight.w500,
-                          color: isInProgress
-                              ? Colors.black87
-                              : Colors.grey.shade600,
-                          height: 1.2,
-                        ),
+                    child: Text(
+                      isInProgress || isResolved || isRejected
+                          ? "Petugas: Ahmad Fauzi\nSedang dalam perjalanan"
+                          : "",
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w400,
+                        color: primaryColor,
+                        height: 1.3,
                       ),
                     ),
                   ),
@@ -1451,10 +1550,10 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
 
             // Line 2
             Expanded(
-              flex: 2,
+              flex: 1,
               child: Container(
                 height: 3,
-                margin: const EdgeInsets.only(bottom: 36),
+                margin: const EdgeInsets.only(top: 65),
                 color: line2Color,
               ),
             ),
@@ -1463,6 +1562,32 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
             Expanded(
               child: Column(
                 children: [
+                  // Tanggal dan Waktu
+                  Text(
+                    completedDate,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: isResolved || isRejected
+                          ? primaryColor
+                          : Colors.grey.shade400,
+                      height: 1.2,
+                    ),
+                  ),
+                  Text(
+                    completedTime,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: isResolved || isRejected
+                          ? primaryColor
+                          : Colors.grey.shade400,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   Container(
                     width: 48,
                     height: 48,
@@ -1478,30 +1603,40 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
                     ),
                     child: (isResolved || isRejected)
                         ? Icon(
-                            isResolved ? Icons.check_circle : Icons.cancel,
+                            Icons.check_circle,
                             color: Colors.white,
                             size: 24,
                           )
                         : null,
                   ),
                   const SizedBox(height: 8),
+                  Text(
+                    "Selesai",
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: (isResolved || isRejected)
+                          ? Colors.black87
+                          : Colors.grey.shade600,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        "Selesai",
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.poppins(
-                          fontSize: 11,
-                          fontWeight: (isResolved || isRejected)
-                              ? FontWeight.w600
-                              : FontWeight.w500,
-                          color: (isResolved || isRejected)
-                              ? Colors.black87
-                              : Colors.grey.shade600,
-                          height: 1.2,
-                        ),
+                    child: Text(
+                      isResolved
+                          ? "Laporan berhasil diselesaikan"
+                          : isRejected
+                              ? "Laporan ditolak"
+                              : "",
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w400,
+                        color: primaryColor,
+                        height: 1.3,
                       ),
                     ),
                   ),
@@ -1617,20 +1752,6 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Area Foto dengan Shadow Effect
-            Container(
-              decoration: BoxDecoration(
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
-              ),
-              child: imageWidget,
-            ),
-
             const SizedBox(height: 20),
 
             // Progress Timeline Status (Sesuai Figma)
@@ -1744,6 +1865,14 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 12),
+                    
+                    // Area Foto di dalam Deskripsi
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: imageWidget,
+                    ),
+                    const SizedBox(height: 12),
+                    
                     // Isi Deskripsi
                     Text(
                       laporan.ciriCiri,

@@ -81,10 +81,37 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
   String _validationMessage = '';
   String _validationField = '';
 
+  // State untuk validasi nomor telepon
+  String? _phoneValidationError;
+
   @override
   void initState() {
     super.initState();
     _initializeForm();
+    
+    // Listener untuk validasi nomor telepon real-time
+    _teleponController.addListener(_validatePhoneNumber);
+  }
+
+  void _validatePhoneNumber() {
+    final phoneText = _teleponController.text.trim();
+    
+    if (phoneText.isEmpty) {
+      setState(() {
+        _phoneValidationError = null;
+      });
+      return;
+    }
+
+    if (!phoneText.startsWith('08')) {
+      setState(() {
+        _phoneValidationError = 'Nomor telepon harus dimulai dengan 08';
+      });
+    } else {
+      setState(() {
+        _phoneValidationError = null;
+      });
+    }
   }
 
   Future<void> _initializeForm() async {
@@ -339,6 +366,15 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
         title: 'Nomor Telepon Kosong',
         message: 'Nomor telepon tidak boleh kosong',
         field: 'Nomor Telepon',
+      );
+      return;
+    }
+
+    if (!_teleponController.text.trim().startsWith('08')) {
+      _showValidationError(
+        title: 'Nomor Telepon Tidak Valid',
+        message: 'Nomor telepon harus dimulai dengan 08',
+        field: _teleponController.text,
       );
       return;
     }
@@ -774,6 +810,7 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
 
   @override
   void dispose() {
+    _teleponController.removeListener(_validatePhoneNumber);
     _namaController.dispose();
     _teleponController.dispose();
     _detailAlamatController.dispose();
@@ -979,10 +1016,28 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
                   FilteringTextInputFormatter.digitsOnly,
                   LengthLimitingTextInputFormatter(13), // Maksimal 13 digit
                 ],
-                decoration: _inputDecoration(hintText: 'Contoh: 0812xxxxxxxx'),
+                decoration: _inputDecoration(hintText: 'Contoh: 0812xxxxxxxx')
+                    .copyWith(
+                  errorText: _phoneValidationError,
+                  errorStyle: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: Colors.red.shade700,
+                  ),
+                  errorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                  ),
+                  focusedErrorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                  ),
+                ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Nomor telepon wajib diisi';
+                  }
+                  if (!value.startsWith('08')) {
+                    return 'Nomor telepon harus dimulai dengan 08';
                   }
                   if (value.length < 11) {
                     return 'Nomor telepon minimal 11 angka';
