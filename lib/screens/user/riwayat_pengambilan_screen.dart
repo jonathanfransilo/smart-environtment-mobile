@@ -73,6 +73,12 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
         if (pickups.isNotEmpty) {
           print('🔍 [RiwayatPengambilan] Sample pickup data:');
           print('   Keys: ${pickups[0].keys}');
+          
+          // ⚠️ PENTING: Cek confirmation_status dari API
+          final confirmationStatus = pickups[0]['confirmation_status'];
+          print('⚠️ [RiwayatPengambilan] CONFIRMATION STATUS dari API: $confirmationStatus');
+          print('   ❌ Jika status = "confirmed", berarti BACKEND yang salah!');
+          print('   ✅ Seharusnya status = "pending" agar user bisa konfirmasi manual');
 
           // Check ALL possible photo fields
           final photoUrl = pickups[0]['photo_url'];
@@ -264,6 +270,8 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
       final pickupDate = pickup['pickup_date'] as String?;
       final wasteItems = pickup['waste_items'] as List<dynamic>?;
       final serviceAccount = pickup['service_account'] as Map<String, dynamic>?;
+      final pickupId = pickup['id']?.toString();
+      final confirmationStatus = pickup['confirmation_status']?.toString() ?? 'pending';
 
       if (wasteItems == null || wasteItems.isEmpty) {
         print('⚠️ [RiwayatPengambilan] Empty waste items for pickup');
@@ -520,6 +528,134 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                     const Divider(height: 1),
                     const SizedBox(height: 12),
 
+                    // Tombol Konfirmasi (jika status masih pending - belum dikonfirmasi user)
+                    if (confirmationStatus == 'pending') ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.orange.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, size: 20, color: Colors.orange.shade700),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Kolektor telah menginput sampah. Konfirmasi apakah sudah diambil.',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  color: Colors.orange.shade700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () => _showConfirmationDialog(pickupId!, pickup),
+                          icon: const Icon(Icons.check_circle_outline, size: 20),
+                          label: Text(
+                            'Konfirmasi Pengambilan',
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF4CAF50),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            elevation: 0,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+
+                    // Status badge jika sudah dikonfirmasi
+                    if (confirmationStatus == 'confirmed') ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF4CAF50).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: const Color(0xFF4CAF50),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.check_circle,
+                              size: 16,
+                              color: Color(0xFF4CAF50),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Sudah Dikonfirmasi - Tagihan telah dibuat',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF4CAF50),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+
+                    // Status badge jika tidak ada sampah
+                    if (confirmationStatus == 'no_waste') ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Colors.grey,
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.cancel_outlined,
+                              size: 16,
+                              color: Colors.grey[700],
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Tidak Ada Sampah - Tidak ada tagihan',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+
                     // Total Harga & Lihat Detail
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -586,6 +722,326 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
       print('💥 [RiwayatPengambilan] Error building pickup card: $e');
       print('Stack trace: $stackTrace');
       return const SizedBox.shrink();
+    }
+  }
+
+  /// Tampilkan dialog konfirmasi pengambilan
+  void _showConfirmationDialog(String pickupId, Map<String, dynamic> pickup) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF4CAF50).withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.check_circle_outline,
+                color: Color(0xFF4CAF50),
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Konfirmasi Pengambilan',
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Apakah sampah sudah diambil oleh petugas kolektor?',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                color: Colors.grey[700],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, size: 20, color: Colors.blue.shade700),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Setelah dikonfirmasi, tagihan akan dibuat dan muncul di menu pembayaran',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.blue.shade700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              'Batal',
+              style: GoogleFonts.poppins(
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _showNoWasteDialog(pickupId);
+            },
+            child: Text(
+              'Tidak Ada Sampah',
+              style: GoogleFonts.poppins(
+                color: Colors.orange,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _confirmPickup(pickupId, 'confirmed');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4CAF50),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              elevation: 0,
+            ),
+            child: Text(
+              'Ya, Sudah Diambil',
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Dialog untuk konfirmasi tidak ada sampah
+  void _showNoWasteDialog(String pickupId) {
+    final noteController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.info_outline,
+                color: Colors.orange,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Tidak Ada Sampah',
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Catatan (opsional):',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: noteController,
+              maxLines: 3,
+              decoration: InputDecoration(
+                hintText: 'Contoh: Sampah sudah dibuang sendiri',
+                hintStyle: GoogleFonts.poppins(fontSize: 13),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                contentPadding: const EdgeInsets.all(12),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              'Batal',
+              style: GoogleFonts.poppins(
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _confirmPickup(
+                pickupId,
+                'no_waste',
+                residentNote: noteController.text.trim(),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              elevation: 0,
+            ),
+            child: Text(
+              'Konfirmasi',
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Konfirmasi pickup ke API
+  Future<void> _confirmPickup(
+    String pickupId,
+    String confirmationStatus, {
+    String? residentNote,
+  }) async {
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Center(
+        child: Container(
+          width: 200,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(
+                width: 40,
+                height: 40,
+                child: CircularProgressIndicator(strokeWidth: 3),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Memproses konfirmasi...',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(fontSize: 13),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    try {
+      final (success, message) = await _pickupService.confirmPickup(
+        pickupId: pickupId,
+        confirmationStatus: confirmationStatus,
+        residentNote: residentNote,
+      );
+
+      if (!mounted) return;
+
+      // Close loading
+      Navigator.pop(context);
+
+      if (success) {
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              confirmationStatus == 'confirmed'
+                  ? '✅ Pengambilan sampah berhasil dikonfirmasi!\nTagihan akan dibuat dan muncul di menu Riwayat Pembayaran.'
+                  : '✅ Status berhasil diperbarui. Tidak ada tagihan yang dibuat.',
+              style: GoogleFonts.poppins(),
+            ),
+            backgroundColor: const Color(0xFF4CAF50),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+
+        // Reload data
+        await _loadHistory();
+      } else {
+        // Show error
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              message ?? 'Gagal mengkonfirmasi pengambilan',
+              style: GoogleFonts.poppins(),
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      // Close loading
+      Navigator.pop(context);
+
+      // Show error
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Terjadi kesalahan: $e',
+            style: GoogleFonts.poppins(),
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -730,10 +1186,20 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                     children: [
                       // Foto Bukti Pengambilan (jika ada)
                       if (photoUrl != null && photoUrl.isNotEmpty) ...[
+                        Text(
+                          'Foto Bukti Pengambilan',
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[800],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
                         Builder(
                           builder: (context) {
                             final imageUrl =
                                 photoUrl!; // Capture non-null value
+                            print('🖼️ [DetailDialog] Loading image from: $imageUrl');
                             return Container(
                               width: double.infinity,
                               height: 200,
@@ -771,11 +1237,24 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                                                       error,
                                                       stackTrace,
                                                     ) {
-                                                      return const Center(
-                                                        child: Icon(
-                                                          Icons.broken_image,
-                                                          size: 64,
-                                                          color: Colors.white54,
+                                                      return Center(
+                                                        child: Column(
+                                                          mainAxisAlignment: MainAxisAlignment.center,
+                                                          children: [
+                                                            const Icon(
+                                                              Icons.broken_image,
+                                                              size: 64,
+                                                              color: Colors.white54,
+                                                            ),
+                                                            const SizedBox(height: 16),
+                                                            Text(
+                                                              'Foto tidak dapat dimuat',
+                                                              style: GoogleFonts.poppins(
+                                                                color: Colors.white70,
+                                                                fontSize: 14,
+                                                              ),
+                                                            ),
+                                                          ],
                                                         ),
                                                       );
                                                     },
@@ -811,9 +1290,9 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                                         imageUrl,
                                         fit: BoxFit.cover,
                                         errorBuilder: (context, error, stackTrace) {
-                                          print(
-                                            '❌ [DetailDialog] Error loading image: $error',
-                                          );
+                                          print('❌ [DetailDialog] Error loading image from: $imageUrl');
+                                          print('❌ [DetailDialog] Error: $error');
+                                          print('❌ [DetailDialog] StackTrace: $stackTrace');
                                           return Center(
                                             child: Column(
                                               mainAxisAlignment:
@@ -826,10 +1305,23 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                                                 ),
                                                 const SizedBox(height: 8),
                                                 Text(
-                                                  'Gagal memuat foto',
+                                                  'Foto tidak tersedia',
                                                   style: GoogleFonts.poppins(
                                                     fontSize: 12,
                                                     color: Colors.grey[600],
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Padding(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                                                  child: Text(
+                                                    'File mungkin sudah dihapus dari server',
+                                                    textAlign: TextAlign.center,
+                                                    style: GoogleFonts.poppins(
+                                                      fontSize: 10,
+                                                      color: Colors.grey[500],
+                                                    ),
                                                   ),
                                                 ),
                                               ],
@@ -897,6 +1389,34 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                               ),
                             );
                           },
+                        ),
+                        const SizedBox(height: 16),
+                        const Divider(),
+                        const SizedBox(height: 16),
+                      ] else ...[
+                        // Pesan jika foto tidak tersedia
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey[300]!),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.info_outline, size: 18, color: Colors.grey[600]),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Foto bukti pengambilan tidak tersedia',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    color: Colors.grey[700],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 16),
                         const Divider(),
@@ -1053,28 +1573,67 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
 
                       const SizedBox(height: 24),
 
-                      // Close Button
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF4CAF50),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            elevation: 0,
-                          ),
-                          child: Text(
-                            'Tutup',
-                            style: GoogleFonts.poppins(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
+                      // Tombol Konfirmasi atau Tutup (tergantung status)
+                      Builder(
+                        builder: (context) {
+                          final pickupId = pickup['id']?.toString();
+                          final confirmationStatus = pickup['confirmation_status']?.toString() ?? 'pending';
+                          final isPending = confirmationStatus == 'pending';
+
+                          if (isPending && pickupId != null) {
+                            // Jika status pending, tampilkan tombol konfirmasi
+                            return SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: () {
+                                  Navigator.pop(ctx);
+                                  _showConfirmationDialog(pickupId, pickup);
+                                },
+                                icon: const Icon(Icons.check_circle_outline, size: 20),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF4CAF50),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  elevation: 0,
+                                ),
+                                label: Text(
+                                  'Konfirmasi Pengambilan',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            );
+                          } else {
+                            // Jika sudah dikonfirmasi, tampilkan tombol tutup
+                            return SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF009688),
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  elevation: 0,
+                                ),
+                                child: Text(
+                                  'Tutup',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+                        },
                       ),
                     ],
                   ),

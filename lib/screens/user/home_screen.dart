@@ -201,6 +201,21 @@ class _HomeScreenState extends State<HomeScreen> {
         data['unpaid_invoices'] ?? [],
       );
 
+      // ✅ FILTER: Hanya tampilkan invoice dari pickup yang sudah dikonfirmasi user
+      invoices = invoices.where((invoice) {
+        // Cek apakah invoice memiliki pickup terkait
+        final pickup = invoice['pickup'] ?? invoice['resident_pickup'];
+        if (pickup == null) {
+          // Jika tidak ada pickup data, assume sudah confirmed (backward compatibility)
+          return true;
+        }
+        
+        // Cek confirmation_status dari pickup
+        final confirmationStatus = pickup['confirmation_status']?.toString();
+        // Hanya tampilkan jika sudah confirmed
+        return confirmationStatus == 'confirmed';
+      }).toList();
+
       // Filter by selected account if one is selected
       if (_selectedAkun != null && _akunList.length > 1) {
         final selectedAccountId = _selectedAkun!['id']?.toString();
@@ -1380,12 +1395,33 @@ class _HomeScreenState extends State<HomeScreen> {
                             "assets/images/calender.png",
                             "Jadwal\n Pengambilan",
                             onTap: () {
+                              // Gunakan service account yang dipilih
+                              if (_akunList.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Anda belum memiliki akun layanan. Silakan buat akun terlebih dahulu.',
+                                      style: GoogleFonts.poppins(),
+                                    ),
+                                    backgroundColor: Colors.orange,
+                                  ),
+                                );
+                                return;
+                              }
+
+                              final currentAccount = _selectedAkun ?? _akunList.first;
+                              final serviceAccountId = int.tryParse(
+                                currentAccount['id_akun']?.toString() ?? 
+                                currentAccount['id']?.toString() ?? 
+                                '1'
+                              ) ?? 1;
+
                               // Navigate ke JadwalPengambilanScreen
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => const JadwalPengambilanScreen(
-                                    serviceAccountId: 1, // Dummy ID
+                                  builder: (context) => JadwalPengambilanScreen(
+                                    serviceAccountId: serviceAccountId,
                                   ),
                                 ),
                               );
@@ -1396,7 +1432,30 @@ class _HomeScreenState extends State<HomeScreen> {
                             "assets/images/express.jpeg",
                             "Request\nPengambilan",
                             onTap: () {
-                              Navigator.pushNamed(context, '/express-request');
+                              // Gunakan service account yang dipilih
+                              if (_akunList.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Anda belum memiliki akun layanan. Silakan buat akun terlebih dahulu.',
+                                      style: GoogleFonts.poppins(),
+                                    ),
+                                    backgroundColor: Colors.orange,
+                                  ),
+                                );
+                                return;
+                              }
+
+                              // Pass service account data ke express request
+                              final currentAccount = _selectedAkun ?? _akunList.first;
+                              Navigator.pushNamed(
+                                context, 
+                                '/express-request',
+                                arguments: {
+                                  'serviceAccountId': currentAccount['id_akun']?.toString() ?? currentAccount['id']?.toString(),
+                                  'serviceAccountName': currentAccount['nama']?.toString(),
+                                },
+                              );
                             },
                           ),
                           // 3. Riwayat Pengambilan
@@ -1503,9 +1562,29 @@ class _HomeScreenState extends State<HomeScreen> {
                             "assets/images/rekening.png",
                             "Riwayat\nPembayaran",
                             onTap: () {
+                              // Gunakan service account yang dipilih
+                              if (_akunList.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Anda belum memiliki akun layanan. Silakan buat akun terlebih dahulu.',
+                                      style: GoogleFonts.poppins(),
+                                    ),
+                                    backgroundColor: Colors.orange,
+                                  ),
+                                );
+                                return;
+                              }
+
+                              // Pass service account data ke riwayat pembayaran
+                              final currentAccount = _selectedAkun ?? _akunList.first;
                               Navigator.pushNamed(
                                 context,
                                 '/riwayat-pembayaran',
+                                arguments: {
+                                  'serviceAccountId': currentAccount['id_akun']?.toString() ?? currentAccount['id']?.toString(),
+                                  'serviceAccountName': currentAccount['nama']?.toString(),
+                                },
                               );
                             },
                           ),

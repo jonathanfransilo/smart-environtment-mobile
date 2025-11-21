@@ -1063,7 +1063,7 @@ class DetailLaporanScreen extends StatelessWidget {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24.0),
                       child: Text(
-                        "Proses pelaporan telah selesai, pelaporan anda akan segera kami proses",
+                        "Pelaporan anda telah berhasil kami terima dan akan kami proses",
                         textAlign: TextAlign.center,
                         style: GoogleFonts.poppins(
                           fontSize: 14,
