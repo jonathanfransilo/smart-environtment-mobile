@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'pengambilan_sampah_screen.dart';
 import 'ambil_foto_screen.dart';
+import 'collector_pickup_process_screen.dart';
 import '../../services/pickup_service.dart';
 import '../../services/kolektor_notification_service.dart';
 import '../../services/user_storage.dart';
@@ -2830,27 +2831,29 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
                   child: ElevatedButton(
                     onPressed: displayStatus == 'resolved' 
                         ? null 
-                        : () {
-                            // TODO: Navigate ke CollectorComplaintDetailScreen
+                        : () async {
                             print('🚀 Navigate to complaint detail: ${complaint.id}');
                             
-                            // Untuk sementara, tampilkan dialog info
-                            showDialog(
-                              context: context,
-                              builder: (ctx) => AlertDialog(
-                                title: Text('Detail Pelaporan', style: GoogleFonts.poppins()),
-                                content: Text(
-                                  'Fitur detail pelaporan akan segera hadir.\\n\\nComplaint ID: ${complaint.id}\\nTipe: ${_formatComplaintType(complaint.type)}\\nStatus: $displayStatus',
-                                  style: GoogleFonts.poppins(),
+                            // Navigate ke halaman proses pelaporan
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => CollectorPickupProcessScreen(
+                                  complaint: {
+                                    'id': complaint.id,
+                                    'type': complaint.type,
+                                    'location': complaint.location,
+                                    'status': complaint.status,
+                                    'reporter_name': reporterName,
+                                  },
                                 ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(ctx),
-                                    child: Text('OK', style: GoogleFonts.poppins()),
-                                  ),
-                                ],
                               ),
                             );
+                            
+                            // Refresh data jika proses selesai
+                            if (result == true) {
+                              await _loadAssignedComplaints();
+                            }
                           },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryColor,

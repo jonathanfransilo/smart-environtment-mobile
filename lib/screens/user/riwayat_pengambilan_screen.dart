@@ -278,6 +278,40 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
         return const SizedBox.shrink();
       }
 
+      // ✅ CEK AUTO-KONFIRMASI: Jika sudah lewat 3 hari dan masih pending, auto-konfirmasi
+      if (confirmationStatus == 'pending' && pickupDate != null) {
+        try {
+          final pickupDateTime = DateTime.parse(pickupDate);
+          final now = DateTime.now();
+          final daysDifference = now.difference(pickupDateTime).inDays;
+          
+          if (daysDifference >= 3) {
+            print('⏰ [RiwayatPengambilan] Pickup #$pickupId sudah $daysDifference hari - AUTO KONFIRMASI');
+            
+            // Trigger auto-konfirmasi di background
+            Future.microtask(() async {
+              try {
+                await _pickupService.confirmPickup(
+                  pickupId: pickupId!,
+                  confirmationStatus: 'confirmed',
+                  residentNote: 'Auto-konfirmasi setelah $daysDifference hari',
+                );
+                print('✅ [RiwayatPengambilan] Auto-konfirmasi berhasil untuk Pickup #$pickupId');
+                
+                // Reload history setelah auto-konfirmasi
+                if (mounted) {
+                  await _loadHistory();
+                }
+              } catch (e) {
+                print('❌ [RiwayatPengambilan] Gagal auto-konfirmasi: $e');
+              }
+            });
+          }
+        } catch (e) {
+          print('⚠️ [RiwayatPengambilan] Error parsing pickup date: $e');
+        }
+      }
+
       // Calculate totals for this pickup
       int totalItems = wasteItems.length;
       double totalPrice = 0;
@@ -530,28 +564,124 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
 
                     // Tombol Konfirmasi (jika status masih pending - belum dikonfirmasi user)
                     if (confirmationStatus == 'pending') ...[
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.orange.shade200),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.info_outline, size: 20, color: Colors.orange.shade700),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Kolektor telah menginput sampah. Konfirmasi apakah sudah diambil.',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 12,
-                                  color: Colors.orange.shade700,
-                                ),
-                              ),
+                      // Hitung hari sejak pickup untuk menampilkan countdown
+                      Builder(
+                        builder: (context) {
+                          int? daysRemaining;
+                          bool isAutoConfirming = false;
+                          
+                          if (pickupDate != null) {
+                            try {
+                              final pickupDateTime = DateTime.parse(pickupDate);
+                              final now = DateTime.now();
+                              final daysPassed = now.difference(pickupDateTime).inDays;
+                              daysRemaining = 3 - daysPassed;
+                              
+                              // Jika sudah >= 3 hari, akan auto-konfirmasi
+                              if (daysPassed >= 3) {
+                                isAutoConfirming = true;
+                              }
+                            } catch (e) {
+                              print('⚠️ Error calculating days remaining: $e');
+                            }
+                          }
+
+                          // Tentukan warna berdasarkan status
+                          final Color backgroundColor;
+                          final Color borderColor;
+                          final Color textColor;
+                          final IconData iconData;
+                          
+                          if (isAutoConfirming) {
+                            // Hijau: Akan auto-konfirmasi (sudah >= 3 hari)
+                            backgroundColor = Colors.green.shade50;
+                            borderColor = Colors.green.shade200;
+                            textColor = Colors.green.shade700;
+                            iconData = Icons.timer_outlined;
+                          } else if (daysRemaining != null && daysRemaining == 1) {
+                            // Merah: Warning kuat, besok auto-konfirmasi
+                            backgroundColor = Colors.red.shade50;
+                            borderColor = Colors.red.shade200;
+                            textColor = Colors.red.shade700;
+                            iconData = Icons.warning_amber_outlined;
+                          } else {
+                            // Orange: Masih ada waktu (2+ hari)
+                            backgroundColor = Colors.orange.shade50;
+                            borderColor = Colors.orange.shade200;
+                            textColor = Colors.orange.shade700;
+                            iconData = Icons.info_outline;
+                          }
+
+                          return Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: backgroundColor,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: borderColor),
                             ),
-                          ],
-                        ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(iconData, size: 20, color: textColor),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        isAutoConfirming
+                                            ? 'Batas waktu konfirmasi telah terlewati. Akan dikonfirmasi otomatis.'
+                                            : 'Kolektor telah menginput sampah. Konfirmasi apakah sudah diambil.',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 12,
+                                          color: textColor,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (daysRemaining != null) ...[
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: isAutoConfirming
+                                          ? Colors.green.shade100
+                                          : daysRemaining == 1
+                                              ? Colors.red.shade100
+                                              : Colors.orange.shade100,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          isAutoConfirming
+                                              ? Icons.check_circle_outline
+                                              : Icons.access_time,
+                                          size: 14,
+                                          color: textColor,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          isAutoConfirming
+                                              ? 'Sedang diproses otomatis...'
+                                              : daysRemaining == 1
+                                                  ? 'Auto-konfirmasi besok!'
+                                                  : 'Auto-konfirmasi dalam $daysRemaining hari',
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w500,
+                                            color: textColor,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          );
+                        },
                       ),
                       const SizedBox(height: 12),
                       SizedBox(

@@ -201,20 +201,54 @@ class _HomeScreenState extends State<HomeScreen> {
         data['unpaid_invoices'] ?? [],
       );
 
+      print('📊 [HomeScreen] Loaded ${invoices.length} total unpaid invoices from API');
+
+      // Debug: Print struktur invoice untuk melihat field apa saja yang ada
+      if (invoices.isNotEmpty) {
+        print('🔍 [HomeScreen] Sample invoice structure:');
+        print('   Keys: ${invoices[0].keys.toList()}');
+        if (invoices[0]['pickup'] != null) {
+          print('   pickup keys: ${invoices[0]['pickup'].keys.toList()}');
+        }
+        if (invoices[0]['resident_pickup'] != null) {
+          print('   resident_pickup keys: ${invoices[0]['resident_pickup'].keys.toList()}');
+        }
+      }
+
       // ✅ FILTER: Hanya tampilkan invoice dari pickup yang sudah dikonfirmasi user
-      invoices = invoices.where((invoice) {
+      final confirmedInvoices = invoices.where((invoice) {
+        final invoiceId = invoice['id'] ?? 'unknown';
+        
         // Cek apakah invoice memiliki pickup terkait
         final pickup = invoice['pickup'] ?? invoice['resident_pickup'];
+        
         if (pickup == null) {
-          // Jika tidak ada pickup data, assume sudah confirmed (backward compatibility)
-          return true;
+          // Jika tidak ada pickup data, CEK apakah ini invoice dari pickup atau bukan
+          // Invoice tanpa pickup field kemungkinan adalah invoice manual/admin
+          print('   ⚠️ Invoice #$invoiceId TIDAK ADA pickup field - akan DITOLAK untuk keamanan');
+          return false; // TOLAK invoice tanpa pickup data untuk menghindari tampilkan yang pending
         }
         
         // Cek confirmation_status dari pickup
         final confirmationStatus = pickup['confirmation_status']?.toString();
-        // Hanya tampilkan jika sudah confirmed
-        return confirmationStatus == 'confirmed';
+        final pickupId = pickup['id'] ?? 'unknown';
+        
+        if (confirmationStatus == null) {
+          print('   ⚠️ Invoice #$invoiceId dari Pickup #$pickupId - TIDAK ADA confirmation_status field (DITOLAK)');
+          return false;
+        }
+        
+        if (confirmationStatus == 'confirmed') {
+          print('   ✅ Invoice #$invoiceId dari Pickup #$pickupId - STATUS: CONFIRMED (DITAMPILKAN)');
+          return true;
+        } else {
+          print('   ❌ Invoice #$invoiceId dari Pickup #$pickupId - STATUS: $confirmationStatus (DISEMBUNYIKAN)');
+          return false;
+        }
       }).toList();
+
+      invoices = confirmedInvoices;
+      print('📋 [HomeScreen] Setelah filter konfirmasi: ${invoices.length} invoice yang bisa dibayar');
 
       // Filter by selected account if one is selected
       if (_selectedAkun != null && _akunList.length > 1) {
@@ -2484,25 +2518,22 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     
-                    // Tombol Detail di samping kanan
-                    const SizedBox(width: 12),
-                    Padding(
-                      padding: const EdgeInsets.only(top: 20),
-                      child: SizedBox(
-                        height: 42,
-                        child: ElevatedButton(
-                    onPressed: () async {
-                      if (_akunList.isEmpty) {
-                        // Jika belum ada akun, buka halaman create
-                        await _openLayananSampahAndRefresh();
-                      } else {
+                    // Tombol Detail di samping kanan - HANYA MUNCUL JIKA SUDAH ADA AKUN
+                    if (_akunList.isNotEmpty) ...[
+                      const SizedBox(width: 12),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 20),
+                        child: SizedBox(
+                          height: 42,
+                          child: ElevatedButton(
+                      onPressed: () async {
                         // Tampilkan shimmer loading
                         _showShimmerLoading(context);
 
                         // Delay sebentar untuk efek shimmer terlihat
                         await Future.delayed(const Duration(milliseconds: 500));
 
-                        // Jika sudah ada akun, buka detail akun
+                        // Buka detail akun yang dipilih
                         final currentAccountMap =
                             _selectedAkun ?? _akunList.first;
 
@@ -2541,39 +2572,39 @@ class _HomeScreenState extends State<HomeScreen> {
 
                         // Refresh setelah kembali dari detail
                         await _loadAkunLayanan(selectLastIfNotFound: true);
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color.fromARGB(255, 21, 145, 137),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          _akunList.isEmpty ? Icons.add : Icons.info_outline,
-                          size: 16,
-                          color: Colors.white,
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color.fromARGB(255, 21, 145, 137),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
                         ),
-                        const SizedBox(width: 6),
-                        Text(
-                          _akunList.isEmpty ? "Create" : "Detail",
-                          style: GoogleFonts.poppins(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.info_outline,
+                            size: 16,
                             color: Colors.white,
-                            fontWeight: FontWeight.w600,
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 6),
+                          Text(
+                            "Detail",
+                            style: GoogleFonts.poppins(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                ),
+                  ),
+                    ],
                   ],
                 ),
               
@@ -2741,9 +2772,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              "Semua tagihan sudah dibayar",
+                              "Konfirmasi pengambilan sampah untuk membuat tagihan",
                               style: GoogleFonts.poppins(
-                                fontSize: 13,
+                                fontSize: 12,
                                 color: const Color.fromARGB(255, 21, 145, 137),
                               ),
                             ),
