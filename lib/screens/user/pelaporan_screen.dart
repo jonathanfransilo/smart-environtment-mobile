@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 import '../../services/notification_helper.dart';
 import '../../services/complaint_service.dart';
 import '../../services/service_account_service.dart';
@@ -140,11 +143,19 @@ class Laporan {
 class BuatLaporanScreen extends StatefulWidget {
   final custom_file.File? imageFile;
   final bool isAsset;
+  final String? initialType;
+  final String? initialLocation;
+  final String? initialServiceAccountId;
+  final String? initialServiceAccountName;
 
   const BuatLaporanScreen({
     super.key,
     required this.imageFile,
     required this.isAsset,
+    this.initialType,
+    this.initialLocation,
+    this.initialServiceAccountId,
+    this.initialServiceAccountName,
   });
 
   @override
@@ -171,8 +182,13 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
 
   // State untuk service account
   List<ServiceAccount> _serviceAccounts = [];
-  String? _selectedServiceAccountId = ''; // ✅ Set default ke empty string agar cocok dengan item pertama
+  String? _selectedServiceAccountId; // Tidak set default, biarkan null
   bool _isLoadingServiceAccounts = false;
+
+  // State untuk map
+  LatLng? _selectedLocation;
+  GoogleMapController? _mapController;
+  bool _isLoadingLocation = false;
 
   // Kunci form untuk validasi
   final _formKey = GlobalKey<FormState>();
@@ -188,13 +204,145 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
     if (widget.imageFile != null) {
       _selectedImages.add(widget.imageFile!);
     }
+    // Set initial values jika ada
+    if (widget.initialType != null) {
+      _selectedType = widget.initialType;
+    }
+    if (widget.initialLocation != null) {
+      _lokasiController.text = widget.initialLocation!;
+    }
+    // Load service accounts terlebih dahulu
+    _loadServiceAccounts().then((_) {
+      // Set service account ID setelah data dimuat
+      if (widget.initialServiceAccountId != null) {
+        setState(() {
+          _selectedServiceAccountId = widget.initialServiceAccountId;
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
     _deskripsiController.dispose();
     _lokasiController.dispose();
+    _mapController?.dispose();
     super.dispose();
+  }
+
+  // Fungsi untuk mendapatkan lokasi saat ini
+  Future<void> _getCurrentLocation() async {
+    if (!mounted) return;
+    
+    setState(() {
+      _isLoadingLocation = true;
+    });
+
+    try {
+      // Check permission
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          throw Exception('Izin lokasi ditolak');
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        throw Exception('Izin lokasi ditolak permanen. Aktifkan di pengaturan.');
+      }
+
+      // Get current position with timeout
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.medium,
+        forceAndroidLocationManager: true,
+        timeLimit: const Duration(seconds: 15),
+      );
+
+      if (!mounted) return;
+
+      final location = LatLng(position.latitude, position.longitude);
+
+      // Get address from coordinates
+      final placemarks = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+
+      String address = 'Lokasi Saat Ini';
+      if (placemarks.isNotEmpty) {
+        final place = placemarks.first;
+        address = '${place.street ?? ''}, ${place.subLocality ?? ''}, ${place.locality ?? ''}';
+      }
+
+      setState(() {
+        _selectedLocation = location;
+        _lokasiController.text = address;
+        _isLoadingLocation = false;
+      });
+
+      // Move camera to location
+      _mapController?.animateCamera(
+        CameraUpdate.newLatLngZoom(location, 15),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      
+      setState(() {
+        _isLoadingLocation = false;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Lokasi tidak tersedia. Silakan ketuk peta untuk memilih lokasi manual.',
+            style: GoogleFonts.poppins(),
+          ),
+          backgroundColor: Colors.orange,
+          duration: const Duration(seconds: 4),
+          action: SnackBarAction(
+            label: 'OK',
+            textColor: Colors.white,
+            onPressed: () {},
+          ),
+        ),
+      );
+    }
+  }
+
+  // Fungsi untuk pick location dari map
+  Future<void> _pickLocationFromMap(LatLng location) async {
+    if (!mounted) return;
+    
+    try {
+      // Get address from coordinates
+      final placemarks = await placemarkFromCoordinates(
+        location.latitude,
+        location.longitude,
+      );
+
+      String address = '${location.latitude}, ${location.longitude}';
+      if (placemarks.isNotEmpty) {
+        final place = placemarks.first;
+        address = '${place.street ?? ''}, ${place.subLocality ?? ''}, ${place.locality ?? ''}'
+            .replaceAll(RegExp(r'^,\s*|,\s*$'), '') // Remove leading/trailing commas
+            .replaceAll(RegExp(r',\s*,'), ','); // Remove double commas
+        if (address.isEmpty) {
+          address = '${location.latitude}, ${location.longitude}';
+        }
+      }
+
+      setState(() {
+        _selectedLocation = location;
+        _lokasiController.text = address;
+      });
+    } catch (e) {
+      print('Error getting address: $e');
+      setState(() {
+        _selectedLocation = location;
+        _lokasiController.text = '${location.latitude}, ${location.longitude}';
+      });
+    }
   }
 
   // Fungsi untuk memuat service accounts dari API
@@ -361,6 +509,11 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
   }
 
   final List<custom_file.File> _selectedImages = [];
+
+  // Helper untuk cek apakah kategori butuh map
+  bool _shouldShowMap() {
+    return _selectedType == 'sampah_menumpuk' || _selectedType == 'lainnya';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -695,7 +848,173 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
               ),
               const SizedBox(height: 16),
 
+              // Map Picker untuk kategori Sampah Menumpuk dan Lainnya
+              if (_shouldShowMap()) ...[ 
+                Text(
+                  'Pilih Lokasi di Peta',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  height: 350,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey[300]!, width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.grey.withOpacity(0.3),
+                        spreadRadius: 1,
+                        blurRadius: 5,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Stack(
+                      children: [
+                        GoogleMap(
+                          key: ValueKey('map_${_selectedType ?? ""}_${_selectedLocation?.latitude.toString() ?? "0"}'),
+                          initialCameraPosition: CameraPosition(
+                            target: _selectedLocation ?? const LatLng(-6.2088, 106.8456),
+                            zoom: 15,
+                          ),
+                          mapType: MapType.normal,
+                          liteModeEnabled: false,
+                          onMapCreated: (controller) async {
+                            if (!mounted) return;
+                            _mapController = controller;
+                            
+                            // Set map style untuk memastikan rendering
+                            try {
+                              await controller.setMapStyle(null);
+                            } catch (e) {
+                              print('Map style error: $e');
+                            }
+                          },
+                          onTap: (location) {
+                            if (!mounted) return;
+                            _pickLocationFromMap(location);
+                          },
+                          markers: _selectedLocation != null
+                              ? {
+                                  Marker(
+                                    markerId: const MarkerId('selected'),
+                                    position: _selectedLocation!,
+                                    draggable: true,
+                                    onDragEnd: (location) {
+                                      if (!mounted) return;
+                                      _pickLocationFromMap(location);
+                                    },
+                                  ),
+                                }
+                              : {},
+                          myLocationEnabled: false,
+                          myLocationButtonEnabled: false,
+                          zoomControlsEnabled: true,
+                          mapToolbarEnabled: false,
+                          compassEnabled: true,
+                          rotateGesturesEnabled: true,
+                          scrollGesturesEnabled: true,
+                          tiltGesturesEnabled: true,
+                          zoomGesturesEnabled: true,
+                          trafficEnabled: false,
+                          buildingsEnabled: true,
+                          indoorViewEnabled: false,
+                        ),
+                        // Tombol Get Current Location
+                        Positioned(
+                          top: 16,
+                          right: 16,
+                          child: Material(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            elevation: 2,
+                            child: InkWell(
+                              onTap: _isLoadingLocation ? null : _getCurrentLocation,
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                child: _isLoadingLocation
+                                    ? const SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Icon(
+                                        Icons.my_location,
+                                        color: primaryColor,
+                                        size: 20,
+                                      ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, size: 18, color: Colors.blue.shade700),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Ketuk peta untuk memilih lokasi atau klik tombol lokasi untuk menggunakan GPS',
+                          style: GoogleFonts.poppins(
+                            fontSize: 11,
+                            color: Colors.blue.shade700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+
               // Field Lokasi
+              // Tampilkan info jika lokasi sudah dipilih otomatis
+              if (widget.initialLocation != null && widget.initialLocation!.isNotEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, size: 18, color: Colors.blue.shade700),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Lokasi sudah terisi otomatis dari data service account',
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: Colors.blue.shade700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               TextFormField(
                 controller: _lokasiController,
                 decoration: InputDecoration(
@@ -705,7 +1024,9 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  helperText: "Contoh: Jl. Sudirman No. 123, Jakarta",
+                  helperText: widget.initialLocation != null
+                      ? "Anda dapat mengubah lokasi jika diperlukan"
+                      : "Contoh: Jl. Sudirman No. 123, Jakarta",
                   helperMaxLines: 2,
                 ),
                 maxLength: 255,
@@ -719,6 +1040,33 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
               const SizedBox(height: 16),
 
               // Service Account Dropdown (Opsional)
+              // Tampilkan info jika service account sudah dipilih otomatis
+              if (widget.initialServiceAccountId != null && widget.initialServiceAccountId!.isNotEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.green.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, size: 18, color: Colors.green.shade700),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Service Account sudah dipilih otomatis dari data pengambilan sampah',
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: Colors.green.shade700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               DropdownButtonFormField<String>(
                 value: _selectedServiceAccountId,
                 decoration: InputDecoration(
@@ -727,21 +1075,23 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  helperText: "Kosongkan jika tidak tahu ID service account",
+                  helperText: widget.initialServiceAccountId != null 
+                      ? "Anda dapat mengubah pilihan jika diperlukan"
+                      : "Kosongkan jika tidak tahu ID service account",
                   helperMaxLines: 2,
                 ),
                 isExpanded: true, // ✅ PENTING: Agar dropdown full width
                 items: _serviceAccounts.isEmpty
                     ? [
                         const DropdownMenuItem<String>(
-                          value: '',
+                          value: null,
                           child: Text('Tidak ada service account tersedia'),
                         ),
                       ]
                     : [
                         // Option untuk tidak memilih service account
                         const DropdownMenuItem<String>(
-                          value: '',
+                          value: null,
                           child: Text('-- Pilih Service Account --'),
                         ),
                         // Service accounts dari API

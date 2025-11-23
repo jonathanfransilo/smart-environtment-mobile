@@ -47,6 +47,11 @@
             android:name="flutterEmbedding"
             android:value="2" />
 
+        <!-- ✅ Google Maps API Key (WAJIB untuk Google Maps) -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyBq5IbW0eTm6AWi6SyEEw7zWR36a-qoJc8" />
+
     </application>
 
     <!-- Contoh tambahan query intent -->

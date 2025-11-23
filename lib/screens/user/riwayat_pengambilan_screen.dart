@@ -3,16 +3,19 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../services/resident_pickup_service.dart';
 import 'package:intl/intl.dart';
+import 'pelaporan_screen.dart';
 
 /// 🔹 Halaman Riwayat Pengambilan Sampah
 class RiwayatPengambilanScreen extends StatefulWidget {
   final String serviceAccountId;
   final String accountName;
+  final String? accountAddress;
 
   const RiwayatPengambilanScreen({
     super.key,
     required this.serviceAccountId,
     required this.accountName,
+    this.accountAddress,
   });
 
   @override
@@ -73,6 +76,16 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
         if (pickups.isNotEmpty) {
           print('🔍 [RiwayatPengambilan] Sample pickup data:');
           print('   Keys: ${pickups[0].keys}');
+          
+          // ⚠️ PENTING: Cek service_account structure
+          final serviceAccount = pickups[0]['service_account'];
+          print('🏢 [RiwayatPengambilan] SERVICE ACCOUNT DATA: $serviceAccount');
+          if (serviceAccount is Map<String, dynamic>) {
+            print('🏢 [RiwayatPengambilan] SERVICE ACCOUNT KEYS: ${serviceAccount.keys.toList()}');
+            print('🏢 [RiwayatPengambilan] ADDRESS FIELD: ${serviceAccount['address']}');
+            print('🏢 [RiwayatPengambilan] ALAMAT FIELD: ${serviceAccount['alamat']}');
+            print('🏢 [RiwayatPengambilan] ALAMAT_LENGKAP FIELD: ${serviceAccount['alamat_lengkap']}');
+          }
           
           // ⚠️ PENTING: Cek confirmation_status dari API
           final confirmationStatus = pickups[0]['confirmation_status'];
@@ -360,7 +373,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
             photoUrl = photoUrl.substring(1);
           }
           // Tambahkan base URL
-          final baseUrl = 'https://smart-environment-web.citiasiainc.id';
+          const baseUrl = 'https://smart-environment-web.citiasiainc.id';
           photoUrl = '$baseUrl/$photoUrl';
         }
       }
@@ -401,7 +414,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
             border: Border.all(color: Colors.grey[300]!, width: 1),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withAlpha(8),
+                color: Colors.black.withValues(alpha: 0.03),
                 blurRadius: 4,
                 offset: const Offset(0, 2),
               ),
@@ -718,7 +731,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                           vertical: 8,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF4CAF50).withOpacity(0.1),
+                          color: const Color(0xFF4CAF50).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
                             color: const Color(0xFF4CAF50),
@@ -756,7 +769,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                           vertical: 8,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.grey.withOpacity(0.1),
+                          color: Colors.grey.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
                             color: Colors.grey,
@@ -857,6 +870,37 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
 
   /// Tampilkan dialog konfirmasi pengambilan
   void _showConfirmationDialog(String pickupId, Map<String, dynamic> pickup) {
+    // Ekstrak data untuk pelaporan
+    final serviceAccount = pickup['service_account'] as Map<String, dynamic>?;
+    
+    // Debug: Print struktur data service account
+    print('🔍 [DEBUG] Service Account Data: $serviceAccount');
+    print('🔍 [DEBUG] Service Account Keys: ${serviceAccount?.keys.toList()}');
+    print('🔍 [DEBUG] Widget Account Address: ${widget.accountAddress}');
+    
+    // Cari address - prioritaskan dari widget.accountAddress (yang dikirim dari home screen)
+    String address = widget.accountAddress ?? 'Alamat tidak tersedia';
+    
+    // Jika tidak ada di widget, coba ambil dari service account API
+    if (address == 'Alamat tidak tersedia' && serviceAccount != null) {
+      // Coba berbagai kemungkinan field untuk address
+      address = serviceAccount['address']?.toString() ?? 
+               serviceAccount['alamat']?.toString() ?? 
+               serviceAccount['alamat_lengkap']?.toString() ??
+               serviceAccount['full_address']?.toString() ??
+               serviceAccount['location']?.toString() ??
+               widget.accountAddress ??
+               'Alamat tidak tersedia';
+    }
+    
+    print('🔍 [DEBUG] Final Address yang digunakan: $address');
+    
+    final serviceAccountId = serviceAccount?['id']?.toString() ?? widget.serviceAccountId;
+    final serviceAccountName = serviceAccount?['account_name']?.toString() ?? 
+                               serviceAccount?['name']?.toString() ?? 
+                               serviceAccount?['nama']?.toString() ??
+                               widget.accountName;
+    
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -868,7 +912,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: const Color(0xFF4CAF50).withOpacity(0.1),
+                color: const Color(0xFF4CAF50).withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -938,9 +982,24 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
             ),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
+              // Tutup dialog konfirmasi
               Navigator.pop(ctx);
-              _showNoWasteDialog(pickupId);
+              
+              // Navigate to pelaporan screen
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => BuatLaporanScreen(
+                    imageFile: null,
+                    isAsset: false,
+                    initialType: 'sampah_tidak_diangkut',
+                    initialLocation: address,
+                    initialServiceAccountId: serviceAccountId,
+                    initialServiceAccountName: serviceAccountName,
+                  ),
+                ),
+              );
             },
             child: Text(
               'Tidak Ada Sampah',
@@ -965,108 +1024,6 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
             ),
             child: Text(
               'Ya, Sudah Diambil',
-              style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Dialog untuk konfirmasi tidak ada sampah
-  void _showNoWasteDialog(String pickupId) {
-    final noteController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.info_outline,
-                color: Colors.orange,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Tidak Ada Sampah',
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Catatan (opsional):',
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: noteController,
-              maxLines: 3,
-              decoration: InputDecoration(
-                hintText: 'Contoh: Sampah sudah dibuang sendiri',
-                hintStyle: GoogleFonts.poppins(fontSize: 13),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                contentPadding: const EdgeInsets.all(12),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              'Batal',
-              style: GoogleFonts.poppins(
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _confirmPickup(
-                pickupId,
-                'no_waste',
-                residentNote: noteController.text.trim(),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              elevation: 0,
-            ),
-            child: Text(
-              'Konfirmasi',
               style: GoogleFonts.poppins(
                 fontWeight: FontWeight.w600,
               ),
@@ -1246,7 +1203,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
           photoUrl = photoUrl.substring(1);
         }
         // Tambahkan base URL
-        final baseUrl = 'https://smart-environment-web.citiasiainc.id';
+        const baseUrl = 'https://smart-environment-web.citiasiainc.id';
         photoUrl = '$baseUrl/$photoUrl';
       }
     }
@@ -1389,8 +1346,9 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                                                       );
                                                     },
                                                 loadingBuilder: (context, child, loadingProgress) {
-                                                  if (loadingProgress == null)
+                                                  if (loadingProgress == null) {
                                                     return child;
+                                                  }
                                                   return Center(
                                                     child: CircularProgressIndicator(
                                                       value:
@@ -1459,8 +1417,9 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                                           );
                                         },
                                         loadingBuilder: (context, child, loadingProgress) {
-                                          if (loadingProgress == null)
+                                          if (loadingProgress == null) {
                                             return child;
+                                          }
                                           return Center(
                                             child: CircularProgressIndicator(
                                               value:
@@ -1672,7 +1631,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                               ],
                             ),
                           );
-                        }).toList(),
+                        }),
 
                       const SizedBox(height: 16),
                       const Divider(height: 1),

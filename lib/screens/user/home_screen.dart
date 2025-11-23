@@ -1530,9 +1530,16 @@ class _HomeScreenState extends State<HomeScreen> {
                                 final accountName =
                                     currentAccount['nama']?.toString() ??
                                     'Akun';
+                                final accountAddress =
+                                    currentAccount['alamat']?.toString() ??
+                                    currentAccount['address']?.toString() ??
+                                    currentAccount['alamat_lengkap']?.toString();
 
                                 print(
                                   '📋 [HomeScreen] Opening history for account: $accountName (ID: $serviceAccountId)',
+                                );
+                                print(
+                                  '📍 [HomeScreen] Account address: $accountAddress',
                                 );
 
                                 // Validasi ID
@@ -1564,6 +1571,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                         RiwayatPengambilanScreen(
                                           serviceAccountId: serviceAccountId,
                                           accountName: accountName,
+                                          accountAddress: accountAddress,
                                         ),
                                   ),
                                 );
