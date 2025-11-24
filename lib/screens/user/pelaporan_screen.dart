@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import '../../services/notification_helper.dart';
@@ -187,8 +189,10 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
 
   // State untuk map
   LatLng? _selectedLocation;
-  GoogleMapController? _mapController;
+  final MapController _mapController = MapController();
   bool _isLoadingLocation = false;
+  double _currentZoom = 15.0;
+  Timer? _debounceTimer;
 
   // Kunci form untuk validasi
   final _formKey = GlobalKey<FormState>();
@@ -220,13 +224,26 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
         });
       }
     });
+    
+    // Tambahkan debouncing listener untuk geocoding
+    _lokasiController.addListener(() {
+      // Cancel previous timer if exists
+      _debounceTimer?.cancel();
+      
+      // Set new timer untuk geocoding setelah 1 detik user berhenti mengetik
+      _debounceTimer = Timer(const Duration(milliseconds: 1000), () {
+        if (_lokasiController.text.isNotEmpty && _shouldShowMap()) {
+          _geocodeAddress(_lokasiController.text);
+        }
+      });
+    });
   }
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _deskripsiController.dispose();
     _lokasiController.dispose();
-    _mapController?.dispose();
     super.dispose();
   }
 
@@ -281,10 +298,8 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
         _isLoadingLocation = false;
       });
 
-      // Move camera to location
-      _mapController?.animateCamera(
-        CameraUpdate.newLatLngZoom(location, 15),
-      );
+      // Move map to location
+      _mapController.move(location, _currentZoom);
     } catch (e) {
       if (!mounted) return;
       
@@ -342,6 +357,51 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
         _selectedLocation = location;
         _lokasiController.text = '${location.latitude}, ${location.longitude}';
       });
+    }
+  }
+
+  // Fungsi untuk geocoding dari alamat ke koordinat
+  Future<void> _geocodeAddress(String address) async {
+    if (address.isEmpty || !mounted) return;
+    
+    try {
+      setState(() {
+        _isLoadingLocation = true;
+      });
+
+      final locations = await locationFromAddress(address);
+
+      if (locations.isNotEmpty && mounted) {
+        final location = LatLng(locations.first.latitude, locations.first.longitude);
+        
+        setState(() {
+          _selectedLocation = location;
+          _isLoadingLocation = false;
+        });
+        
+        // Move map to the new location
+        _mapController.move(location, _currentZoom);
+      } else {
+        if (mounted) {
+          setState(() {
+            _isLoadingLocation = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingLocation = false;
+        });
+        
+        // Show error if address not found
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Alamat tidak ditemukan. Silakan coba lagi atau pilih di peta.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -877,54 +937,143 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
                     borderRadius: BorderRadius.circular(12),
                     child: Stack(
                       children: [
-                        GoogleMap(
-                          key: ValueKey('map_${_selectedType ?? ""}_${_selectedLocation?.latitude.toString() ?? "0"}'),
-                          initialCameraPosition: CameraPosition(
-                            target: _selectedLocation ?? const LatLng(-6.2088, 106.8456),
-                            zoom: 15,
+                        FlutterMap(
+                          mapController: _mapController,
+                          options: MapOptions(
+                            initialCenter: _selectedLocation ?? const LatLng(-6.2088, 106.8456),
+                            initialZoom: _currentZoom,
+                            minZoom: 3.0,
+                            maxZoom: 19.0,
+                            onTap: (tapPosition, point) {
+                              if (!mounted) return;
+                              _pickLocationFromMap(point);
+                            },
                           ),
-                          mapType: MapType.normal,
-                          liteModeEnabled: false,
-                          onMapCreated: (controller) async {
-                            if (!mounted) return;
-                            _mapController = controller;
-                            
-                            // Set map style untuk memastikan rendering
-                            try {
-                              await controller.setMapStyle(null);
-                            } catch (e) {
-                              print('Map style error: $e');
-                            }
-                          },
-                          onTap: (location) {
-                            if (!mounted) return;
-                            _pickLocationFromMap(location);
-                          },
-                          markers: _selectedLocation != null
-                              ? {
+                          children: [
+                            TileLayer(
+                              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                              userAgentPackageName: 'com.example.sirkular_app',
+                              maxNativeZoom: 19,
+                            ),
+                            if (_selectedLocation != null)
+                              MarkerLayer(
+                                markers: [
                                   Marker(
-                                    markerId: const MarkerId('selected'),
-                                    position: _selectedLocation!,
-                                    draggable: true,
-                                    onDragEnd: (location) {
-                                      if (!mounted) return;
-                                      _pickLocationFromMap(location);
-                                    },
+                                    point: _selectedLocation!,
+                                    width: 40,
+                                    height: 40,
+                                    child: const Icon(
+                                      Icons.location_on,
+                                      color: primaryColor,
+                                      size: 40,
+                                    ),
                                   ),
-                                }
-                              : {},
-                          myLocationEnabled: false,
-                          myLocationButtonEnabled: false,
-                          zoomControlsEnabled: true,
-                          mapToolbarEnabled: false,
-                          compassEnabled: true,
-                          rotateGesturesEnabled: true,
-                          scrollGesturesEnabled: true,
-                          tiltGesturesEnabled: true,
-                          zoomGesturesEnabled: true,
-                          trafficEnabled: false,
-                          buildingsEnabled: true,
-                          indoorViewEnabled: false,
+                                ],
+                              ),
+                          ],
+                        ),
+                        // Fullscreen Button
+                        Positioned(
+                          top: 16,
+                          left: 16,
+                          child: Material(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            elevation: 2,
+                            child: InkWell(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => _FullscreenMapScreen(
+                                      initialLocation: _selectedLocation ?? const LatLng(-6.2088, 106.8456),
+                                      initialZoom: _currentZoom,
+                                      onLocationSelected: (location) {
+                                        _pickLocationFromMap(location);
+                                      },
+                                    ),
+                                  ),
+                                );
+                              },
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                child: const Icon(
+                                  Icons.fullscreen,
+                                  color: Colors.black87,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        // Zoom Controls
+                        Positioned(
+                          right: 16,
+                          bottom: 80,
+                          child: Column(
+                            children: [
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: const BorderRadius.only(
+                                    topLeft: Radius.circular(4),
+                                    topRight: Radius.circular(4),
+                                  ),
+                                  border: Border.all(color: Colors.grey.shade300),
+                                ),
+                                child: InkWell(
+                                  onTap: () {
+                                    setState(() {
+                                      _currentZoom = (_currentZoom + 1).clamp(3.0, 19.0);
+                                    });
+                                    _mapController.move(
+                                      _selectedLocation ?? const LatLng(-6.2088, 106.8456),
+                                      _currentZoom,
+                                    );
+                                  },
+                                  child: Container(
+                                    width: 32,
+                                    height: 32,
+                                    alignment: Alignment.center,
+                                    child: const Icon(Icons.add, size: 18),
+                                  ),
+                                ),
+                              ),
+                              Container(
+                                width: 32,
+                                height: 1,
+                                color: Colors.grey.shade300,
+                              ),
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: const BorderRadius.only(
+                                    bottomLeft: Radius.circular(4),
+                                    bottomRight: Radius.circular(4),
+                                  ),
+                                  border: Border.all(color: Colors.grey.shade300),
+                                ),
+                                child: InkWell(
+                                  onTap: () {
+                                    setState(() {
+                                      _currentZoom = (_currentZoom - 1).clamp(3.0, 19.0);
+                                    });
+                                    _mapController.move(
+                                      _selectedLocation ?? const LatLng(-6.2088, 106.8456),
+                                      _currentZoom,
+                                    );
+                                  },
+                                  child: Container(
+                                    width: 32,
+                                    height: 32,
+                                    alignment: Alignment.center,
+                                    child: const Icon(Icons.remove, size: 18),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                         // Tombol Get Current Location
                         Positioned(
@@ -3601,6 +3750,295 @@ class _PelaporanEmptyState extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// 🔹 Fullscreen Map Screen untuk memilih lokasi
+class _FullscreenMapScreen extends StatefulWidget {
+  final LatLng initialLocation;
+  final double initialZoom;
+  final Function(LatLng) onLocationSelected;
+
+  const _FullscreenMapScreen({
+    required this.initialLocation,
+    required this.initialZoom,
+    required this.onLocationSelected,
+  });
+
+  @override
+  State<_FullscreenMapScreen> createState() => _FullscreenMapScreenState();
+}
+
+class _FullscreenMapScreenState extends State<_FullscreenMapScreen> {
+  late MapController _mapController;
+  late LatLng _selectedLocation;
+  late double _currentZoom;
+  bool _isLoadingAddress = false;
+  String _currentAddress = '';
+
+  static const Color primaryColor = Color.fromARGB(255, 21, 145, 137);
+
+  @override
+  void initState() {
+    super.initState();
+    _mapController = MapController();
+    _selectedLocation = widget.initialLocation;
+    _currentZoom = widget.initialZoom;
+    _loadAddress(_selectedLocation);
+  }
+
+  Future<void> _loadAddress(LatLng location) async {
+    setState(() {
+      _isLoadingAddress = true;
+    });
+
+    try {
+      final placemarks = await placemarkFromCoordinates(
+        location.latitude,
+        location.longitude,
+      );
+
+      if (placemarks.isNotEmpty) {
+        final place = placemarks.first;
+        final address = '${place.street ?? ''}, ${place.subLocality ?? ''}, ${place.locality ?? ''}'
+            .replaceAll(RegExp(r'^,\\s*|,\\s*\$'), '')
+            .replaceAll(RegExp(r',\\s*,'), ',');
+        
+        setState(() {
+          _currentAddress = address.isEmpty 
+              ? '${location.latitude.toStringAsFixed(6)}, ${location.longitude.toStringAsFixed(6)}'
+              : address;
+          _isLoadingAddress = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _currentAddress = '${location.latitude.toStringAsFixed(6)}, ${location.longitude.toStringAsFixed(6)}';
+        _isLoadingAddress = false;
+      });
+    }
+  }
+
+  void _handleTap(LatLng location) {
+    setState(() {
+      _selectedLocation = location;
+    });
+    _loadAddress(location);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          'Pilih Lokasi',
+          style: GoogleFonts.poppins(
+            color: Colors.black87,
+            fontWeight: FontWeight.w600,
+            fontSize: 18,
+          ),
+        ),
+        actions: [
+          IconButton(
+            onPressed: () {
+              widget.onLocationSelected(_selectedLocation);
+              Navigator.pop(context);
+            },
+            icon: const Icon(
+              Icons.check,
+              color: primaryColor,
+              size: 28,
+            ),
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: _selectedLocation,
+              initialZoom: _currentZoom,
+              minZoom: 3.0,
+              maxZoom: 19.0,
+              onTap: (tapPosition, point) {
+                _handleTap(point);
+              },
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.example.sirkular_app',
+                maxNativeZoom: 19,
+              ),
+              MarkerLayer(
+                markers: [
+                  Marker(
+                    point: _selectedLocation,
+                    width: 40,
+                    height: 40,
+                    child: const Icon(
+                      Icons.location_on,
+                      color: primaryColor,
+                      size: 40,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          // Zoom Controls
+          Positioned(
+            right: 16,
+            bottom: 100,
+            child: Column(
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(4),
+                      topRight: Radius.circular(4),
+                    ),
+                    border: Border.all(color: Colors.grey.shade300),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: InkWell(
+                    onTap: () {
+                      setState(() {
+                        _currentZoom = (_currentZoom + 1).clamp(3.0, 19.0);
+                      });
+                      _mapController.move(_selectedLocation, _currentZoom);
+                    },
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      alignment: Alignment.center,
+                      child: const Icon(Icons.add, size: 20),
+                    ),
+                  ),
+                ),
+                Container(
+                  width: 40,
+                  height: 1,
+                  color: Colors.grey.shade300,
+                ),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: const BorderRadius.only(
+                      bottomLeft: Radius.circular(4),
+                      bottomRight: Radius.circular(4),
+                    ),
+                    border: Border.all(color: Colors.grey.shade300),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: InkWell(
+                    onTap: () {
+                      setState(() {
+                        _currentZoom = (_currentZoom - 1).clamp(3.0, 19.0);
+                      });
+                      _mapController.move(_selectedLocation, _currentZoom);
+                    },
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      alignment: Alignment.center,
+                      child: const Icon(Icons.remove, size: 20),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Address Info Card
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 16,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.location_on,
+                        color: primaryColor,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Lokasi Terpilih',
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (_isLoadingAddress)
+                    Row(
+                      children: [
+                        const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Memuat alamat...',
+                          style: GoogleFonts.poppins(fontSize: 12),
+                        ),
+                      ],
+                    )
+                  else
+                    Text(
+                      _currentAddress,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

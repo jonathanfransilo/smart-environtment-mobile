@@ -959,38 +959,6 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
                     ),
                   ),
                 ),
-              if (_kolektorRWList.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.red.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.red.shade200),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.warning_amber,
-                          color: Colors.red.shade700,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'PERINGATAN: RW Kolektor tidak ditemukan! Filter tidak berfungsi. Silakan pull to refresh.',
-                            style: GoogleFonts.poppins(
-                              fontSize: 11,
-                              color: Colors.red.shade900,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
 
               const SizedBox(height: 16),
 

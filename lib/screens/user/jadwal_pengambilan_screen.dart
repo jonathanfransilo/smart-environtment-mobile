@@ -204,7 +204,7 @@ class _JadwalPengambilanScreenState extends State<JadwalPengambilanScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
                     .map((day) => SizedBox(
-                          width: 40,
+                          width: 48,
                           child: Center(
                             child: Text(
                               day,
@@ -243,93 +243,105 @@ class _JadwalPengambilanScreenState extends State<JadwalPengambilanScreen> {
     final firstDayOfMonth = DateTime(_selectedMonth.year, _selectedMonth.month, 1);
     final lastDayOfMonth = DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0);
     final daysInMonth = lastDayOfMonth.day;
-    final startWeekday = firstDayOfMonth.weekday % 7; // 0 = Sunday, 1 = Monday, etc.
-
-    List<Widget> dayWidgets = [];
-
-    // Add empty cells for days before the first day of month
+    
+    // KALENDER INDONESIA: Minggu sebagai hari pertama
+    // Header: ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
+    // Index:    0      1      2      3      4      5      6
+    //
+    // DateTime.weekday (ISO 8601):
+    // Monday=1, Tuesday=2, Wednesday=3, Thursday=4, Friday=5, Saturday=6, Sunday=7
+    //
+    // Konversi ke index kalender Indonesia (Minggu=0):
+    final int startWeekday = firstDayOfMonth.weekday % 7;
+    
+    // Build grid dengan 6 baris x 7 kolom (42 cells total)
+    List<Widget> calendarCells = [];
+    
+    // Tambah empty cells sebelum tanggal 1
     for (int i = 0; i < startWeekday; i++) {
-      dayWidgets.add(const SizedBox(width: 40, height: 40));
+      calendarCells.add(_buildEmptyCell());
     }
-
-    // Add day cells
+    
+    // Tambah cells untuk setiap tanggal
     for (int day = 1; day <= daysInMonth; day++) {
-      final hasSchedule = _scheduleDates.contains(day);
-      final isSelected = _selectedDate?.day == day &&
-          _selectedDate?.month == _selectedMonth.month &&
-          _selectedDate?.year == _selectedMonth.year;
-      final isToday = DateTime.now().day == day &&
-          DateTime.now().month == _selectedMonth.month &&
-          DateTime.now().year == _selectedMonth.year;
-
-      dayWidgets.add(
-        GestureDetector(
-          onTap: hasSchedule ? () => _selectDate(day) : null,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                margin: const EdgeInsets.all(2),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? primaryColor
-                      : hasSchedule
-                          ? primaryColor.withOpacity(0.1)
-                          : Colors.transparent,
-                  shape: BoxShape.circle,
-                  border: isToday && !isSelected
-                      ? Border.all(color: Colors.black, width: 2)
-                      : null,
-                ),
-                child: Center(
-                  child: Text(
-                    day.toString(),
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: hasSchedule ? FontWeight.w600 : FontWeight.w400,
-                      color: isSelected
-                          ? Colors.white
-                          : hasSchedule
-                              ? Colors.black
-                              : Colors.grey[400],
-                    ),
-                  ),
-                ),
-              ),
-              // Black underline for today's date
-              if (isToday)
-                Container(
-                  width: 20,
-                  height: 2,
-                  margin: const EdgeInsets.only(top: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.black,
-                    borderRadius: BorderRadius.circular(1),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      );
+      calendarCells.add(_buildDayCell(day, primaryColor));
     }
-
-    // Create rows of 7 days
+    
+    // Tambah empty cells untuk melengkapi grid 6x7 (42 cells)
+    final totalCells = calendarCells.length;
+    final remainingCells = (6 * 7) - totalCells;
+    for (int i = 0; i < remainingCells; i++) {
+      calendarCells.add(_buildEmptyCell());
+    }
+    
+    // Buat 6 baris, masing-masing 7 kolom
     List<Widget> rows = [];
-    for (int i = 0; i < dayWidgets.length; i += 7) {
+    for (int row = 0; row < 6; row++) {
+      final startIndex = row * 7;
+      final endIndex = startIndex + 7;
+      
       rows.add(
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: dayWidgets.sublist(
-            i,
-            i + 7 > dayWidgets.length ? dayWidgets.length : i + 7,
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: calendarCells.sublist(startIndex, endIndex),
           ),
         ),
       );
     }
-
+    
     return Column(children: rows);
+  }
+  
+  Widget _buildEmptyCell() {
+    return const SizedBox(width: 48, height: 48);
+  }
+  
+  Widget _buildDayCell(int day, Color primaryColor) {
+    final hasSchedule = _scheduleDates.contains(day);
+    final isSelected = _selectedDate?.day == day &&
+        _selectedDate?.month == _selectedMonth.month &&
+        _selectedDate?.year == _selectedMonth.year;
+    final isToday = DateTime.now().day == day &&
+        DateTime.now().month == _selectedMonth.month &&
+        DateTime.now().year == _selectedMonth.year;
+
+    return GestureDetector(
+      onTap: hasSchedule ? () => _selectDate(day) : null,
+      child: Container(
+        width: 48,
+        height: 48,
+        alignment: Alignment.center,
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: isSelected
+                ? primaryColor
+                : hasSchedule
+                    ? primaryColor.withOpacity(0.1)
+                    : Colors.transparent,
+            shape: BoxShape.circle,
+            border: isToday && !isSelected
+                ? Border.all(color: primaryColor, width: 2)
+                : null,
+          ),
+          child: Center(
+            child: Text(
+              day.toString(),
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: hasSchedule || isToday ? FontWeight.w600 : FontWeight.w500,
+                color: isSelected
+                    ? Colors.white
+                    : Colors.black87,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildScheduleList(Color primaryColor) {
