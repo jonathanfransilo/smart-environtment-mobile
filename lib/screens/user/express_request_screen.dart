@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../services/service_account_service.dart';
+import '../../services/off_schedule_pickup_service.dart';
 import '../../models/service_account.dart';
 
 class ExpressRequestScreen extends StatefulWidget {
@@ -26,6 +27,11 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
   ServiceAccount? _selectedAccount;
   bool _isLoadingAccounts = true;
 
+  // State untuk bag count dan catatan
+  int _bagCount = 1;
+  final TextEditingController _noteController = TextEditingController();
+  bool _isSubmitting = false;
+
   @override
   void initState() {
     super.initState();
@@ -34,6 +40,7 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
 
   @override
   void dispose() {
+    _noteController.dispose();
     super.dispose();
   }
 
@@ -117,13 +124,13 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
   }
 
   // Fungsi untuk mengirim request
-  void _submitRequest() {
+  Future<void> _submitRequest() async {
     // Validasi
-    if (_selectedDate == null || _selectedTime == null) {
+    if (_selectedDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Pilih waktu dan tanggal penjemputan',
+            'Pilih tanggal penjemputan',
             style: GoogleFonts.poppins(),
           ),
           backgroundColor: Colors.orange,
@@ -145,87 +152,167 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
       return;
     }
 
-    // TODO: Kirim request ke backend
-    // Data yang akan dikirim:
-    // - Tanggal: _selectedDate
-    // - Waktu: _selectedTime
-    // - Skip default: _skipDefaultPickup
-    // - Service Account ID: _selectedAccount?.id
-
-    // Untuk sekarang, hanya tampilkan dialog sukses
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            const Icon(Icons.check_circle, color: Colors.green, size: 28),
-            const SizedBox(width: 8),
-            Text(
-              'Request Terkirim',
-              style: GoogleFonts.poppins(
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
-            ),
-          ],
+    if (_bagCount < 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Jumlah kantong minimal 1',
+            style: GoogleFonts.poppins(),
+          ),
+          backgroundColor: Colors.orange,
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Request angkutan ekstra Anda telah dikirim. Petugas akan segera menghubungi Anda.',
-              style: GoogleFonts.poppins(fontSize: 14),
-            ),
-            if (_skipDefaultPickup) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange.shade200),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.info_outline,
-                      color: Colors.orange.shade700,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Pengambilan default minggu ini akan dilewati.',
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          color: Colors.orange.shade900,
-                        ),
-                      ),
-                    ),
-                  ],
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      // Format tanggal ke YYYY-MM-DD
+      final formattedDate = DateFormat('yyyy-MM-dd').format(_selectedDate!);
+      
+      // Format waktu ke HH:mm (jika ada)
+      String? formattedTime;
+      if (_selectedTime != null) {
+        final hour = _selectedTime!.hour.toString().padLeft(2, '0');
+        final minute = _selectedTime!.minute.toString().padLeft(2, '0');
+        formattedTime = '$hour:$minute';
+      }
+
+      // Kirim request ke API
+      final service = OffSchedulePickupService();
+      final result = await service.createRequest(
+        serviceAccountId: int.parse(_selectedAccount!.id),
+        requestedPickupDate: formattedDate,
+        requestedPickupTime: formattedTime,
+        bagCount: _bagCount,
+        residentNote: _noteController.text.isNotEmpty ? _noteController.text : null,
+      );
+
+      if (!mounted) return;
+
+      setState(() => _isSubmitting = false);
+
+      // Tampilkan dialog sukses dengan data dari API
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              const Icon(Icons.check_circle, color: Colors.green, size: 28),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Request Terkirim',
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
                 ),
               ),
             ],
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context); // Tutup dialog
-              Navigator.pop(context); // Kembali ke home
-            },
-            child: Text(
-              'OK',
-              style: GoogleFonts.poppins(
-                color: primaryColor,
-                fontWeight: FontWeight.w600,
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Request pengambilan berhasil dikirim!',
+                style: GoogleFonts.poppins(fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildDetailRow('Status', result.getStatusLabel(), Colors.blue),
+                    const Divider(height: 16),
+                    _buildDetailRow('Tanggal', result.requestedPickupDate, primaryColor),
+                    if (result.requestedPickupTime != null) ...[
+                      const Divider(height: 16),
+                      _buildDetailRow('Waktu', result.requestedPickupTime!, primaryColor),
+                    ],
+                    const Divider(height: 16),
+                    _buildDetailRow('Kantong', '${result.bagCount} kantong', primaryColor),
+                    const Divider(height: 16),
+                    _buildDetailRow('Biaya', 'Rp ${result.totalAmount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}', Colors.green),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Petugas akan segera menghubungi Anda.',
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: Colors.grey.shade600,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context); // Tutup dialog
+                Navigator.pop(context); // Kembali ke home
+              },
+              child: Text(
+                'OK',
+                style: GoogleFonts.poppins(
+                  color: primaryColor,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      
+      setState(() => _isSubmitting = false);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Gagal mengirim request: ${e.toString().replaceAll('Exception: ', '')}',
+            style: GoogleFonts.poppins(),
           ),
-        ],
-      ),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+  }
+
+  // Helper untuk menampilkan detail row di dialog
+  Widget _buildDetailRow(String label, String value, Color color) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.poppins(
+            fontSize: 12,
+            color: Colors.grey.shade600,
+          ),
+        ),
+        Text(
+          value,
+          style: GoogleFonts.poppins(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: color,
+          ),
+        ),
+      ],
     );
   }
 
@@ -1046,13 +1133,147 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
                       ),
                     ),
 
+              const SizedBox(height: 24),
+
+              // Jumlah Kantong Sampah
+              Text(
+                'Jumlah Kantong Sampah',
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: primaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.delete_outline,
+                        color: primaryColor,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Jumlah Kantong',
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '$_bagCount kantong',
+                            style: GoogleFonts.poppins(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        IconButton(
+                          onPressed: _bagCount > 1
+                              ? () => setState(() => _bagCount--)
+                              : null,
+                          icon: Icon(
+                            Icons.remove_circle_outline,
+                            color: _bagCount > 1
+                                ? primaryColor
+                                : Colors.grey.shade300,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => setState(() => _bagCount++),
+                          icon: const Icon(
+                            Icons.add_circle_outline,
+                            color: primaryColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Catatan Tambahan
+              Text(
+                'Catatan Tambahan (Opsional)',
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: TextField(
+                  controller: _noteController,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    hintText: 'Contoh: Mohon diambil pagi hari sebelum jam 9',
+                    hintStyle: GoogleFonts.poppins(
+                      fontSize: 14,
+                      color: Colors.grey.shade400,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.all(16),
+                    filled: true,
+                    fillColor: Colors.white,
+                  ),
+                  style: GoogleFonts.poppins(fontSize: 14),
+                ),
+              ),
+
               const SizedBox(height: 40),
 
               // Tombol Kirim Request
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _submitRequest,
+                  onPressed: _isSubmitting ? null : _submitRequest,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primaryColor,
                     padding: const EdgeInsets.symmetric(vertical: 16),
@@ -1061,14 +1282,23 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
                     ),
                     elevation: 0,
                   ),
-                  child: Text(
-                    'Kirim Request',
-                    style: GoogleFonts.poppins(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
+                  child: _isSubmitting
+                      ? SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : Text(
+                          'Kirim Request',
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
               ),
             ],

@@ -7,6 +7,19 @@ class UserStorage {
   static const String _keyUserEmail = 'user_email';
   static const String _keyUserRoles = 'user_roles';
   static const String _keyUserData = 'user_data'; // ✅ TAMBAHAN: Full user data
+  static const String _keyToken = 'auth_token'; // Token autentikasi
+
+  /// Simpan token autentikasi
+  static Future<void> saveToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyToken, token);
+  }
+
+  /// Ambil token autentikasi
+  static Future<String?> getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyToken);
+  }
 
   /// Simpan data user ke SharedPreferences
   static Future<void> saveUser({
@@ -139,5 +152,6 @@ class UserStorage {
     await prefs.remove(_keyUserEmail);
     await prefs.remove(_keyUserRoles);
     await prefs.remove(_keyUserData); // ✅ TAMBAHAN: Hapus full user data
+    await prefs.remove(_keyToken); // Hapus token
   }
 }

@@ -25,6 +25,7 @@ class AuthService {
 
         if (token != null) {
           await TokenStorage.saveToken(token);
+          await UserStorage.saveToken(token); // Simpan juga ke UserStorage
         }
 
         // Simpan data user termasuk role
