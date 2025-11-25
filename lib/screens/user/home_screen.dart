@@ -2213,49 +2213,8 @@ class _HomeScreenState extends State<HomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Tambah akun layanan button with dashed border
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: InkWell(
-            onTap: _openLayananSampahAndRefresh,
-            borderRadius: BorderRadius.circular(12),
-            child: CustomPaint(
-              painter: DashedBorderPainter(
-                color: const Color(0xFF00897B),
-                strokeWidth: 2,
-                dashWidth: 8,
-                dashSpace: 4,
-                borderRadius: 12,
-              ),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.add_circle_outline,
-                      size: 20,
-                      color: Color(0xFF00897B),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Tambah akun layanan',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF00897B),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
+        // (Removed) Top "Tambah akun layanan" button — action moved to Detail button
+        const SizedBox(height: 8),
         // Service account card
         TweenAnimationBuilder<double>(
           tween: Tween(begin: 0.0, end: 1.0),
@@ -2292,7 +2251,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     // Icon box
                     Container(
-                      padding: const EdgeInsets.all(8),
+                      width: 56,
+                      height: 56,
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(12),
@@ -2304,10 +2264,19 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ],
                       ),
-                      child: const Icon(
-                        Icons.home_outlined,
-                        size: 40,
-                        color: Color.fromARGB(255, 21, 145, 137),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.asset(
+                          'assets/images/home.jpeg',
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Icon(
+                              Icons.home_outlined,
+                              size: 40,
+                              color: Color.fromARGB(255, 21, 145, 137),
+                            );
+                          },
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -2526,93 +2495,123 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     
-                    // Tombol Detail di samping kanan - HANYA MUNCUL JIKA SUDAH ADA AKUN
-                    if (_akunList.isNotEmpty) ...[
+                    // Tombol aksi di samping kanan: tampilkan berbeda bergantung pada ada akun atau tidak
+                    if (_akunList.isEmpty) ...[
                       const SizedBox(width: 12),
                       Padding(
                         padding: const EdgeInsets.only(top: 20),
                         child: SizedBox(
                           height: 42,
                           child: ElevatedButton(
-                      onPressed: () async {
-                        // Tampilkan shimmer loading
-                        _showShimmerLoading(context);
-
-                        // Delay sebentar untuk efek shimmer terlihat
-                        await Future.delayed(const Duration(milliseconds: 500));
-
-                        // Buka detail akun yang dipilih
-                        final currentAccountMap =
-                            _selectedAkun ?? _akunList.first;
-
-                        // Konversi Map ke ServiceAccount object
-                        final serviceAccount = ServiceAccount(
-                          id: currentAccountMap['id_akun']?.toString() ?? '0',
-                          name: currentAccountMap['nama']?.toString() ?? '',
-                          address:
-                              currentAccountMap['alamat']?.toString() ?? '',
-                          latitude: 0.0, // Default, bisa diubah jika ada data
-                          longitude: 0.0, // Default, bisa diubah jika ada data
-                          status: 'active',
-                          contactPhone: currentAccountMap['no_telepon']
-                              ?.toString(),
-                          kecamatanName: currentAccountMap['kecamatan']
-                              ?.toString(),
-                          kelurahanName: currentAccountMap['kelurahan']
-                              ?.toString(),
-                          rwName: currentAccountMap['rw']?.toString(),
-                          hariPengangkutan:
-                              currentAccountMap['hari_pengangkutan']
-                                  ?.toString(),
-                        );
-
-                        // Tutup shimmer loading
-                        if (mounted) Navigator.of(context).pop();
-
-                        // Navigate ke detail
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                DetailAkunLayananScreen(akun: serviceAccount),
-                          ),
-                        );
-
-                        // Refresh setelah kembali dari detail
-                        await _loadAkunLayanan(selectLastIfNotFound: true);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color.fromARGB(255, 21, 145, 137),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.info_outline,
-                            size: 16,
-                            color: Colors.white,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            "Detail",
-                            style: GoogleFonts.poppins(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
+                            onPressed: () async {
+                              // Buka halaman tambah akun
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const TambahAkunLayananScreen(),
+                                ),
+                              );
+                              // Refresh daftar akun setelah kembali
+                              await _loadAkunLayanan(selectLastIfNotFound: true);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color.fromARGB(255, 21, 145, 137),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 8,
+                              ),
+                            ),
+                            child: Text(
+                              "+ Buat",
+                              style: GoogleFonts.poppins(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
                             ),
                           ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ),
-                  ),
-                    ],
+                    ] else ...[
+                      const SizedBox(width: 12),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 20),
+                        child: SizedBox(
+                          height: 42,
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              // Tampilkan shimmer loading
+                              _showShimmerLoading(context);
+
+                              // Delay sebentar untuk efek shimmer terlihat
+                              await Future.delayed(const Duration(milliseconds: 500));
+
+                              // Buka detail akun yang dipilih
+                              final currentAccountMap = _selectedAkun ?? _akunList.first;
+
+                              final serviceAccount = ServiceAccount(
+                                id: currentAccountMap['id_akun']?.toString() ?? '0',
+                                name: currentAccountMap['nama']?.toString() ?? '',
+                                address: currentAccountMap['alamat']?.toString() ?? '',
+                                latitude: 0.0,
+                                longitude: 0.0,
+                                status: 'active',
+                                contactPhone: currentAccountMap['no_telepon']?.toString(),
+                                kecamatanName: currentAccountMap['kecamatan']?.toString(),
+                                kelurahanName: currentAccountMap['kelurahan']?.toString(),
+                                rwName: currentAccountMap['rw']?.toString(),
+                                hariPengangkutan: currentAccountMap['hari_pengangkutan']?.toString(),
+                              );
+
+                              // Tutup shimmer loading
+                              if (mounted) Navigator.of(context).pop();
+
+                              // Navigate ke detail
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => DetailAkunLayananScreen(akun: serviceAccount),
+                                ),
+                              );
+
+                              // Refresh setelah kembali dari detail
+                              await _loadAkunLayanan(selectLastIfNotFound: true);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color.fromARGB(255, 21, 145, 137),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.info_outline,
+                                  size: 16,
+                                  color: Colors.white,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  "Detail",
+                                  style: GoogleFonts.poppins(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ]
                   ],
                 ),
               
