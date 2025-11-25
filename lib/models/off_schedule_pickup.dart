@@ -19,6 +19,7 @@ class OffSchedulePickup {
   final String? photoUrl;
   final Invoice? invoice;
   final String? residentNote;
+  final String? note;
 
   OffSchedulePickup({
     required this.id,
@@ -41,23 +42,26 @@ class OffSchedulePickup {
     this.photoUrl,
     this.invoice,
     this.residentNote,
+    this.note,
   });
 
   factory OffSchedulePickup.fromJson(Map<String, dynamic> json) {
     return OffSchedulePickup(
       id: json['id'],
       serviceAccountId: json['service_account_id'],
-      serviceAccountName: json['service_account_name'],
-      address: json['address'],
-      pickupType: json['pickup_type'],
-      requestStatus: json['request_status'],
-      status: json['status'],
-      bagCount: json['bag_count'],
-      unitPrice: json['unit_price'],
-      baseAmount: json['base_amount'],
-      extraFee: json['extra_fee'],
-      totalAmount: json['total_amount'],
-      requestedAt: DateTime.parse(json['requested_at']),
+      serviceAccountName: json['service_account_name'] ?? '',
+      address: json['address'] ?? '',
+      pickupType: json['pickup_type'] ?? 'request',
+      requestStatus: json['request_status'] ?? 'sent',
+      status: json['status'] ?? 'pending',
+      bagCount: json['bag_count'] ?? 0,
+      unitPrice: json['unit_price'] ?? 0,
+      baseAmount: json['base_amount'] ?? 0,
+      extraFee: json['extra_fee'] ?? 0,
+      totalAmount: json['total_amount'] ?? 0,
+      requestedAt: json['requested_at'] != null 
+          ? DateTime.parse(json['requested_at']) 
+          : (json['created_at'] != null ? DateTime.parse(json['created_at']) : DateTime.now()),
       requestedPickupDate: json['requested_pickup_date'],
       requestedPickupTime: json['requested_pickup_time'],
       assignedCollector: json['assigned_collector'] != null
@@ -67,6 +71,7 @@ class OffSchedulePickup {
       photoUrl: json['photo_url'],
       invoice: json['invoice'] != null ? Invoice.fromJson(json['invoice']) : null,
       residentNote: json['resident_note'],
+      note: json['note'],
     );
   }
 
@@ -92,6 +97,7 @@ class OffSchedulePickup {
       'photo_url': photoUrl,
       'invoice': invoice?.toJson(),
       'resident_note': residentNote,
+      'note': note,
     };
   }
 

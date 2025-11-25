@@ -2469,7 +2469,18 @@ class _HomeScreenState extends State<HomeScreen> {
                                       Flexible(
                                         child: Text(
                                           _selectedAkun != null && _selectedAkun!['hari_pengangkutan'] != null
-                                              ? "Jadwal: ${_selectedAkun!['hari_pengangkutan']} • ${_selectedAkun!['jam_pengangkutan'] ?? '07:00'}"
+                                              ? () {
+                                                  // Cek apakah hari_pengangkutan sudah mengandung jam (ada karakter '•' atau ':')
+                                                  final hariPengangkutan = _selectedAkun!['hari_pengangkutan'].toString();
+                                                  if (hariPengangkutan.contains('•') || hariPengangkutan.contains(':')) {
+                                                    // Sudah ada jam, tampilkan apa adanya
+                                                    return "Jadwal: $hariPengangkutan";
+                                                  } else {
+                                                    // Belum ada jam, tambahkan jam_pengangkutan
+                                                    final jamPengangkutan = _selectedAkun!['jam_pengangkutan'] ?? '07:00';
+                                                    return "Jadwal: $hariPengangkutan • $jamPengangkutan";
+                                                  }
+                                                }()
                                               : "Jadwal: Belum diatur",
                                           style: GoogleFonts.poppins(
                                             fontSize: 10,

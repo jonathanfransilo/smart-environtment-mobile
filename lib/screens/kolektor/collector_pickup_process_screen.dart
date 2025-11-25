@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -19,7 +20,7 @@ class CollectorPickupProcessScreen extends StatefulWidget {
 
 class _CollectorPickupProcessScreenState extends State<CollectorPickupProcessScreen> {
   int _currentStep = 0; // 0: Datang, 1: Foto, 2: Input, 3: Selesai
-  File? _pickupPhoto;
+  XFile? _pickupPhoto;
   final ImagePicker _picker = ImagePicker();
   
   // Data untuk input kantong sampah
@@ -31,6 +32,19 @@ class _CollectorPickupProcessScreenState extends State<CollectorPickupProcessScr
     'anorganic_sedang': 0,
     'anorganic_kecil': 0,
   };
+
+  /// Helper method untuk cek apakah complaint memerlukan input kantong
+  /// HANYA sampah_tidak_diambil yang perlu input kantong
+  /// sampah_menumpuk dan lainnya TIDAK perlu input kantong
+  bool _needsBagInput() {
+    final type = widget.complaint['type']?.toString().toLowerCase() ?? '';
+    return type == 'sampah_tidak_diambil';
+  }
+
+  /// Get total steps based on complaint type
+  int _getTotalSteps() {
+    return _needsBagInput() ? 4 : 3; // 4 steps with bag input, 3 without
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -66,15 +80,17 @@ class _CollectorPickupProcessScreenState extends State<CollectorPickupProcessScr
           ),
           
           // Bottom Button
-          if (_currentStep < 3)
+          if (_currentStep < _getTotalSteps() - 1)
             _buildBottomButton(primaryColor),
         ],
       ),
     );
   }
 
-  /// Build progress stepper dengan 4 tahap
+  /// Build progress stepper - dynamic based on complaint type
   Widget _buildProgressStepper(Color primaryColor) {
+    final needsBagInput = _needsBagInput();
+    
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
       color: Colors.white,
@@ -93,16 +109,18 @@ class _CollectorPickupProcessScreenState extends State<CollectorPickupProcessScr
             sublabel: 'Progress',
             primaryColor: primaryColor,
           ),
-          _buildStepConnector(isCompleted: _currentStep > 1, primaryColor: primaryColor),
+          if (needsBagInput) ...[
+            _buildStepConnector(isCompleted: _currentStep > 1, primaryColor: primaryColor),
+            _buildStepIndicator(
+              step: 2,
+              label: 'Input Kantong',
+              sublabel: 'Pending',
+              primaryColor: primaryColor,
+            ),
+          ],
+          _buildStepConnector(isCompleted: _currentStep > (needsBagInput ? 2 : 1), primaryColor: primaryColor),
           _buildStepIndicator(
-            step: 2,
-            label: 'Input Kantong',
-            sublabel: 'Pending',
-            primaryColor: primaryColor,
-          ),
-          _buildStepConnector(isCompleted: _currentStep > 2, primaryColor: primaryColor),
-          _buildStepIndicator(
-            step: 3,
+            step: needsBagInput ? 3 : 2,
             label: 'Selesai',
             sublabel: 'Pending',
             primaryColor: primaryColor,
@@ -202,17 +220,35 @@ class _CollectorPickupProcessScreenState extends State<CollectorPickupProcessScr
 
   /// Build content berdasarkan step yang aktif
   Widget _buildStepContent(Color primaryColor) {
-    switch (_currentStep) {
-      case 0:
-        return _buildDatangStep(primaryColor);
-      case 1:
-        return _buildFotoStep(primaryColor);
-      case 2:
-        return _buildInputStep(primaryColor);
-      case 3:
-        return _buildSelesaiStep(primaryColor);
-      default:
-        return const SizedBox.shrink();
+    final needsBagInput = _needsBagInput();
+    
+    // Mapping step based on whether bag input is needed
+    if (!needsBagInput) {
+      // Flow tanpa input kantong: 0: Datang, 1: Foto, 2: Selesai
+      switch (_currentStep) {
+        case 0:
+          return _buildDatangStep(primaryColor);
+        case 1:
+          return _buildFotoStep(primaryColor);
+        case 2:
+          return _buildSelesaiStep(primaryColor);
+        default:
+          return const SizedBox.shrink();
+      }
+    } else {
+      // Flow dengan input kantong: 0: Datang, 1: Foto, 2: Input, 3: Selesai
+      switch (_currentStep) {
+        case 0:
+          return _buildDatangStep(primaryColor);
+        case 1:
+          return _buildFotoStep(primaryColor);
+        case 2:
+          return _buildInputStep(primaryColor);
+        case 3:
+          return _buildSelesaiStep(primaryColor);
+        default:
+          return const SizedBox.shrink();
+      }
     }
   }
 
@@ -342,12 +378,19 @@ class _CollectorPickupProcessScreenState extends State<CollectorPickupProcessScr
                     )
                   : ClipRRect(
                       borderRadius: BorderRadius.circular(14),
-                      child: Image.file(
-                        _pickupPhoto!,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        height: double.infinity,
-                      ),
+                      child: kIsWeb
+                          ? Image.network(
+                              _pickupPhoto!.path,
+                              fit: BoxFit.cover,
+                              width: double.infinity,
+                              height: double.infinity,
+                            )
+                          : Image.file(
+                              File(_pickupPhoto!.path),
+                              fit: BoxFit.cover,
+                              width: double.infinity,
+                              height: double.infinity,
+                            ),
                     ),
             ),
           ),
@@ -750,33 +793,64 @@ class _CollectorPickupProcessScreenState extends State<CollectorPickupProcessScr
   }
 
   bool _canProceedToNextStep() {
-    switch (_currentStep) {
-      case 0:
-        return true; // Datang - always can proceed
-      case 1:
-        return _pickupPhoto != null; // Foto - need photo
-      case 2:
-        return _getTotalBags() > 0; // Input - need at least 1 bag
-      default:
-        return false;
+    final needsBagInput = _needsBagInput();
+    
+    if (!needsBagInput) {
+      // Flow tanpa input kantong: 0: Datang, 1: Foto, 2: Selesai
+      switch (_currentStep) {
+        case 0:
+          return true; // Datang - always can proceed
+        case 1:
+          return _pickupPhoto != null; // Foto - need photo
+        default:
+          return false;
+      }
+    } else {
+      // Flow dengan input kantong: 0: Datang, 1: Foto, 2: Input, 3: Selesai
+      switch (_currentStep) {
+        case 0:
+          return true; // Datang - always can proceed
+        case 1:
+          return _pickupPhoto != null; // Foto - need photo
+        case 2:
+          return _getTotalBags() > 0; // Input - need at least 1 bag
+        default:
+          return false;
+      }
     }
   }
 
   String _getButtonText() {
-    switch (_currentStep) {
-      case 0:
-        return 'Konfirmasi Kedatangan';
-      case 1:
-        return 'Lanjut ke Input Kantong';
-      case 2:
-        return 'Selesaikan Pengambilan';
-      default:
-        return 'Lanjutkan';
+    final needsBagInput = _needsBagInput();
+    
+    if (!needsBagInput) {
+      // Flow tanpa input kantong
+      switch (_currentStep) {
+        case 0:
+          return 'Konfirmasi Kedatangan';
+        case 1:
+          return 'Selesaikan Pengambilan';
+        default:
+          return 'Lanjutkan';
+      }
+    } else {
+      // Flow dengan input kantong
+      switch (_currentStep) {
+        case 0:
+          return 'Konfirmasi Kedatangan';
+        case 1:
+          return 'Lanjut ke Input Kantong';
+        case 2:
+          return 'Selesaikan Pengambilan';
+        default:
+          return 'Lanjutkan';
+      }
     }
   }
 
   void _nextStep() {
-    if (_currentStep < 3) {
+    final totalSteps = _getTotalSteps();
+    if (_currentStep < totalSteps - 1) {
       setState(() {
         _currentStep++;
       });
@@ -794,7 +868,7 @@ class _CollectorPickupProcessScreenState extends State<CollectorPickupProcessScr
 
       if (photo != null) {
         setState(() {
-          _pickupPhoto = File(photo.path);
+          _pickupPhoto = photo;
         });
       }
     } catch (e) {

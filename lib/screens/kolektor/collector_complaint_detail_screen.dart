@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -26,7 +27,7 @@ class _CollectorComplaintDetailScreenState
   final TextEditingController _notesController = TextEditingController();
   final ImagePicker _picker = ImagePicker();
 
-  File? _selectedImage;
+  XFile? _selectedImage;
   bool _isUpdating = false;
 
   @override
@@ -61,7 +62,7 @@ class _CollectorComplaintDetailScreenState
 
       if (image != null) {
         setState(() {
-          _selectedImage = File(image.path);
+          _selectedImage = image;
         });
       }
     } catch (e) {
@@ -371,12 +372,19 @@ class _CollectorComplaintDetailScreenState
                           borderRadius: BorderRadius.circular(8),
                           child: Stack(
                             children: [
-                              Image.file(
-                                _selectedImage!,
-                                width: double.infinity,
-                                height: 200,
-                                fit: BoxFit.cover,
-                              ),
+                              kIsWeb
+                                  ? Image.network(
+                                      _selectedImage!.path,
+                                      width: double.infinity,
+                                      height: 200,
+                                      fit: BoxFit.cover,
+                                    )
+                                  : Image.file(
+                                      File(_selectedImage!.path),
+                                      width: double.infinity,
+                                      height: 200,
+                                      fit: BoxFit.cover,
+                                    ),
                               Positioned(
                                 top: 8,
                                 right: 8,

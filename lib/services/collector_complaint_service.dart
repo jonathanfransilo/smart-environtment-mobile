@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import '../models/complaint.dart';
 import 'token_storage.dart';
 
@@ -22,7 +22,8 @@ class CollectorComplaintService {
       }
 
       print('🌐 [ComplaintService] Fetching complaints from: $url');
-      print('🔑 [ComplaintService] Token: ${token.substring(0, 20)}...');
+      final previewToken = token.length > 20 ? '${token.substring(0, 20)}...' : token;
+      print('🔑 [ComplaintService] Token: $previewToken');
 
       final response = await http.get(
         Uri.parse(url),
@@ -36,60 +37,54 @@ class CollectorComplaintService {
           throw Exception('Request timeout - server tidak merespon');
         },
       );
-
       print('📡 [ComplaintService] Response status: ${response.statusCode}');
       print('📦 [ComplaintService] Response body: ${response.body}');
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        
-        print('🔍 [ComplaintService] Parsed data keys: ${data.keys}');
-        
-        // Handle jika data kosong atau null
+        final Map<String, dynamic> data = json.decode(response.body) as Map<String, dynamic>;
+
+        // Guard: pastikan struktur data ada
         if (data['data'] == null) {
           print('⚠️ [ComplaintService] data[\'data\'] is NULL');
-          return [];
+          return <Complaint>[];
         }
-        
-        dynamic complaintsData;
-        
-        // ✅ PERBAIKAN: Handle nested structure {"data": {"complaints": [...]}}
-        if (data['data'] is Map && data['data']['complaints'] != null) {
-          complaintsData = data['data']['complaints'];
+
+        late final List<dynamic> complaintsData;
+
+        // Handle nested structure {"data": {"complaints": [...]} }
+        if (data['data'] is Map && (data['data'] as Map).containsKey('complaints') && data['data']['complaints'] is List) {
+          complaintsData = (data['data']['complaints'] as List<dynamic>);
           print('🔍 [ComplaintService] Found nested complaints array with ${complaintsData.length} items');
         }
         // Handle jika data adalah List langsung
         else if (data['data'] is List) {
-          complaintsData = data['data'];
+          complaintsData = (data['data'] as List<dynamic>);
           print('🔍 [ComplaintService] Found direct complaints array with ${complaintsData.length} items');
         }
         // Handle jika data adalah Map (single object)
         else if (data['data'] is Map) {
-          complaintsData = [data['data']];
+          complaintsData = <dynamic>[data['data'] as Map<String, dynamic>];
           print('🔍 [ComplaintService] Found single complaint object, wrapped in array');
-        }
-        else {
+        } else {
           print('⚠️ [ComplaintService] Unknown data format, returning empty list');
-          return [];
+          return <Complaint>[];
         }
-        
+
         print('✅ [ComplaintService] Parsing ${complaintsData.length} complaints');
-        
-        final complaints = (complaintsData as List<dynamic>)
-            .map((json) => Complaint.fromJson(json as Map<String, dynamic>))
-            .toList();
-            
-        // Debug: print each complaint
-        for (var complaint in complaints) {
+
+        final complaints = complaintsData
+            .map((j) => Complaint.fromJson(j as Map<String, dynamic>))
+            .toList(growable: false);
+
+        for (final complaint in complaints) {
           print('   📋 Complaint #${complaint.id}: ${complaint.type}, Status: ${complaint.status}');
         }
-        
+
         return complaints;
-      } else {
-        print('❌ [ComplaintService] Error response: ${response.statusCode}');
-        print('   Body: ${response.body}');
-        throw Exception('Gagal mengambil data pelaporan: ${response.body}');
       }
+      print('❌ [ComplaintService] Error response: ${response.statusCode}');
+      print('   Body: ${response.body}');
+      throw Exception('Gagal mengambil data pelaporan: ${response.body}');
     } catch (e) {
       print('❌ [CollectorComplaintService] Error in getAssignedComplaints: $e');
       throw Exception('Error: $e');
@@ -113,7 +108,7 @@ class CollectorComplaintService {
       );
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final Map<String, dynamic> data = json.decode(response.body) as Map<String, dynamic>;
         return Complaint.fromJson(data['data'] as Map<String, dynamic>);
       } else {
         throw Exception('Gagal mengambil detail pelaporan: ${response.body}');
@@ -128,7 +123,7 @@ class CollectorComplaintService {
     required String complaintId,
     required String status,
     String? notes,
-    File? photo,
+    XFile? photo,
   }) async {
     try {
       final token = await TokenStorage.getToken();
@@ -184,7 +179,7 @@ class CollectorComplaintService {
       );
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final Map<String, dynamic> data = json.decode(response.body) as Map<String, dynamic>;
         return data['data'] as Map<String, dynamic>;
       } else {
         throw Exception('Gagal mengambil statistik: ${response.body}');

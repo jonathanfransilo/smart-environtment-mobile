@@ -8,17 +8,15 @@ class OffSchedulePickupService {
   final String baseUrl = ApiConfig.baseUrl;
 
   /// Create off-schedule pickup request
+  /// According to API docs, bag_count is NOT sent here - it will be filled by collector
   Future<OffSchedulePickup> createRequest({
     required int serviceAccountId,
     required String requestedPickupDate,
     String? requestedPickupTime,
-    required int bagCount,
-    String? residentNote,
+    String? note,
   }) async {
     try {
-      print('🔍 [OffSchedulePickup] Getting token from TokenStorage...');
       final token = await TokenStorage.getToken();
-      print('🔑 [OffSchedulePickup] Token: ${token != null ? "Found (${token.substring(0, 20)}...)" : "NOT FOUND"}');
       
       if (token == null) {
         throw Exception('No authentication token found');
@@ -37,28 +35,28 @@ class OffSchedulePickupService {
           'service_account_id': serviceAccountId,
           'requested_pickup_date': requestedPickupDate,
           if (requestedPickupTime != null) 'requested_pickup_time': requestedPickupTime,
-          'bag_count': bagCount,
-          if (residentNote != null) 'resident_note': residentNote,
+          if (note != null) 'note': note,
         }),
       );
 
-      print('📤 [OffSchedulePickup] Create request - Status: ${response.statusCode}');
-      print('📤 [OffSchedulePickup] Response body: ${response.body}');
 
       if (response.statusCode == 201) {
         final data = jsonDecode(response.body);
         return OffSchedulePickup.fromJson(data['data']);
       } else if (response.statusCode == 422) {
         final error = jsonDecode(response.body);
-        final errors = error['errors']['details'] as Map<String, dynamic>?;
-        final firstError = errors?.values.first;
-        final errorMessage = firstError is List ? firstError.first : firstError.toString();
-        throw Exception(errorMessage);
+        // Handle both error formats from API
+        final errors = error['errors'] as Map<String, dynamic>?;
+        if (errors != null) {
+          final firstError = errors.values.first;
+          final errorMessage = firstError is List ? firstError.first : firstError.toString();
+          throw Exception(errorMessage);
+        }
+        throw Exception(error['message'] ?? 'Validation error');
       } else {
         throw Exception('Failed to create pickup request: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ [OffSchedulePickup] Error creating request: $e');
       rethrow;
     }
   }
@@ -89,7 +87,6 @@ class OffSchedulePickupService {
         },
       );
 
-      print('📥 [OffSchedulePickup] List requests - Status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -99,7 +96,6 @@ class OffSchedulePickupService {
         throw Exception('Failed to load pickup requests: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ [OffSchedulePickup] Error listing requests: $e');
       rethrow;
     }
   }
@@ -123,7 +119,6 @@ class OffSchedulePickupService {
         },
       );
 
-      print('📥 [OffSchedulePickup] Get detail - Status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -132,7 +127,6 @@ class OffSchedulePickupService {
         throw Exception('Failed to load pickup detail: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ [OffSchedulePickup] Error getting detail: $e');
       rethrow;
     }
   }
@@ -156,7 +150,6 @@ class OffSchedulePickupService {
         },
       );
 
-      print('✅ [OffSchedulePickup] Confirm pickup - Status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -165,7 +158,40 @@ class OffSchedulePickupService {
         throw Exception('Failed to confirm pickup: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ [OffSchedulePickup] Error confirming pickup: $e');
+      rethrow;
+    }
+  }
+
+  /// Fetch pricing info for off-schedule pickups
+  /// Returns the raw data map from the API `data` field.
+  Future<Map<String, dynamic>> getPricingInfo() async {
+    try {
+      final token = await TokenStorage.getToken();
+      if (token == null) {
+        throw Exception('No authentication token found');
+      }
+
+      final url = Uri.parse('$baseUrl/mobile/resident/off-schedule-pickups/pricing-info');
+
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is Map && data.containsKey('data')) {
+          return Map<String, dynamic>.from(data['data']);
+        }
+        return {};
+      } else {
+        throw Exception('Failed to fetch pricing info: ${response.statusCode}');
+      }
+    } catch (e) {
       rethrow;
     }
   }

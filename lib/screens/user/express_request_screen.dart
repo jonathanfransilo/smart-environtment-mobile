@@ -27,15 +27,53 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
   ServiceAccount? _selectedAccount;
   bool _isLoadingAccounts = true;
 
-  // State untuk bag count dan catatan
-  int _bagCount = 1;
+  // State untuk catatan
   final TextEditingController _noteController = TextEditingController();
   bool _isSubmitting = false;
+  // Pricing info from API
+  Map<String, dynamic>? _pricingInfo;
+  bool _isLoadingPricing = false;
 
   @override
   void initState() {
     super.initState();
     _loadServiceAccounts();
+  }
+
+  // Load pricing info from API
+  Future<void> _loadPricingInfo() async {
+    setState(() => _isLoadingPricing = true);
+    try {
+      final service = OffSchedulePickupService();
+      final data = await service.getPricingInfo();
+      if (!mounted) return;
+      setState(() {
+        _pricingInfo = data;
+        _isLoadingPricing = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoadingPricing = false);
+    }
+  }
+
+  String _formatCurrency(int amount) {
+    return 'Rp ${amount.toString().replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (Match m) => '${m[1]}.')}';
+  }
+
+  String _formatSurcharge(Map<String, dynamic>? info) {
+    if (info == null) return '-';
+    final formatted = info['formatted_surcharge'];
+    if (formatted != null && formatted.toString().isNotEmpty) {
+      return formatted.toString();
+    }
+
+    final raw = info['off_schedule_surcharge'];
+    if (raw == null) return '-';
+    if (raw is num) return _formatCurrency(raw.toInt());
+    final parsed = int.tryParse(raw.toString());
+    if (parsed != null) return _formatCurrency(parsed);
+    return raw.toString();
   }
 
   @override
@@ -60,8 +98,9 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
         }
         _isLoadingAccounts = false;
       });
+      // Load pricing info after accounts are loaded
+      _loadPricingInfo();
     } catch (e) {
-      print('Error loading service accounts: $e');
       if (!mounted) return;
       setState(() {
         _isLoadingAccounts = false;
@@ -152,19 +191,6 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
       return;
     }
 
-    if (_bagCount < 1) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Jumlah kantong minimal 1',
-            style: GoogleFonts.poppins(),
-          ),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
     setState(() => _isSubmitting = true);
 
     try {
@@ -185,8 +211,7 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
         serviceAccountId: int.parse(_selectedAccount!.id),
         requestedPickupDate: formattedDate,
         requestedPickupTime: formattedTime,
-        bagCount: _bagCount,
-        residentNote: _noteController.text.isNotEmpty ? _noteController.text : null,
+        note: _noteController.text.isNotEmpty ? _noteController.text : null,
       );
 
       if (!mounted) return;
@@ -239,10 +264,10 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
                       const Divider(height: 16),
                       _buildDetailRow('Waktu', result.requestedPickupTime!, primaryColor),
                     ],
-                    const Divider(height: 16),
-                    _buildDetailRow('Kantong', '${result.bagCount} kantong', primaryColor),
-                    const Divider(height: 16),
-                    _buildDetailRow('Biaya', 'Rp ${result.totalAmount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}', Colors.green),
+                    if (result.extraFee > 0) ...[
+                      const Divider(height: 16),
+                      _buildDetailRow('Biaya Tambahan', 'Rp ${result.extraFee.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}', Colors.orange),
+                    ],
                   ],
                 ),
               ),
@@ -676,7 +701,138 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
                 ),
               ),
 
-              const SizedBox(height: 24),
+                const SizedBox(height: 16),
+
+                // Pricing info - show surcharge information
+                if (_isLoadingPricing)
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 8,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: SizedBox(
+                        height: 28,
+                        width: 28,
+                        child: CircularProgressIndicator(color: primaryColor, strokeWidth: 2),
+                      ),
+                    ),
+                  )
+                else if (_pricingInfo != null)
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.orange.shade50,
+                          Colors.orange.shade100.withOpacity(0.3),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.orange.shade200, width: 1.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.orange.withOpacity(0.15),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade600,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.orange.shade600.withOpacity(0.4),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.info_outline_rounded,
+                            color: Colors.white,
+                            size: 28,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Informasi Biaya',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.orange.shade900,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                _pricingInfo!['message'] ?? 'Biaya tambahan untuk pickup di luar jadwal',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  color: Colors.orange.shade800,
+                                  height: 1.5,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: Colors.orange.shade300,
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.payments_outlined,
+                                      size: 18,
+                                      color: Colors.orange.shade700,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      _formatSurcharge(_pricingInfo),
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.orange.shade900,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                const SizedBox(height: 24),
 
               // Opsi Skip Pengambilan Default
               Container(
@@ -1132,95 +1288,6 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
                         ],
                       ),
                     ),
-
-              const SizedBox(height: 24),
-
-              // Jumlah Kantong Sampah
-              Text(
-                'Jumlah Kantong Sampah',
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: primaryColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.delete_outline,
-                        color: primaryColor,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Jumlah Kantong',
-                            style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '$_bagCount kantong',
-                            style: GoogleFonts.poppins(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Row(
-                      children: [
-                        IconButton(
-                          onPressed: _bagCount > 1
-                              ? () => setState(() => _bagCount--)
-                              : null,
-                          icon: Icon(
-                            Icons.remove_circle_outline,
-                            color: _bagCount > 1
-                                ? primaryColor
-                                : Colors.grey.shade300,
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () => setState(() => _bagCount++),
-                          icon: const Icon(
-                            Icons.add_circle_outline,
-                            color: primaryColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
 
               const SizedBox(height: 24),
 

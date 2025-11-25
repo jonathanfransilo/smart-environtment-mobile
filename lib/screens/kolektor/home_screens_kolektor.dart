@@ -2635,12 +2635,21 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
         .length;
   }
 
-  Map<String, dynamic> _getStatusConfig(String status) {
+  Map<String, dynamic> _getStatusConfig(String status, {Map<String, dynamic>? pickupData}) {
+    // ✅ PERBAIKAN: Cek apakah ini off-schedule pickup (express request)
+    final isOffSchedule = pickupData?['is_off_schedule'] == true || 
+                          pickupData?['is_off_schedule'] == 1 ||
+                          pickupData?['request_type'] == 'off_schedule';
+    
     switch (status) {
       case 'pending':
       case 'scheduled':
       case 'assigned':
       case 'open':  // ✅ TAMBAHAN: "open" = complaint sudah di-assign
+        // Bedakan antara jadwal reguler dan request
+        if (isOffSchedule) {
+          return {'label': 'Request', 'color': Colors.orange[700]};
+        }
         return {'label': 'Dijadwalkan', 'color': Colors.blue[600]};
       case 'on_progress':
       case 'in_progress':
