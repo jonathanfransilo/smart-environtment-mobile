@@ -289,6 +289,136 @@ class _OffSchedulePickupDetailScreenState extends State<OffSchedulePickupDetailS
     );
   }
 
+  // Build status stepper widget
+  Widget _buildStatusStepper(String requestStatus) {
+    // Map status to stepper stages
+    // sent/pending -> Menunggu
+    // processing -> Di-proses  
+    // completed/paid -> Selesai
+    
+    bool isWaitingActive = requestStatus == 'sent' || requestStatus == 'pending';
+    bool isWaitingCompleted = requestStatus == 'processing' || requestStatus == 'completed' || requestStatus == 'paid';
+    
+    bool isProcessingActive = requestStatus == 'processing';
+    bool isProcessingCompleted = requestStatus == 'completed' || requestStatus == 'paid';
+    
+    bool isCompletedActive = requestStatus == 'completed' || requestStatus == 'paid';
+    
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Step 1: Menunggu
+          _buildStatusStep(
+            icon: Icons.access_time_rounded,
+            label: 'Menunggu',
+            isActive: isWaitingActive,
+            isCompleted: isWaitingCompleted,
+          ),
+          
+          // Connector line 1
+          Expanded(
+            child: Container(
+              height: 2,
+              margin: const EdgeInsets.only(bottom: 24),
+              decoration: BoxDecoration(
+                color: isWaitingCompleted
+                    ? primaryColor
+                    : Colors.grey.shade300,
+              ),
+            ),
+          ),
+          
+          // Step 2: Di-proses
+          _buildStatusStep(
+            icon: Icons.settings_outlined,
+            label: 'Di-proses',
+            isActive: isProcessingActive,
+            isCompleted: isProcessingCompleted,
+          ),
+          
+          // Connector line 2
+          Expanded(
+            child: Container(
+              height: 2,
+              margin: const EdgeInsets.only(bottom: 24),
+              decoration: BoxDecoration(
+                color: isProcessingCompleted
+                    ? primaryColor
+                    : Colors.grey.shade300,
+              ),
+            ),
+          ),
+          
+          // Step 3: Selesai
+          _buildStatusStep(
+            icon: Icons.check_circle_outline_rounded,
+            label: 'Selesai',
+            isActive: isCompletedActive,
+            isCompleted: false,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Build individual status step
+  Widget _buildStatusStep({
+    required IconData icon,
+    required String label,
+    required bool isActive,
+    required bool isCompleted,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: isActive || isCompleted ? primaryColor : Colors.grey.shade200,
+            shape: BoxShape.circle,
+            boxShadow: isActive || isCompleted
+                ? [
+                    BoxShadow(
+                      color: primaryColor.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Icon(
+            isCompleted ? Icons.check_rounded : icon,
+            color: isActive || isCompleted ? Colors.white : Colors.grey.shade500,
+            size: 24,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          style: GoogleFonts.poppins(
+            fontSize: 11,
+            fontWeight: isActive || isCompleted ? FontWeight.w600 : FontWeight.w500,
+            color: isActive || isCompleted ? primaryColor : Colors.grey.shade600,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -361,6 +491,14 @@ class _OffSchedulePickupDetailScreenState extends State<OffSchedulePickupDetailS
                             ),
                           ],
                         ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Status Stepper
+                      Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 16),
+                        child: _buildStatusStepper(_pickup!.requestStatus),
                       ),
 
                       const SizedBox(height: 16),

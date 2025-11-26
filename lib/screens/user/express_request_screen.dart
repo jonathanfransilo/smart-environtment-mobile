@@ -19,9 +19,6 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
 
-  // State untuk skip pengambilan default
-  bool _skipDefaultPickup = false;
-
   // State untuk lokasi dari service account
   List<ServiceAccount> _serviceAccounts = [];
   ServiceAccount? _selectedAccount;
@@ -522,6 +519,7 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
     );
   }
 
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -832,90 +830,7 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
                     ),
                   ),
 
-                const SizedBox(height: 24),
-
-              // Opsi Skip Pengambilan Default
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: _skipDefaultPickup
-                        ? Colors.orange.shade200
-                        : Colors.grey.shade200,
-                    width: 1,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: _skipDefaultPickup
-                            ? Colors.orange.shade50
-                            : Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        Icons.event_busy_rounded,
-                        color: _skipDefaultPickup
-                            ? Colors.orange.shade700
-                            : Colors.grey.shade600,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Skip Pengambilan Default',
-                            style: GoogleFonts.poppins(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Lewati pengambilan terjadwal minggu ini',
-                            style: GoogleFonts.poppins(
-                              fontSize: 11,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Transform.scale(
-                      scale: 1.1,
-                      child: Checkbox(
-                        value: _skipDefaultPickup,
-                        onChanged: (bool? value) {
-                          setState(() {
-                            _skipDefaultPickup = value ?? false;
-                          });
-                        },
-                        activeColor: Colors.orange.shade600,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
 
               // Lokasi Penjemputan
               Text(
