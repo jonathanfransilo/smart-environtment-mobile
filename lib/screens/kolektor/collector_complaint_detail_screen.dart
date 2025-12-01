@@ -1,19 +1,22 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
 import '../../models/complaint.dart';
 import '../../services/collector_complaint_service.dart';
+import '../../services/token_storage.dart';
 
 class CollectorComplaintDetailScreen extends StatefulWidget {
   final Complaint complaint;
 
   const CollectorComplaintDetailScreen({
-    Key? key,
+    super.key,
     required this.complaint,
-  }) : super(key: key);
+  });
 
   @override
   State<CollectorComplaintDetailScreen> createState() =>
@@ -27,17 +30,103 @@ class _CollectorComplaintDetailScreenState
   final TextEditingController _notesController = TextEditingController();
   final ImagePicker _picker = ImagePicker();
 
-  XFile? _selectedImage;
   bool _isUpdating = false;
+  bool _isLoadingDetail = true;
+  Complaint? _detailedComplaint;
+  Map<String, dynamic>? _serviceAccountData;
+  XFile? _selectedImage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadComplaintDetail();
+  }
+
+  Future<void> _loadComplaintDetail() async {
+    setState(() {
+      _isLoadingDetail = true;
+    });
+
+    try {
+      final detailedComplaint = await _complaintService.getComplaintDetail(widget.complaint.id);
+      
+      // Debug logging - PRINT FULL RESPONSE
+      debugPrint('🔍 [CollectorDetail] ========== COMPLAINT DETAIL ==========');
+      debugPrint('   - Service Account ID: ${detailedComplaint.serviceAccountId}');
+      debugPrint('   - Reporter data: ${detailedComplaint.reporter}');
+      debugPrint('   - Reporter keys: ${detailedComplaint.reporter?.keys.toList()}');
+      if (detailedComplaint.reporter != null) {
+        debugPrint('   - Reporter name: ${detailedComplaint.reporter!['name']}');
+        debugPrint('   - Reporter photo: ${detailedComplaint.reporter!['photo']}');
+        debugPrint('   - Reporter email: ${detailedComplaint.reporter!['email']}');
+        debugPrint('   - Reporter id: ${detailedComplaint.reporter!['id']}');
+      }
+      debugPrint('========================================');
+      
+      // Try to load service account data if service_account_id exists
+      if (detailedComplaint.serviceAccountId != null && detailedComplaint.serviceAccountId!.isNotEmpty) {
+        await _loadServiceAccountData(detailedComplaint.serviceAccountId!);
+      }
+      
+      setState(() {
+        _detailedComplaint = detailedComplaint;
+        _isLoadingDetail = false;
+      });
+    } catch (e) {
+      debugPrint('❌ [CollectorDetail] Error: $e');
+      setState(() {
+        _detailedComplaint = widget.complaint; // Fallback to initial data
+        _isLoadingDetail = false;
+      });
+    }
+  }
+
+  Future<void> _loadServiceAccountData(String serviceAccountId) async {
+    try {
+      final token = await TokenStorage.getToken();
+      if (token == null) return;
+      
+      final response = await http.get(
+        Uri.parse('https://smart-environment-web.citiasiainc.id/api/v1/mobile/collector/service-accounts/$serviceAccountId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        debugPrint('📡 [ServiceAccount] Response: $data');
+        
+        if (data['success'] == true && data['data'] != null) {
+          setState(() {
+            _serviceAccountData = data['data']['service_account'] ?? data['data'];
+          });
+          debugPrint('✅ [ServiceAccount] Loaded: $_serviceAccountData');
+          if (_serviceAccountData != null) {
+            debugPrint('   - Name: ${_serviceAccountData!['name']}');
+            debugPrint('   - Photo: ${_serviceAccountData!['photo']}');
+          }
+        }
+      } else {
+        debugPrint('❌ [ServiceAccount] Error: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('❌ [ServiceAccount] Exception: $e');
+      // Non-critical error, continue without service account data
+    }
+  }
 
   @override
   void dispose() {
     _notesController.dispose();
     super.dispose();
   }
+  
+  Complaint get _currentComplaint => _detailedComplaint ?? widget.complaint;
 
   Color _getStatusColor() {
-    switch (widget.complaint.status.toLowerCase()) {
+    switch (_currentComplaint.status.toLowerCase()) {
       case 'open':
         return Colors.orange;
       case 'in_progress':
@@ -90,7 +179,7 @@ class _CollectorComplaintDetailScreenState
 
     try {
       await _complaintService.updateComplaintStatus(
-        complaintId: widget.complaint.id,
+        complaintId: _currentComplaint.id,
         status: newStatus,
         notes: _notesController.text.trim().isNotEmpty
             ? _notesController.text.trim()
@@ -186,13 +275,97 @@ class _CollectorComplaintDetailScreenState
 
   @override
   Widget build(BuildContext context) {
-    final reporterName =
-        widget.complaint.reporter?['name']?.toString() ?? 'Warga';
-    final reporterPhone =
-        widget.complaint.reporter?['phone']?.toString() ?? '-';
-    final reporterAddress = widget.complaint.reporter?['address']?.toString() ??
-        widget.complaint.location ??
-        '-';
+    // Show loading while fetching detailed data
+    if (_isLoadingDetail) {
+      return Scaffold(
+        backgroundColor: Colors.grey[50],
+        appBar: AppBar(
+          title: Text(
+            'Detail Pelaporan',
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+          backgroundColor: const Color.fromARGB(255, 21, 145, 137),
+          elevation: 0,
+          iconTheme: const IconThemeData(color: Colors.white),
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(
+            color: Color.fromARGB(255, 21, 145, 137),
+          ),
+        ),
+      );
+    }
+    
+    // Priority 1: Use service account data if available
+    String reporterName = 'Nama tidak tersedia';
+    String reporterPhone = 'Nomor tidak tersedia';
+    String reporterAddress = 'Alamat tidak tersedia';
+    String? reporterPhoto;
+    
+    if (_serviceAccountData != null) {
+      reporterName = _serviceAccountData!['name']?.toString() ?? reporterName;
+      reporterPhone = _serviceAccountData!['contact_phone']?.toString() ?? 
+                      _serviceAccountData!['phone']?.toString() ??
+                      _serviceAccountData!['contact_number']?.toString() ??
+                      _serviceAccountData!['phone_number']?.toString() ?? reporterPhone;
+      reporterAddress = _serviceAccountData!['address']?.toString() ?? 
+                       _serviceAccountData!['alamat']?.toString() ?? reporterAddress;
+      
+      // Try multiple field names for photo
+      reporterPhoto = _serviceAccountData!['photo']?.toString() ?? 
+                     _serviceAccountData!['foto']?.toString() ??
+                     _serviceAccountData!['profile_picture']?.toString() ??
+                     _serviceAccountData!['avatar']?.toString() ??
+                     _serviceAccountData!['image']?.toString() ??
+                     _serviceAccountData!['profile_photo']?.toString();
+      
+      debugPrint('🖼️ [ServiceAccount] Photo field check:');
+      debugPrint('   - photo: ${_serviceAccountData!['photo']}');
+      debugPrint('   - foto: ${_serviceAccountData!['foto']}');
+      debugPrint('   - profile_picture: ${_serviceAccountData!['profile_picture']}');
+      debugPrint('   - avatar: ${_serviceAccountData!['avatar']}');
+      debugPrint('   - All keys: ${_serviceAccountData!.keys.toList()}');
+    } 
+    // Priority 2: Use complaint.reporter if service account not available
+    else if (_currentComplaint.reporter != null) {
+      reporterName = _currentComplaint.reporter?['name']?.toString() ?? reporterName;
+      reporterPhone = _currentComplaint.reporter?['phone']?.toString() ?? 
+                     _currentComplaint.reporter?['contact_phone']?.toString() ?? reporterPhone;
+      reporterAddress = _currentComplaint.reporter?['address']?.toString() ?? reporterAddress;
+      
+      // Try multiple field names for photo
+      reporterPhoto = _currentComplaint.reporter?['photo']?.toString() ??
+                     _currentComplaint.reporter?['foto']?.toString() ??
+                     _currentComplaint.reporter?['profile_picture']?.toString() ??
+                     _currentComplaint.reporter?['avatar']?.toString() ??
+                     _currentComplaint.reporter?['image']?.toString() ??
+                     _currentComplaint.reporter?['profile_photo']?.toString();
+      
+      debugPrint('🖼️ [Complaint.reporter] Photo field check:');
+      debugPrint('   - photo: ${_currentComplaint.reporter?['photo']}');
+      debugPrint('   - foto: ${_currentComplaint.reporter?['foto']}');
+      debugPrint('   - All keys: ${_currentComplaint.reporter?.keys.toList()}');
+    }
+    
+    // Fix photo URL if it's relative path
+    if (reporterPhoto != null && reporterPhoto.isNotEmpty && !reporterPhoto.startsWith('http')) {
+      reporterPhoto = 'https://smart-environment-web.citiasiainc.id$reporterPhoto';
+    }
+    
+    // Debug logging
+    debugPrint('👤 [UI] Reporter Info:');
+    debugPrint('   - Name: $reporterName');
+    debugPrint('   - Phone: $reporterPhone');
+    debugPrint('   - Photo: $reporterPhoto');
+    debugPrint('   - Address: $reporterAddress');
+    
+    // Fallback to location
+    if (reporterAddress == 'Alamat tidak tersedia' && _currentComplaint.location != null) {
+      reporterAddress = _currentComplaint.location!;
+    }
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -216,7 +389,7 @@ class _CollectorComplaintDetailScreenState
               children: [
                 // Status Badge
                 Container(
-                  color: _getStatusColor().withOpacity(0.1),
+                  color: _getStatusColor().withValues(alpha: 0.1),
                   padding: const EdgeInsets.all(16),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -228,7 +401,7 @@ class _CollectorComplaintDetailScreenState
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'Status: ${widget.complaint.statusText}',
+                        'Status: ${_currentComplaint.statusText}',
                         style: GoogleFonts.poppins(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -248,20 +421,20 @@ class _CollectorComplaintDetailScreenState
                     _buildInfoRow(
                       icon: Icons.category_outlined,
                       label: 'Jenis',
-                      value: widget.complaint.typeText,
+                      value: _currentComplaint.typeText,
                     ),
                     const Divider(height: 24),
                     _buildInfoRow(
                       icon: Icons.access_time,
                       label: 'Tanggal',
                       value: DateFormat('dd MMMM yyyy, HH:mm')
-                          .format(widget.complaint.createdAt),
+                          .format(_currentComplaint.createdAt),
                     ),
                     const Divider(height: 24),
                     _buildInfoRow(
                       icon: Icons.description_outlined,
                       label: 'Deskripsi',
-                      value: widget.complaint.description,
+                      value: _currentComplaint.description,
                       isMultiline: true,
                     ),
                   ],
@@ -269,7 +442,7 @@ class _CollectorComplaintDetailScreenState
 
                 const SizedBox(height: 16),
 
-                // Reporter Info
+                // Reporter Info with Photo
                 _buildSection(
                   title: 'Informasi Pelapor',
                   children: [
@@ -297,7 +470,7 @@ class _CollectorComplaintDetailScreenState
                 const SizedBox(height: 16),
 
                 // Photos
-                if (widget.complaint.photos.isNotEmpty)
+                if (_currentComplaint.photos.isNotEmpty)
                   _buildSection(
                     title: 'Foto Bukti',
                     children: [
@@ -305,9 +478,9 @@ class _CollectorComplaintDetailScreenState
                         height: 120,
                         child: ListView.builder(
                           scrollDirection: Axis.horizontal,
-                          itemCount: widget.complaint.photos.length,
+                          itemCount: _currentComplaint.photos.length,
                           itemBuilder: (context, index) {
-                            final photo = widget.complaint.photos[index];
+                            final photo = _currentComplaint.photos[index];
                             return Container(
                               margin: const EdgeInsets.only(right: 12),
                               child: ClipRRect(
@@ -336,7 +509,7 @@ class _CollectorComplaintDetailScreenState
                 const SizedBox(height: 16),
 
                 // Update Status Section
-                if (widget.complaint.status.toLowerCase() != 'resolved')
+                if (_currentComplaint.status.toLowerCase() != 'resolved')
                   _buildSection(
                     title: 'Update Status',
                     children: [
@@ -406,58 +579,67 @@ class _CollectorComplaintDetailScreenState
                         ),
                         const SizedBox(height: 16),
                       ],
-                      OutlinedButton.icon(
-                        onPressed: _pickImage,
-                        icon: const Icon(Icons.camera_alt),
-                        label: Text(
-                          _selectedImage == null
-                              ? 'Ambil Foto Bukti'
-                              : 'Ganti Foto',
-                          style: GoogleFonts.poppins(),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor:
-                              const Color.fromARGB(255, 21, 145, 137),
-                          side: const BorderSide(
-                            color: Color.fromARGB(255, 21, 145, 137),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _pickImage,
+                          icon: const Icon(Icons.camera_alt),
+                          label: Text(
+                            _selectedImage == null
+                                ? 'Ambil Foto Bukti'
+                                : 'Ganti Foto',
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color.fromARGB(255, 21, 145, 137),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            elevation: 0,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 12),
-                      if (widget.complaint.status.toLowerCase() == 'open')
-                        ElevatedButton(
-                          onPressed:
-                              _isUpdating ? null : () => _updateStatus('in_progress'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            disabledBackgroundColor: Colors.grey[300],
-                          ),
-                          child: Text(
-                            'Mulai Proses',
-                            style: GoogleFonts.poppins(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
+                      if (_currentComplaint.status.toLowerCase() == 'open')
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed:
+                                _isUpdating ? null : () => _updateStatus('in_progress'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              disabledBackgroundColor: Colors.grey[300],
+                            ),
+                            child: Text(
+                              'Mulai Proses',
+                              style: GoogleFonts.poppins(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ),
-                      if (widget.complaint.status.toLowerCase() == 'in_progress')
-                        ElevatedButton(
-                          onPressed:
-                              _isUpdating ? null : () => _updateStatus('resolved'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            disabledBackgroundColor: Colors.grey[300],
-                          ),
-                          child: Text(
-                            'Selesaikan',
-                            style: GoogleFonts.poppins(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
+                      if (_currentComplaint.status.toLowerCase() == 'in_progress')
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed:
+                                _isUpdating ? null : () => _updateStatus('resolved'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color.fromARGB(255, 21, 145, 137),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              disabledBackgroundColor: Colors.grey[300],
+                            ),
+                            child: Text(
+                              'Selesaikan',
+                              style: GoogleFonts.poppins(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ),
@@ -494,7 +676,7 @@ class _CollectorComplaintDetailScreenState
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),

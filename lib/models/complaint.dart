@@ -29,6 +29,7 @@ class Complaint {
   final String? location; // Lokasi kejadian
   final String status; // 'open', 'in_progress', 'resolved', 'rejected'
   final List<ComplaintPhoto> photos; // Evidence photos
+  final String? resolutionPhoto; // ✅ Foto penyelesaian dari collector
   final Map<String, dynamic>? reporter; // Reporter information for collector view
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -43,6 +44,7 @@ class Complaint {
     this.location,
     required this.status,
     this.photos = const [],
+    this.resolutionPhoto,
     this.reporter,
     required this.createdAt,
     required this.updatedAt,
@@ -70,6 +72,54 @@ class Complaint {
       updatedAt = createdAt;
     }
 
+    // ✅ Parse reporter and service_account info
+    Map<String, dynamic>? reporterData;
+    
+    // Priority 1: Check service_account field (for collector view)
+    if (json.containsKey('service_account') && json['service_account'] != null) {
+      final serviceAccount = json['service_account'] as Map<String, dynamic>;
+      print('📋 [Complaint] Service Account Data: $serviceAccount');
+      
+      // Coba berbagai kemungkinan field untuk phone
+      final phone = serviceAccount['contact_phone'] ?? 
+                    serviceAccount['phone'] ?? 
+                    serviceAccount['contact_number'] ?? 
+                    serviceAccount['kontak'] ?? 
+                    serviceAccount['phone_number'] ?? '';
+      
+      // Map service account sebagai reporter
+      reporterData = {
+        'id': serviceAccount['id'],
+        'name': serviceAccount['name'] ?? 'Service Account',
+        'phone': phone,
+        'address': serviceAccount['address'] ?? serviceAccount['alamat'] ?? '',
+        'photo': serviceAccount['photo'] ?? serviceAccount['foto'] ?? '',
+        'email': serviceAccount['email'] ?? '',
+      };
+      
+      print('📋 [Complaint] Mapped Service Account as Reporter:');
+      print('   - Name: ${reporterData['name']}');
+      print('   - Phone: ${reporterData['phone']}');
+      print('   - Email: ${reporterData['email']}');
+      print('   - Address: ${reporterData['address']}');
+    }
+    // Priority 2: Use reporter field if available (for user view)
+    else if (json.containsKey('reporter') && json['reporter'] != null) {
+      reporterData = json['reporter'] as Map<String, dynamic>;
+      print('📋 [Complaint] Using reporter field: $reporterData');
+      
+      // If reporter doesn't have phone, it might be user data not service account
+      if (!reporterData.containsKey('phone') && 
+          !reporterData.containsKey('contact_phone')) {
+        print('⚠️ [Complaint] Reporter has no phone - might be user data instead of service account');
+      }
+    }
+    
+    if (reporterData == null) {
+      print('⚠️ [Complaint] No reporter or service_account data found');
+      print('📋 Available keys in JSON: ${json.keys.toList()}');
+    }
+
     return Complaint(
       id: json['id'].toString(),
       userId: json['user_id']?.toString() ?? '',
@@ -77,10 +127,11 @@ class Complaint {
       assigneeId: json['assignee_id']?.toString(),
       type: json['type'] ?? '',
       description: json['description'] ?? '',
-      location: json['address']?.toString(), // API menggunakan field 'address'
+      location: json['address']?.toString(), // ✅ API menggunakan field 'address'
       status: json['status'] ?? 'open',
       photos: photos,
-      reporter: json['reporter'] as Map<String, dynamic>?,
+      resolutionPhoto: json['resolution_photo']?.toString(), // ✅ Foto resolution
+      reporter: reporterData,
       createdAt: createdAt,
       updatedAt: updatedAt,
     );
@@ -97,6 +148,7 @@ class Complaint {
       'location': location,
       'status': status,
       'photos': photos.map((p) => p.toJson()).toList(),
+      'resolution_photo': resolutionPhoto,
       'reporter': reporter,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
@@ -158,6 +210,7 @@ class Complaint {
     String? description,
     String? status,
     List<ComplaintPhoto>? photos,
+    String? resolutionPhoto,
     Map<String, dynamic>? reporter,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -171,6 +224,7 @@ class Complaint {
       description: description ?? this.description,
       status: status ?? this.status,
       photos: photos ?? this.photos,
+      resolutionPhoto: resolutionPhoto ?? this.resolutionPhoto,
       reporter: reporter ?? this.reporter,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,

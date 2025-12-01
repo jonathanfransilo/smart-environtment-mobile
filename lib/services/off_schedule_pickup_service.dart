@@ -7,13 +7,43 @@ import '../models/off_schedule_pickup.dart';
 class OffSchedulePickupService {
   final String baseUrl = ApiConfig.baseUrl;
 
-  /// Create off-schedule pickup request
-  /// According to API docs, bag_count is NOT sent here - it will be filled by collector
-  Future<OffSchedulePickup> createRequest({
+  /// Get pricing info for off-schedule pickups
+  Future<Map<String, dynamic>> getPricingInfo() async {
+    try {
+      final token = await TokenStorage.getToken();
+      if (token == null) {
+        throw Exception('No authentication token found');
+      }
+
+      final url = Uri.parse('$baseUrl/mobile/resident/off-schedule-pickups/pricing-info');
+
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is Map && data.containsKey('data')) {
+          return Map<String, dynamic>.from(data['data']);
+        }
+        return {};
+      } else {
+        throw Exception('Failed to fetch pricing info: ${response.statusCode}');
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Preview scheduled pickups that will be skipped
+  Future<Map<String, dynamic>> previewSkipScheduled({
     required int serviceAccountId,
     required String requestedPickupDate,
-    String? requestedPickupTime,
-    String? note,
   }) async {
     try {
       final token = await TokenStorage.getToken();
@@ -22,7 +52,7 @@ class OffSchedulePickupService {
         throw Exception('No authentication token found');
       }
 
-      final url = Uri.parse('$baseUrl/mobile/resident/off-schedule-pickups');
+      final url = Uri.parse('$baseUrl/mobile/resident/off-schedule-pickups/preview-skip');
       
       final response = await http.post(
         url,
@@ -34,15 +64,76 @@ class OffSchedulePickupService {
         body: jsonEncode({
           'service_account_id': serviceAccountId,
           'requested_pickup_date': requestedPickupDate,
-          if (requestedPickupTime != null) 'requested_pickup_time': requestedPickupTime,
-          if (note != null) 'note': note,
         }),
       );
+
+      print('🔍 [PreviewSkip] Response status: ${response.statusCode}');
+      print('🔍 [PreviewSkip] Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['data'] ?? {};
+      } else if (response.statusCode == 422) {
+        final error = jsonDecode(response.body);
+        throw Exception(error['message'] ?? 'Validation error');
+      } else {
+        throw Exception('Failed to preview skip: ${response.statusCode}');
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Create off-schedule pickup request with optional skip next scheduled
+  Future<Map<String, dynamic>> createRequest({
+    required int serviceAccountId,
+    required String requestedPickupDate,
+    String? requestedPickupTime,
+    String? note,
+    bool skipNextScheduled = false,
+  }) async {
+    try {
+      final token = await TokenStorage.getToken();
+      
+      if (token == null) {
+        throw Exception('No authentication token found');
+      }
+
+      final url = Uri.parse('$baseUrl/mobile/resident/off-schedule-pickups');
+      
+      final requestBody = {
+        'service_account_id': serviceAccountId,
+        'requested_pickup_date': requestedPickupDate,
+        if (requestedPickupTime != null) 'requested_pickup_time': requestedPickupTime,
+        if (note != null) 'resident_note': note,
+        'skip_next_scheduled': skipNextScheduled,
+      };
+
+      print('📤 [CreateRequest] Request body: ${jsonEncode(requestBody)}');
+      
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(requestBody),
+      );
+
+      print('📡 [CreateRequest] Response status: ${response.statusCode}');
+      print('📡 [CreateRequest] Response body: ${response.body}');
 
 
       if (response.statusCode == 201) {
         final data = jsonDecode(response.body);
-        return OffSchedulePickup.fromJson(data['data']);
+        // Return full response including message and skipped_pickups
+        return {
+          'success': data['success'] ?? true,
+          'message': data['message'] ?? 'Request berhasil dibuat',
+          'data': data['data'],
+          'skipped_pickups': data['skipped_pickups'] ?? [],
+        };
       } else if (response.statusCode == 422) {
         final error = jsonDecode(response.body);
         // Handle both error formats from API
@@ -162,17 +253,31 @@ class OffSchedulePickupService {
     }
   }
 
-  /// Fetch pricing info for off-schedule pickups
-  /// Returns the raw data map from the API `data` field.
-  Future<Map<String, dynamic>> getPricingInfo() async {
+
+
+  /// Get off-schedule pickups for collector (today's assigned tasks)
+  /// This will be called by collector to see their assigned off-schedule pickups
+  /// Endpoint: /mobile/collector/off-schedule-pickups/
+  Future<List<OffSchedulePickup>> getCollectorTodayPickups() async {
     try {
       final token = await TokenStorage.getToken();
       if (token == null) {
+        print('❌ [OffSchedulePickupService] No authentication token found');
         throw Exception('No authentication token found');
       }
 
-      final url = Uri.parse('$baseUrl/mobile/resident/off-schedule-pickups/pricing-info');
-
+      print('🔍 [OffSchedulePickupService] Fetching assigned pickups for collector...');
+      print('🔑 [OffSchedulePickupService] Token: ${token.substring(0, 20)}...');
+      
+      // ✅ ENDPOINT sesuai dokumentasi API (tanpa trailing slash)
+      final url = Uri.parse('$baseUrl/mobile/collector/off-schedule-pickups');
+      
+      print('🌐 [OffSchedulePickupService] API URL: $url');
+      print('📤 [OffSchedulePickupService] Request headers:');
+      print('   - Content-Type: application/json');
+      print('   - Accept: application/json');
+      print('   - Authorization: Bearer ${token.substring(0, 20)}...');
+      
       final response = await http.get(
         url,
         headers: {
@@ -182,17 +287,121 @@ class OffSchedulePickupService {
         },
       );
 
+      print('📡 [OffSchedulePickupService] Response status: ${response.statusCode}');
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data is Map && data.containsKey('data')) {
-          return Map<String, dynamic>.from(data['data']);
+        print('📦 [OffSchedulePickupService] Response structure: ${data.keys.toList()}');
+        
+        // Sesuai dokumentasi API: {"success": true, "data": [...]}
+        if (data['success'] == true && data['data'] is List) {
+          final List<dynamic> pickupsJson = data['data'];
+          print('📊 [OffSchedulePickupService] Total pickups from API: ${pickupsJson.length}');
+          
+          if (pickupsJson.isNotEmpty) {
+            print('📋 [OffSchedulePickupService] Sample pickup:');
+            print('   ID: ${pickupsJson.first['id']}');
+            print('   Request Status: ${pickupsJson.first['request_status']}');
+            print('   Requested Date: ${pickupsJson.first['requested_pickup_date']}');
+            print('   Service Account: ${pickupsJson.first['service_account']}');
+          }
+          
+          // Parse semua pickups dari API
+          final allPickups = pickupsJson
+              .map((json) => OffSchedulePickup.fromJson(json))
+              .toList();
+          
+          print('📦 [OffSchedulePickupService] Parsed ${allPickups.length} total pickups');
+          
+          // ✅ FILTER: Hanya tampilkan request dengan status aktif
+          // - request_status: 'processing' (sudah ditugaskan ke collector)
+          // - EXCLUDE: 'sent' (belum ditugaskan), 'rejected' (ditolak), 
+          //            'completed' (selesai), 'paid' (lunas), 'pending' (menunggu konfirmasi)
+          final activePickups = allPickups.where((pickup) {
+            final isProcessing = pickup.requestStatus == 'processing';
+            final notCancelled = pickup.status != 'cancelled';
+            
+            if (!isProcessing || !notCancelled) {
+              print('   ⏭️ Filtered out Pickup #${pickup.id}: request_status=${pickup.requestStatus}, status=${pickup.status}');
+            }
+            
+            return isProcessing && notCancelled;
+          }).toList();
+          
+          print('✅ [OffSchedulePickupService] Active pickups: ${activePickups.length} (filtered from ${allPickups.length})');
+          return activePickups;
+        } else {
+          print('⚠️ [OffSchedulePickupService] Unexpected response format');
+          return [];
         }
-        return {};
       } else {
-        throw Exception('Failed to fetch pricing info: ${response.statusCode}');
+        print('❌ [OffSchedulePickupService] Failed: ${response.statusCode}');
+        print('📄 [OffSchedulePickupService] Response body: ${response.body}');
+        
+        if (response.statusCode == 401) {
+          print('🔐 [OffSchedulePickupService] Authentication failed - token may be invalid');
+          print('💡 [OffSchedulePickupService] Ensure the endpoint has auth:sanctum middleware');
+        }
+        
+        return [];
+      }
+    } catch (e, stackTrace) {
+      print('💥 [OffSchedulePickupService] Error: $e');
+      print('   Stack trace:');
+      print(stackTrace);
+      
+      // Return empty list untuk menghindari crash
+      return [];
+    }
+  }
+
+  /// Start/confirm off-schedule pickup for collector
+  /// This changes status from pending/scheduled to on_progress
+  /// Endpoint: /mobile/collector/off-schedule-pickups/{id}/start
+  static Future<(bool success, String? message)> startPickup(int id) async {
+    try {
+      final token = await TokenStorage.getToken();
+      if (token == null) {
+        throw Exception('No authentication token found');
+      }
+
+      final url = Uri.parse('${ApiConfig.baseUrl}/mobile/collector/off-schedule-pickups/$id/start');
+      
+      print('🔍 [OffSchedulePickupService] Starting pickup ID: $id');
+      print('🌐 [OffSchedulePickupService] API URL: $url');
+
+      final response = await http.put(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('📡 [OffSchedulePickupService] Response status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        print('✅ [OffSchedulePickupService] Start pickup SUCCESS');
+        
+        if (data['success'] == true) {
+          return (true, null);
+        } else {
+          final msg = data['errors']?['message']?.toString() ?? 'Gagal memulai pengambilan';
+          return (false, msg);
+        }
+      } else {
+        print('❌ [OffSchedulePickupService] Failed: ${response.statusCode}');
+        print('📄 [OffSchedulePickupService] Response: ${response.body}');
+        
+        final data = jsonDecode(response.body);
+        final msg = data['errors']?['message']?.toString() ?? 'Gagal memulai pengambilan';
+        return (false, msg);
       }
     } catch (e) {
-      rethrow;
+      print('💥 [OffSchedulePickupService] Error: $e');
+      return (false, 'Terjadi kesalahan: $e');
     }
   }
 }

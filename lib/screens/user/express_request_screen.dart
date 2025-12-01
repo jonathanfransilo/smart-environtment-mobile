@@ -30,6 +30,9 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
   // Pricing info from API
   Map<String, dynamic>? _pricingInfo;
   bool _isLoadingPricing = false;
+  
+  // Skip scheduled pickup feature
+  bool _skipNextScheduled = false;
 
   @override
   void initState() {
@@ -56,6 +59,124 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
 
   String _formatCurrency(int amount) {
     return 'Rp ${amount.toString().replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (Match m) => '${m[1]}.')}';
+  }
+
+  // Preview skip scheduled pickups
+  Future<void> _previewSkipScheduled() async {
+    if (_selectedDate == null || _selectedAccount == null) return;
+    
+    try {
+      final service = OffSchedulePickupService();
+      final formattedDate = DateFormat('yyyy-MM-dd').format(_selectedDate!);
+      
+      final data = await service.previewSkipScheduled(
+        serviceAccountId: int.parse(_selectedAccount!.id),
+        requestedPickupDate: formattedDate,
+      );
+      
+      if (!mounted) return;
+      
+      // Show dialog if there are pickups to skip
+      final pickupsToSkip = data['scheduled_pickups_to_skip'] as List?;
+      if (pickupsToSkip != null && pickupsToSkip.isNotEmpty) {
+        _showSkipConfirmationDialog(data);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      print('Error previewing skip: $e');
+    }
+  }
+  
+  // Show skip confirmation dialog
+  void _showSkipConfirmationDialog(Map<String, dynamic> previewData) {
+    final pickupsToSkip = previewData['scheduled_pickups_to_skip'] as List;
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.event_busy, color: Colors.orange[700], size: 24),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Jadwal yang Akan Di-skip',
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Jika Anda mengaktifkan opsi "Skip jadwal berikutnya", jadwal pickup di bawah ini akan di-skip:',
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                color: Colors.grey[700],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.withOpacity(0.3)),
+              ),
+              child: Column(
+                children: pickupsToSkip.map((pickup) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        Icon(Icons.calendar_today, size: 16, color: Colors.orange[700]),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '${DateFormat('dd MMM yyyy').format(DateTime.parse(pickup['pickup_date']))} - ${pickup['day_name']}',
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              previewData['note'] ?? '',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                color: Colors.grey[600],
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'OK',
+              style: GoogleFonts.poppins(
+                color: primaryColor,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   String _formatSurcharge(Map<String, dynamic>? info) {
@@ -209,11 +330,17 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
         requestedPickupDate: formattedDate,
         requestedPickupTime: formattedTime,
         note: _noteController.text.isNotEmpty ? _noteController.text : null,
+        skipNextScheduled: _skipNextScheduled,
       );
 
       if (!mounted) return;
 
       setState(() => _isSubmitting = false);
+
+      // Extract data from result
+      final pickup = result['data'];
+      final message = result['message'] as String? ?? 'Request berhasil dibuat';
+      final skippedPickups = result['skipped_pickups'] as List? ?? [];
 
       // Tampilkan dialog sukses dengan data dari API
       showDialog(
@@ -241,7 +368,7 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Request pengambilan berhasil dikirim!',
+                message,
                 style: GoogleFonts.poppins(fontSize: 14),
               ),
               const SizedBox(height: 16),
@@ -254,20 +381,58 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildDetailRow('Status', result.getStatusLabel(), Colors.blue),
-                    const Divider(height: 16),
-                    _buildDetailRow('Tanggal', result.requestedPickupDate, primaryColor),
-                    if (result.requestedPickupTime != null) ...[
+                    _buildDetailRow('Tanggal', pickup['requested_pickup_date'] ?? '-', primaryColor),
+                    if (pickup['requested_pickup_time'] != null) ...[
                       const Divider(height: 16),
-                      _buildDetailRow('Waktu', result.requestedPickupTime!, primaryColor),
+                      _buildDetailRow('Waktu', pickup['requested_pickup_time'], primaryColor),
                     ],
-                    if (result.extraFee > 0) ...[
+                    if (pickup['extra_fee'] != null && pickup['extra_fee'] > 0) ...[
                       const Divider(height: 16),
-                      _buildDetailRow('Biaya Tambahan', 'Rp ${result.extraFee.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}', Colors.orange),
+                      _buildDetailRow('Biaya Tambahan', _formatCurrency(pickup['extra_fee']), Colors.orange),
                     ],
                   ],
                 ),
               ),
+              if (skippedPickups.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.event_busy, size: 16, color: Colors.orange[700]),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Jadwal di-skip:',
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.orange[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      ...skippedPickups.map((sp) => Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          '• ${DateFormat('dd MMM yyyy').format(DateTime.parse(sp['pickup_date']))}',
+                          style: GoogleFonts.poppins(
+                            fontSize: 11,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                      )),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               Text(
                 'Petugas akan segera menghubungi Anda.',
@@ -829,6 +994,66 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
                       ],
                     ),
                   ),
+
+              const SizedBox(height: 24),
+
+              // Skip Next Scheduled Checkbox
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.orange.withOpacity(0.2)),
+                ),
+                child: CheckboxListTile(
+                  value: _skipNextScheduled,
+                  onChanged: _selectedDate != null && _selectedAccount != null
+                      ? (value) {
+                          setState(() {
+                            _skipNextScheduled = value ?? false;
+                          });
+                          // Preview jika dicentang
+                          if (value == true) {
+                            _previewSkipScheduled();
+                          }
+                        }
+                      : null,
+                  title: Row(
+                    children: [
+                      Icon(
+                        Icons.event_busy,
+                        size: 20,
+                        color: Colors.orange[700],
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Skip jadwal berikutnya',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(left: 28, top: 4),
+                    child: Text(
+                      'Jadwal pickup reguler dalam minggu ini akan di-skip',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ),
+                  activeColor: Colors.orange[700],
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+              ),
 
               const SizedBox(height: 24),
 

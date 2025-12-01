@@ -86,6 +86,23 @@ class RiwayatSampahScreen extends StatelessWidget {
                     ),
                     textAlign: TextAlign.center,
                   ),
+                  SizedBox(height: 8),
+                  // Label jenis pengambilan
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: _getPickupTypeColor(),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      _getPickupTypeLabel(),
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -361,5 +378,39 @@ class RiwayatSampahScreen extends StatelessWidget {
       total += (item['quantity'] as int? ?? 0);
     }
     return total;
+  }
+
+  /// Get pickup type label
+  String _getPickupTypeLabel() {
+    // Check if it's a complaint
+    if (pickupData.containsKey('type') && pickupData['type'] != null) {
+      return 'Pelaporan';
+    }
+    
+    // Check if it's off-schedule (request)
+    final pickupType = pickupData['pickup_type'];
+    if (pickupType == 'off-schedule') {
+      return 'Request Pengambilan';
+    }
+    
+    // Default: regular scheduled pickup
+    return 'Pengambilan Reguler';
+  }
+
+  /// Get pickup type color
+  Color _getPickupTypeColor() {
+    // Check if it's a complaint
+    if (pickupData.containsKey('type') && pickupData['type'] != null) {
+      return Colors.red; // Merah untuk pelaporan
+    }
+    
+    // Check if it's off-schedule (request)
+    final pickupType = pickupData['pickup_type'];
+    if (pickupType == 'off-schedule') {
+      return Colors.orange; // Orange untuk request
+    }
+    
+    // Default: regular scheduled pickup
+    return const Color(0xFF009688); // Hijau tosca untuk jadwal reguler
   }
 }

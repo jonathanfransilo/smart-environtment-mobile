@@ -44,6 +44,7 @@ class ApiConfig {
   static const String collectorWasteItems = '/mobile/collector/waste-items';
   static const String collectorProfile = '/mobile/collector/profile';
   static const String collectorChangePassword ='/mobile/collector/profile/change-password';
+  static const String collectorOffSchedulePickupsToday = '/mobile/collector/off-schedule-pickups/today';
 
   // Resident/User endpoints
   static const String residentPickupsUpcoming = '/mobile/resident/pickups/upcoming';

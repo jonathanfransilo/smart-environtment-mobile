@@ -1,17 +1,14 @@
 class OffSchedulePickup {
   final int id;
-  final int serviceAccountId;
-  final String serviceAccountName;
-  final String address;
+  final ServiceAccount? serviceAccount;
   final String pickupType;
   final String requestStatus;
   final String status;
   final int bagCount;
-  final int unitPrice;
   final int baseAmount;
   final int extraFee;
   final int totalAmount;
-  final DateTime requestedAt;
+  final DateTime? createdAt;
   final String requestedPickupDate;
   final String? requestedPickupTime;
   final AssignedCollector? assignedCollector;
@@ -20,21 +17,20 @@ class OffSchedulePickup {
   final Invoice? invoice;
   final String? residentNote;
   final String? note;
+  final String? collectorNotes;
+  final DateTime? collectedAt;
 
   OffSchedulePickup({
     required this.id,
-    required this.serviceAccountId,
-    required this.serviceAccountName,
-    required this.address,
+    this.serviceAccount,
     required this.pickupType,
     required this.requestStatus,
     required this.status,
     required this.bagCount,
-    required this.unitPrice,
     required this.baseAmount,
     required this.extraFee,
     required this.totalAmount,
-    required this.requestedAt,
+    this.createdAt,
     required this.requestedPickupDate,
     this.requestedPickupTime,
     this.assignedCollector,
@@ -43,26 +39,32 @@ class OffSchedulePickup {
     this.invoice,
     this.residentNote,
     this.note,
+    this.collectorNotes,
+    this.collectedAt,
   });
+
+  // Convenience getters for backward compatibility
+  int get serviceAccountId => serviceAccount?.id ?? 0;
+  String get serviceAccountName => serviceAccount?.name ?? '';
+  String get address => serviceAccount?.address ?? '';
 
   factory OffSchedulePickup.fromJson(Map<String, dynamic> json) {
     return OffSchedulePickup(
-      id: json['id'],
-      serviceAccountId: json['service_account_id'],
-      serviceAccountName: json['service_account_name'] ?? '',
-      address: json['address'] ?? '',
+      id: json['id'] ?? 0,
+      serviceAccount: json['service_account'] != null
+          ? ServiceAccount.fromJson(json['service_account'])
+          : null,
       pickupType: json['pickup_type'] ?? 'request',
       requestStatus: json['request_status'] ?? 'sent',
       status: json['status'] ?? 'pending',
       bagCount: json['bag_count'] ?? 0,
-      unitPrice: json['unit_price'] ?? 0,
-      baseAmount: json['base_amount'] ?? 0,
-      extraFee: json['extra_fee'] ?? 0,
-      totalAmount: json['total_amount'] ?? 0,
-      requestedAt: json['requested_at'] != null 
-          ? DateTime.parse(json['requested_at']) 
-          : (json['created_at'] != null ? DateTime.parse(json['created_at']) : DateTime.now()),
-      requestedPickupDate: json['requested_pickup_date'],
+      baseAmount: (json['base_amount'] ?? 0).toInt(),
+      extraFee: (json['extra_fee'] ?? 0).toInt(),
+      totalAmount: (json['total_amount'] ?? 0).toInt(),
+      createdAt: json['created_at'] != null 
+          ? DateTime.parse(json['created_at']) 
+          : null,
+      requestedPickupDate: json['requested_pickup_date'] ?? '',
       requestedPickupTime: json['requested_pickup_time'],
       assignedCollector: json['assigned_collector'] != null
           ? AssignedCollector.fromJson(json['assigned_collector'])
@@ -72,24 +74,25 @@ class OffSchedulePickup {
       invoice: json['invoice'] != null ? Invoice.fromJson(json['invoice']) : null,
       residentNote: json['resident_note'],
       note: json['note'],
+      collectorNotes: json['collector_notes'],
+      collectedAt: json['collected_at'] != null
+          ? DateTime.parse(json['collected_at'])
+          : null,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'service_account_id': serviceAccountId,
-      'service_account_name': serviceAccountName,
-      'address': address,
+      'service_account': serviceAccount?.toJson(),
       'pickup_type': pickupType,
       'request_status': requestStatus,
       'status': status,
       'bag_count': bagCount,
-      'unit_price': unitPrice,
       'base_amount': baseAmount,
       'extra_fee': extraFee,
       'total_amount': totalAmount,
-      'requested_at': requestedAt.toIso8601String(),
+      'created_at': createdAt?.toIso8601String(),
       'requested_pickup_date': requestedPickupDate,
       'requested_pickup_time': requestedPickupTime,
       'assigned_collector': assignedCollector?.toJson(),
@@ -98,6 +101,8 @@ class OffSchedulePickup {
       'invoice': invoice?.toJson(),
       'resident_note': residentNote,
       'note': note,
+      'collector_notes': collectorNotes,
+      'collected_at': collectedAt?.toIso8601String(),
     };
   }
 
@@ -137,6 +142,51 @@ class OffSchedulePickup {
       default:
         return 'grey';
     }
+  }
+}
+
+class ServiceAccount {
+  final int id;
+  final String name;
+  final String address;
+  final double? latitude;
+  final double? longitude;
+  final String? contactPhone;
+
+  ServiceAccount({
+    required this.id,
+    required this.name,
+    required this.address,
+    this.latitude,
+    this.longitude,
+    this.contactPhone,
+  });
+
+  factory ServiceAccount.fromJson(Map<String, dynamic> json) {
+    // Debug: Print all available keys
+    print('🔍 [ServiceAccount] Parsing from JSON with keys: ${json.keys.toList()}');
+    print('   Raw JSON: $json');
+    
+    return ServiceAccount(
+      id: json['id'] ?? 0,
+      name: json['name'] ?? '',
+      address: json['address'] ?? '',
+      latitude: json['latitude'] != null ? double.tryParse(json['latitude'].toString()) : null,
+      longitude: json['longitude'] != null ? double.tryParse(json['longitude'].toString()) : null,
+      // ✅ PERBAIKAN: Coba beberapa kemungkinan field name untuk contact phone
+      contactPhone: json['contact_phone'] ?? json['phone'] ?? json['contact_number'] ?? json['phone_number'],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'address': address,
+      'latitude': latitude,
+      'longitude': longitude,
+      'contact_phone': contactPhone,
+    };
   }
 }
 

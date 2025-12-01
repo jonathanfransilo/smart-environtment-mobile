@@ -18,6 +18,7 @@ class PengambilanSampahScreen extends StatefulWidget {
   final double latitude;
   final double longitude;
   final String status; // Tambahkan parameter status
+  final bool isOffSchedule; // Flag untuk off-schedule pickup
 
   const PengambilanSampahScreen({
     super.key,
@@ -31,6 +32,7 @@ class PengambilanSampahScreen extends StatefulWidget {
     required this.latitude,
     required this.longitude,
     this.status = 'pending', // Default ke pending
+    this.isOffSchedule = false, // Default bukan off-schedule
   });
 
   @override
@@ -89,7 +91,29 @@ class _PengambilanSampahScreenState extends State<PengambilanSampahScreen>
   }
 
   Future<void> _confirmPickup() async {
-    // Show loading
+    // Untuk off-schedule pickup, langsung konfirmasi tanpa API call
+    // karena backend belum support endpoint /start untuk off-schedule
+    if (widget.isOffSchedule) {
+      setState(() {
+        _isConfirmed = true;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Pengambilan sampah dikonfirmasi!',
+              style: GoogleFonts.poppins(fontSize: 14),
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+
+    // Show loading untuk regular pickup
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -115,7 +139,7 @@ class _PengambilanSampahScreenState extends State<PengambilanSampahScreen>
       ),
     );
 
-    // Call API to start pickup
+    // Call API untuk regular pickup
     final (success, message) = await PickupService.startPickup(widget.pickupId);
 
     // Close loading dialog
@@ -579,16 +603,25 @@ class _PengambilanSampahScreenState extends State<PengambilanSampahScreen>
               ),
             ),
             Text(
-              widget.userPhone.isNotEmpty && widget.userPhone != '-'
+              widget.userPhone.isNotEmpty && 
+              widget.userPhone != '-' && 
+              widget.userPhone != 'Tidak ada nomor' &&
+              widget.userPhone != 'Nomor tidak tersedia'
                   ? widget.userPhone
-                  : 'Nomor telepon tidak tersedia',
+                  : 'Tidak ada nomor',
               style: GoogleFonts.poppins(
                 fontSize: 13,
-                color: widget.userPhone.isNotEmpty && widget.userPhone != '-'
+                color: widget.userPhone.isNotEmpty && 
+                    widget.userPhone != '-' &&
+                    widget.userPhone != 'Tidak ada nomor' &&
+                    widget.userPhone != 'Nomor tidak tersedia'
                     ? Colors.grey[600]
                     : Colors.grey[400],
                 fontStyle:
-                    widget.userPhone.isNotEmpty && widget.userPhone != '-'
+                    widget.userPhone.isNotEmpty && 
+                    widget.userPhone != '-' &&
+                    widget.userPhone != 'Tidak ada nomor' &&
+                    widget.userPhone != 'Nomor tidak tersedia'
                     ? FontStyle.normal
                     : FontStyle.italic,
               ),
@@ -599,7 +632,9 @@ class _PengambilanSampahScreenState extends State<PengambilanSampahScreen>
       // Tampilkan tombol chat dan telepon hanya setelah konfirmasi dan jika ada nomor telepon
       if (_isConfirmed &&
           widget.userPhone.isNotEmpty &&
-          widget.userPhone != '-')
+          widget.userPhone != '-' &&
+          widget.userPhone != 'Tidak ada nomor' &&
+          widget.userPhone != 'Nomor tidak tersedia')
         ..._buildContactButtons(),
     ],
   );
@@ -708,6 +743,23 @@ class _PengambilanSampahScreenState extends State<PengambilanSampahScreen>
     width: double.infinity,
     child: ElevatedButton(
       onPressed: () async {
+        // Untuk off-schedule, langsung navigate tanpa API call
+        if (widget.isOffSchedule) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => AmbilFotoScreen(
+                pickupId: widget.pickupId,
+                userName: widget.userName,
+                address: widget.address,
+                idPengambilan: widget.idPengambilan,
+              ),
+            ),
+          );
+          return;
+        }
+
+        // Untuk regular pickup, panggil API dulu
         // Show loading
         showDialog(
           context: context,

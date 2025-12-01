@@ -41,32 +41,38 @@ class CollectorComplaintService {
       print('📦 [ComplaintService] Response body: ${response.body}');
 
       if (response.statusCode == 200) {
-        final Map<String, dynamic> data = json.decode(response.body) as Map<String, dynamic>;
+        final Map<String, dynamic> responseData = json.decode(response.body) as Map<String, dynamic>;
 
-        // Guard: pastikan struktur data ada
-        if (data['data'] == null) {
-          print('⚠️ [ComplaintService] data[\'data\'] is NULL');
+        // ✅ Sesuai dokumentasi API: {"success": true, "data": {"complaints": [...]}}
+        if (!responseData.containsKey('success') || responseData['success'] != true) {
+          print('⚠️ [ComplaintService] API returned success=false');
           return <Complaint>[];
         }
 
-        late final List<dynamic> complaintsData;
+        final data = responseData['data'];
+        if (data == null) {
+          print('⚠️ [ComplaintService] data is NULL');
+          return <Complaint>[];
+        }
 
-        // Handle nested structure {"data": {"complaints": [...]} }
-        if (data['data'] is Map && (data['data'] as Map).containsKey('complaints') && data['data']['complaints'] is List) {
-          complaintsData = (data['data']['complaints'] as List<dynamic>);
-          print('🔍 [ComplaintService] Found nested complaints array with ${complaintsData.length} items');
-        }
-        // Handle jika data adalah List langsung
-        else if (data['data'] is List) {
-          complaintsData = (data['data'] as List<dynamic>);
-          print('🔍 [ComplaintService] Found direct complaints array with ${complaintsData.length} items');
-        }
-        // Handle jika data adalah Map (single object)
-        else if (data['data'] is Map) {
-          complaintsData = <dynamic>[data['data'] as Map<String, dynamic>];
-          print('🔍 [ComplaintService] Found single complaint object, wrapped in array');
+        // ✅ Parse struktur: {"data": {"complaints": [...], "meta": {...}}}
+        List<dynamic> complaintsData;
+        
+        if (data is Map && data.containsKey('complaints') && data['complaints'] is List) {
+          complaintsData = data['complaints'] as List<dynamic>;
+          print('🔍 [ComplaintService] Found complaints array: ${complaintsData.length} items');
+          
+          // Log pagination metadata jika ada
+          if (data.containsKey('meta')) {
+            final meta = data['meta'];
+            print('📄 [ComplaintService] Pagination: page ${meta['current_page']} of ${meta['last_page']} (total: ${meta['total']})');
+          }
+        } else if (data is List) {
+          // Fallback: jika data langsung array
+          complaintsData = data;
+          print('🔍 [ComplaintService] Found direct array: ${complaintsData.length} items');
         } else {
-          print('⚠️ [ComplaintService] Unknown data format, returning empty list');
+          print('⚠️ [ComplaintService] Unknown data format');
           return <Complaint>[];
         }
 
@@ -99,6 +105,8 @@ class CollectorComplaintService {
         throw Exception('Token tidak ditemukan');
       }
 
+      print('🔍 [ComplaintService] Getting detail for complaint #$complaintId');
+
       final response = await http.get(
         Uri.parse('$baseUrl/complaints/$complaintId'),
         headers: {
@@ -107,19 +115,48 @@ class CollectorComplaintService {
         },
       );
 
+      print('📡 [ComplaintService] Detail response: ${response.statusCode}');
+
       if (response.statusCode == 200) {
-        final Map<String, dynamic> data = json.decode(response.body) as Map<String, dynamic>;
-        return Complaint.fromJson(data['data'] as Map<String, dynamic>);
+        final Map<String, dynamic> responseData = json.decode(response.body) as Map<String, dynamic>;
+        
+        // ✅ DEBUG: Print full response
+        print('📦 [ComplaintService] FULL RESPONSE BODY:');
+        print(json.encode(responseData));
+        print('=====================================');
+        
+        // ✅ Sesuai dokumentasi: {"success": true, "data": {"complaint": {...}}}
+        if (responseData['success'] != true) {
+          throw Exception('API returned success=false');
+        }
+        
+        final data = responseData['data'];
+        if (data == null) {
+          throw Exception('Data is null');
+        }
+        
+        // Parse complaint object (bisa langsung atau nested dalam 'complaint')
+        final complaintData = data.containsKey('complaint') ? data['complaint'] : data;
+        
+        print('📋 [ComplaintService] Parsing complaint data:');
+        print('   - Has service_account: ${complaintData.containsKey('service_account')}');
+        print('   - service_account_id: ${complaintData['service_account_id']}');
+        if (complaintData.containsKey('service_account')) {
+          print('   - service_account data: ${complaintData['service_account']}');
+        }
+        
+        return Complaint.fromJson(complaintData as Map<String, dynamic>);
       } else {
         throw Exception('Gagal mengambil detail pelaporan: ${response.body}');
       }
     } catch (e) {
+      print('❌ [ComplaintService] Error getting detail: $e');
       throw Exception('Error: $e');
     }
   }
 
   /// Update complaint status
-  Future<void> updateComplaintStatus({
+  Future<Map<String, dynamic>> updateComplaintStatus({
     required String complaintId,
     required String status,
     String? notes,
@@ -131,6 +168,8 @@ class CollectorComplaintService {
         throw Exception('Token tidak ditemukan');
       }
 
+      print('🔄 [ComplaintService] Updating complaint #$complaintId to status: $status');
+
       var request = http.MultipartRequest(
         'POST',
         Uri.parse('$baseUrl/complaints/$complaintId/update-status'),
@@ -138,26 +177,46 @@ class CollectorComplaintService {
 
       request.headers['Authorization'] = 'Bearer $token';
       request.fields['status'] = status;
+      
       if (notes != null && notes.isNotEmpty) {
         request.fields['notes'] = notes;
       }
 
+      // ✅ Sesuai dokumentasi: resolution_photo wajib jika status=resolved
       if (photo != null) {
+        print('📸 [ComplaintService] Adding resolution_photo');
         request.files.add(
           await http.MultipartFile.fromPath(
-            'photo',
+            'resolution_photo', // ✅ Field name sesuai API documentation
             photo.path,
           ),
         );
+      } else if (status == 'resolved') {
+        print('⚠️ [ComplaintService] WARNING: No photo provided for resolved status');
       }
 
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
 
+      print('📡 [ComplaintService] Update response: ${response.statusCode}');
+      print('📦 [ComplaintService] Response body: ${response.body}');
+
       if (response.statusCode != 200) {
         throw Exception('Gagal update status: ${response.body}');
       }
+      
+      // ✅ Parse response sesuai dokumentasi: {"success": true, "message": "...", "data": {...}}
+      final Map<String, dynamic> responseData = json.decode(response.body) as Map<String, dynamic>;
+      
+      if (responseData['success'] != true) {
+        throw Exception(responseData['message'] ?? 'Update failed');
+      }
+      
+      print('✅ [ComplaintService] ${responseData['message']}');
+      
+      return responseData['data'] as Map<String, dynamic>? ?? {};
     } catch (e) {
+      print('❌ [ComplaintService] Error updating status: $e');
       throw Exception('Error: $e');
     }
   }

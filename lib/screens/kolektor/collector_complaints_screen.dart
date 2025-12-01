@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -52,12 +53,21 @@ class _CollectorComplaintsScreenState extends State<CollectorComplaintsScreen>
 
     try {
       final complaints = await _complaintService.getAssignedComplaints();
+      
+      // Debug: Log semua complaint yang diterima
+      debugPrint('📊 [CollectorComplaints] Total complaints received: ${complaints.length}');
+      for (var i = 0; i < complaints.length; i++) {
+        final c = complaints[i];
+        debugPrint('   ${i+1}. ID: ${c.id} | Type: ${c.type} | Status: "${c.status}" | Created: ${c.createdAt}');
+      }
+      
       setState(() {
         _allComplaints = complaints;
         _filterComplaints();
         _isLoading = false;
       });
     } catch (e) {
+      debugPrint('❌ [CollectorComplaints] Error loading complaints: $e');
       setState(() {
         _errorMessage = e.toString();
         _isLoading = false;
@@ -70,16 +80,28 @@ class _CollectorComplaintsScreenState extends State<CollectorComplaintsScreen>
       switch (_tabController.index) {
         case 0: // Semua
           _filteredComplaints = _allComplaints;
+          debugPrint('📋 [Filter] Semua: ${_filteredComplaints.length} complaints');
           break;
         case 1: // Diproses
           _filteredComplaints = _allComplaints
-              .where((c) => c.status.toLowerCase() == 'in_progress')
+              .where((c) {
+                final status = c.status.toLowerCase().trim();
+                return status == 'in_progress' || status == 'in progress' || status == 'diproses';
+              })
               .toList();
+          debugPrint('📋 [Filter] Diproses: ${_filteredComplaints.length} complaints');
           break;
         case 2: // Selesai
           _filteredComplaints = _allComplaints
-              .where((c) => c.status.toLowerCase() == 'resolved')
+              .where((c) {
+                final status = c.status.toLowerCase().trim();
+                return status == 'resolved' || status == 'completed' || status == 'done' || status == 'selesai';
+              })
               .toList();
+          debugPrint('📋 [Filter] Selesai: ${_filteredComplaints.length} complaints');
+          for (var c in _filteredComplaints) {
+            debugPrint('   ✅ ${c.type} (Status: "${c.status}")');
+          }
           break;
       }
     });

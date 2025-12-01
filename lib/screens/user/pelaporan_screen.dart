@@ -16,6 +16,7 @@ import '../../config/api_config.dart';
 import '../../utils/file.dart' as custom_file;
 import '../../utils/file.dart'; // Import untuk createFileFromBytes
 import '../../utils/image_builder.dart';
+import '../../widgets/resolution_photos_gallery.dart';
 
 // Fungsi utama untuk menjalankan aplikasi
 void main() {
@@ -57,6 +58,7 @@ class Laporan {
   final custom_file.File? imageFile;
   final String? photoUrl; // URL foto dari API (deprecated - use photoUrls)
   final List<String> photoUrls; // Multiple photo URLs dari API
+  final List<String> resolutionPhotoUrls; // ✅ Multiple foto resolution dari collector
   final bool isAsset;
   final DateTime createdAt;
   final String
@@ -73,6 +75,7 @@ class Laporan {
     this.imageFile,
     this.photoUrl,
     this.photoUrls = const [], // Default empty list
+    this.resolutionPhotoUrls = const [], // ✅ Multiple foto resolution dari collector
     required this.isAsset,
     this.status = 'open', // Default status
   }) : id = DateTime.now().microsecondsSinceEpoch.toString(),
@@ -111,6 +114,7 @@ class Laporan {
       'imagePath': imageFile?.path,
       'photoUrl': photoUrl,
       'photoUrls': photoUrls,
+      'resolutionPhotoUrls': resolutionPhotoUrls,
       'isAsset': isAsset,
       'status': status,
       'createdAt': createdAt.toIso8601String(),
@@ -132,6 +136,7 @@ class Laporan {
           : null,
       photoUrl: json['photoUrl'] as String?,
       photoUrls: (json['photoUrls'] as List<dynamic>?)?.cast<String>() ?? [],
+      resolutionPhotoUrls: (json['resolutionPhotoUrls'] as List<dynamic>?)?.cast<String>() ?? [],
       isAsset: json['isAsset'] as bool? ?? false,
       status: json['status'] as String? ?? 'open',
     );
@@ -2221,6 +2226,17 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
     );
   }
 
+  // Helper method untuk menampilkan gallery foto resolution dengan notifikasi
+  void _showResolutionPhotosGallery(BuildContext context, List<String> photoUrls) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (BuildContext context) {
+        return ResolutionPhotosGalleryDialog(photoUrls: photoUrls);
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Tentukan widget gambar yang akan ditampilkan
@@ -2388,6 +2404,67 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
 
                     // Progress Bar dengan 4 Status
                     _buildProgressTimeline(laporan.status),
+                    
+                    // Foto Penyelesaian dari Kolektor (tampil di bawah status Selesai)
+                    if (laporan.status.toLowerCase() == 'resolved' && 
+                        laporan.resolutionPhotoUrls.isNotEmpty) ...[
+                      const SizedBox(height: 24),
+                      
+                      // Container untuk Tombol Lihat Foto
+                      Center(
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () {
+                              _showResolutionPhotosGallery(context, laporan.resolutionPhotoUrls);
+                            },
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Colors.green.shade600,
+                                    Colors.green.shade700,
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.green.shade300.withOpacity(0.5),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.photo_library_outlined,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    'Lihat Foto (${laporan.resolutionPhotoUrls.length})',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -2736,6 +2813,25 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
       print('📋 No service account ID in complaint');
     }
     
+    // \u2705 Process resolution photo dari collector
+    String? resolutionPhotoUrl;
+    if (complaint.resolutionPhoto != null && complaint.resolutionPhoto!.isNotEmpty) {
+      resolutionPhotoUrl = complaint.resolutionPhoto;
+      
+      // Convert relative URL to absolute
+      if (resolutionPhotoUrl!.startsWith('/')) {
+        final baseUrlWithoutApi = ApiConfig.baseUrl.replaceAll('/api/v1', '');
+        resolutionPhotoUrl = '$baseUrlWithoutApi$resolutionPhotoUrl';
+      } else if (!resolutionPhotoUrl.startsWith('http')) {
+        final baseUrlWithoutApi = ApiConfig.baseUrl.replaceAll('/api/v1', '');
+        resolutionPhotoUrl = '$baseUrlWithoutApi/$resolutionPhotoUrl';
+      }
+      
+      print('\ud83d\udcf8 [Resolution] Photo URL: $resolutionPhotoUrl');
+    } else {
+      print('\ud83d\udcf8 [Resolution] No resolution photo available');
+    }
+    
     final laporan = Laporan(
       kota: kota,
       kategori: complaint.typeText, // Gunakan getter typeText untuk display
@@ -2747,6 +2843,7 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
       imageFile: null, // API returns URL, bukan File
       photoUrl: photoUrl, // Simpan URL foto pertama (backward compatibility)
       photoUrls: photoUrls, // Simpan semua URL foto
+      resolutionPhotoUrls: resolutionPhotoUrl != null ? [resolutionPhotoUrl] : [],
       isAsset: complaint.photos.isNotEmpty, // Ada foto dari API
       status: complaint.status, // Ambil status dari database
     );

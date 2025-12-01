@@ -551,7 +551,12 @@ class _CollectorPickupProcessScreenState extends State<CollectorPickupProcessScr
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () {
-                  Navigator.pop(context, true);
+                  // ✅ Kembali ke home screen dan refresh data
+                  Navigator.pushNamedAndRemoveUntil(
+                    context,
+                    '/home-kolektor',
+                    (route) => false,
+                  );
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryColor,
