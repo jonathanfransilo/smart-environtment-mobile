@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import '../../services/service_account_service.dart';
 import '../../services/off_schedule_pickup_service.dart';
 import '../../models/service_account.dart';
+import '../../models/off_schedule_pickup.dart' hide ServiceAccount;
+import 'off_schedule_pickup_detail_screen.dart';
 
 class ExpressRequestScreen extends StatefulWidget {
   const ExpressRequestScreen({super.key});
@@ -33,11 +35,52 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
   
   // Skip scheduled pickup feature
   bool _skipNextScheduled = false;
+  
+  // Active request for selected service account
+  OffSchedulePickup? _activeRequest;
+  bool _isLoadingActiveRequest = false;
 
   @override
   void initState() {
     super.initState();
     _loadServiceAccounts();
+  }
+  
+  // Load active request for selected service account
+  Future<void> _loadActiveRequest() async {
+    if (_selectedAccount == null) {
+      print('🔍 [_loadActiveRequest] No selected account, clearing active request');
+      setState(() => _activeRequest = null);
+      return;
+    }
+    
+    print('🔍 [_loadActiveRequest] Loading for account: ${_selectedAccount!.name} (id: ${_selectedAccount!.id})');
+    
+    setState(() => _isLoadingActiveRequest = true);
+    
+    try {
+      final service = OffSchedulePickupService();
+      final serviceAccountId = int.parse(_selectedAccount!.id);
+      print('🔍 [_loadActiveRequest] Parsed serviceAccountId: $serviceAccountId');
+      
+      final activeRequest = await service.getActiveRequestByServiceAccount(serviceAccountId);
+      
+      if (!mounted) return;
+      
+      print('🔍 [_loadActiveRequest] Result: ${activeRequest != null ? "Found request ${activeRequest.id} with status ${activeRequest.requestStatus}" : "No active request"}');
+      
+      setState(() {
+        _activeRequest = activeRequest;
+        _isLoadingActiveRequest = false;
+      });
+    } catch (e) {
+      print('❌ [_loadActiveRequest] Error: $e');
+      if (!mounted) return;
+      setState(() {
+        _activeRequest = null;
+        _isLoadingActiveRequest = false;
+      });
+    }
   }
 
   // Load pricing info from API
@@ -218,6 +261,8 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
       });
       // Load pricing info after accounts are loaded
       _loadPricingInfo();
+      // Load active request for selected account
+      _loadActiveRequest();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -451,9 +496,40 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
                 Navigator.pop(context); // Kembali ke home
               },
               child: Text(
-                'OK',
+                'Tutup',
                 style: GoogleFonts.poppins(
-                  color: primaryColor,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context); // Tutup dialog
+                // Navigasi ke detail screen dengan status tracker
+                final pickupId = pickup['id'];
+                if (pickupId != null) {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => OffSchedulePickupDetailScreen(
+                        pickupId: pickupId,
+                      ),
+                    ),
+                  );
+                } else {
+                  Navigator.pop(context);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: Text(
+                'Lihat Status',
+                style: GoogleFonts.poppins(
+                  color: Colors.white,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -1056,6 +1132,15 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
               ),
 
               const SizedBox(height: 24),
+              
+              // Status Request Aktif (jika ada)
+              if (_activeRequest != null) ...[
+                _buildActiveRequestStatus(),
+                const SizedBox(height: 24),
+              ] else if (_isLoadingActiveRequest) ...[
+                _buildActiveRequestShimmer(),
+                const SizedBox(height: 24),
+              ],
 
               // Lokasi Penjemputan
               Text(
@@ -1299,6 +1384,8 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
                                   setState(() {
                                     _selectedAccount = newValue;
                                   });
+                                  // Load active request for the new selected service account
+                                  _loadActiveRequest();
                                 },
                               ),
                             ),
@@ -1511,6 +1598,354 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+  
+  // Build active request status card with stepper
+  Widget _buildActiveRequestStatus() {
+    if (_activeRequest == null) return const SizedBox.shrink();
+    
+    final status = _activeRequest!.requestStatus;
+    
+    // Flow status: sent → processing → pending → completed/paid
+    // sent = Menunggu penugasan kolektor
+    // processing = Kolektor sedang proses pengambilan  
+    // pending = Sampah sudah diambil, menunggu konfirmasi user
+    // completed/paid = Selesai
+    
+    // Determine step states based on correct flow
+    bool isWaitingActive = status == 'sent';
+    bool isWaitingCompleted = status == 'processing' || status == 'pending' || status == 'completed' || status == 'paid';
+    
+    bool isProcessingActive = status == 'processing';
+    bool isProcessingCompleted = status == 'pending' || status == 'completed' || status == 'paid';
+    
+    bool isCompletedActive = status == 'pending' || status == 'completed' || status == 'paid';
+    
+    // Get timestamps
+    final createdAt = _activeRequest!.createdAt;
+    final processedAt = _activeRequest!.processedAt ?? _activeRequest!.assignedAt;
+    final completedAt = _activeRequest!.completedAt ?? _activeRequest!.collectedAt;
+    
+    return GestureDetector(
+      onTap: () {
+        // Navigate to detail screen
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => OffSchedulePickupDetailScreen(
+              pickupId: _activeRequest!.id,
+            ),
+          ),
+        ).then((_) => _loadActiveRequest());
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: primaryColor.withOpacity(0.3)),
+          boxShadow: [
+            BoxShadow(
+              color: primaryColor.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.local_shipping_outlined,
+                    color: primaryColor,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Request Pengambilan Aktif',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      Text(
+                        'Tap untuk lihat detail',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right,
+                  color: primaryColor,
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Timestamps row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildTimestampLabel(createdAt),
+                _buildTimestampLabel(processedAt),
+                _buildTimestampLabel(completedAt),
+              ],
+            ),
+            
+            const SizedBox(height: 12),
+            
+            // Progress stepper
+            Row(
+              children: [
+                // Step 1: Menunggu
+                _buildStatusStepItem(
+                  icon: Icons.hourglass_empty_rounded,
+                  label: 'Menunggu',
+                  sublabel: 'Request sedang\nmenunggu untuk\ndiproses',
+                  isActive: isWaitingActive,
+                  isCompleted: isWaitingCompleted,
+                ),
+                
+                // Connector line 1
+                Expanded(
+                  child: Container(
+                    height: 3,
+                    margin: const EdgeInsets.only(bottom: 50),
+                    decoration: BoxDecoration(
+                      color: isWaitingCompleted
+                          ? primaryColor
+                          : Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                
+                // Step 2: Di-proses
+                _buildStatusStepItem(
+                  icon: Icons.local_shipping_outlined,
+                  label: 'Di-proses',
+                  sublabel: 'Kolektor sedang\nmenuju lokasi\nAnda',
+                  isActive: isProcessingActive,
+                  isCompleted: isProcessingCompleted,
+                ),
+                
+                // Connector line 2
+                Expanded(
+                  child: Container(
+                    height: 3,
+                    margin: const EdgeInsets.only(bottom: 50),
+                    decoration: BoxDecoration(
+                      color: isProcessingCompleted
+                          ? primaryColor
+                          : Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                
+                // Step 3: Selesai
+                _buildStatusStepItem(
+                  icon: Icons.check_circle_outline_rounded,
+                  label: 'Selesai',
+                  sublabel: status == 'pending' 
+                      ? 'Menunggu\nkonfirmasi Anda'
+                      : 'Request berhasil\ndiselesaikan',
+                  isActive: isCompletedActive,
+                  isCompleted: status == 'completed' || status == 'paid',
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  // Build timestamp label
+  Widget _buildTimestampLabel(DateTime? dateTime) {
+    if (dateTime == null) {
+      return SizedBox(
+        width: 70,
+        child: Text(
+          '-',
+          style: GoogleFonts.poppins(
+            fontSize: 10,
+            color: Colors.grey.shade400,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+    
+    return SizedBox(
+      width: 70,
+      child: Column(
+        children: [
+          Text(
+            DateFormat('d MMM yyyy').format(dateTime),
+            style: GoogleFonts.poppins(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: primaryColor,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          Text(
+            DateFormat('HH:mm').format(dateTime),
+            style: GoogleFonts.poppins(
+              fontSize: 9,
+              color: Colors.grey.shade600,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+  
+  // Build status step item
+  Widget _buildStatusStepItem({
+    required IconData icon,
+    required String label,
+    required String sublabel,
+    required bool isActive,
+    required bool isCompleted,
+  }) {
+    return SizedBox(
+      width: 70,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: isActive || isCompleted ? primaryColor : Colors.grey.shade200,
+              shape: BoxShape.circle,
+              boxShadow: isActive || isCompleted
+                  ? [
+                      BoxShadow(
+                        color: primaryColor.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Icon(
+              isCompleted ? Icons.check_rounded : icon,
+              color: isActive || isCompleted ? Colors.white : Colors.grey.shade500,
+              size: 20,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 10,
+              fontWeight: isActive || isCompleted ? FontWeight.w600 : FontWeight.w500,
+              color: isActive || isCompleted ? primaryColor : Colors.grey.shade600,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            sublabel,
+            style: GoogleFonts.poppins(
+              fontSize: 7,
+              color: isActive || isCompleted ? primaryColor.withOpacity(0.7) : Colors.grey.shade500,
+              height: 1.2,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+  
+  // Build shimmer loading for active request
+  Widget _buildActiveRequestShimmer() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 150,
+                      height: 14,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      width: 100,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: List.generate(3, (index) => Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade200,
+                shape: BoxShape.circle,
+              ),
+            )),
+          ),
+        ],
       ),
     );
   }

@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'tagihan_pembayaran_screen.dart';
 import '../../services/pickup_service.dart';
+import '../../services/collector_off_schedule_pickup_service.dart';
 
 class DetailSampahScreen extends StatefulWidget {
   final int pickupId;
@@ -12,6 +13,7 @@ class DetailSampahScreen extends StatefulWidget {
   final String idPengambilan;
   final Map<String, List<Map<String, dynamic>>> selectedSampah;
   final XFile imageFile;
+  final bool isOffSchedule;
 
   const DetailSampahScreen({
     super.key,
@@ -21,6 +23,7 @@ class DetailSampahScreen extends StatefulWidget {
     required this.idPengambilan,
     required this.selectedSampah,
     required this.imageFile,
+    this.isOffSchedule = false,
   });
 
   @override
@@ -257,6 +260,7 @@ class _DetailSampahScreenState extends State<DetailSampahScreen> {
     try {
       print('🔄 [DetailSampah] Starting to submit...');
       print('📷 [DetailSampah] Image name: ${widget.imageFile.name}');
+      print('🏷️ [DetailSampah] isOffSchedule: ${widget.isOffSchedule}');
       
       // Convert image to base64 (support web & mobile)
       final imageBytes = await widget.imageFile.readAsBytes();
@@ -277,12 +281,41 @@ class _DetailSampahScreenState extends State<DetailSampahScreen> {
       print('📋 [DetailSampah] Waste items: $wasteItems');
       print('🚀 [DetailSampah] Calling API...');
 
-      // Call API to complete pickup
-      final (success, message, data) = await PickupService.completePickup(
-        id: widget.pickupId,
-        photo: base64Image,
-        wasteItems: wasteItems,
-      );
+      bool success;
+      String? message;
+      Map<String, dynamic>? data;
+      
+      // Use different service based on pickup type
+      if (widget.isOffSchedule) {
+        // Off-schedule pickup - use CollectorOffSchedulePickupService
+        print('🔄 [DetailSampah] Using OFF-SCHEDULE pickup service');
+        try {
+          final offScheduleService = CollectorOffSchedulePickupService();
+          data = await offScheduleService.completePickup(
+            id: widget.pickupId,
+            photoBase64: base64Image,
+            wasteItems: wasteItems,
+          );
+          success = true;
+          message = null;
+          print('✅ [DetailSampah] Off-schedule complete SUCCESS');
+        } catch (e) {
+          success = false;
+          message = e.toString().replaceAll('Exception: ', '');
+          print('❌ [DetailSampah] Off-schedule complete FAILED: $message');
+        }
+      } else {
+        // Regular pickup - use PickupService
+        print('🔄 [DetailSampah] Using REGULAR pickup service');
+        final result = await PickupService.completePickup(
+          id: widget.pickupId,
+          photo: base64Image,
+          wasteItems: wasteItems,
+        );
+        success = result.$1;
+        message = result.$2;
+        data = result.$3;
+      }
       
       print('✅ [DetailSampah] API Response - Success: $success, Message: $message');
       print('📷 [DetailSampah] Photo URL from API: ${data?['photo_url']}');

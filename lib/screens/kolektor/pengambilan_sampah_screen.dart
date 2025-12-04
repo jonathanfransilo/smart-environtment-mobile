@@ -753,6 +753,7 @@ class _PengambilanSampahScreenState extends State<PengambilanSampahScreen>
                 userName: widget.userName,
                 address: widget.address,
                 idPengambilan: widget.idPengambilan,
+                isOffSchedule: true,
               ),
             ),
           );
@@ -805,6 +806,7 @@ class _PengambilanSampahScreenState extends State<PengambilanSampahScreen>
                   userName: widget.userName,
                   address: widget.address,
                   idPengambilan: widget.idPengambilan,
+                  isOffSchedule: false,
                 ),
               ),
             );

@@ -10,6 +10,7 @@ class AmbilFotoScreen extends StatefulWidget {
   final String userName;
   final String address;
   final String idPengambilan;
+  final bool isOffSchedule;
 
   const AmbilFotoScreen({
     super.key,
@@ -17,6 +18,7 @@ class AmbilFotoScreen extends StatefulWidget {
     required this.userName,
     required this.address,
     required this.idPengambilan,
+    this.isOffSchedule = false,
   });
 
   @override
@@ -56,6 +58,7 @@ class _AmbilFotoScreenState extends State<AmbilFotoScreen> {
               address: widget.address,
               idPengambilan: widget.idPengambilan,
               imageFile: pickedFile,
+              isOffSchedule: widget.isOffSchedule,
             ),
           ),
         ).then((_) {

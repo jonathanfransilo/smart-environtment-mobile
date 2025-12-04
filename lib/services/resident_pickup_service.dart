@@ -177,6 +177,8 @@ class ResidentPickupService {
   }
 
   /// Konfirmasi pickup (warga mengkonfirmasi ada sampah atau tidak)
+  /// 
+  /// OLD API: PUT /resident/pickups/{id}/confirm
   Future<(bool success, String? message)> confirmPickup({
     required String pickupId,
     required String confirmationStatus, // 'confirmed' atau 'no_waste'
@@ -210,6 +212,69 @@ class ResidentPickupService {
       return (false, msg);
     } catch (e) {
       return (false, 'Error: $e');
+    }
+  }
+
+  /// ⭐ NEW API: Konfirmasi Waste Delivery
+  /// POST /resident/waste-deliveries/{id}/confirm
+  /// 
+  /// Hanya bisa dikonfirmasi jika:
+  /// - status = 'collected' 
+  /// - confirmation_status = 'pending'
+  Future<(bool success, String message, Map<String, dynamic>? data)> 
+      confirmWasteDelivery(String deliveryId) async {
+    try {
+      print('🌐 [ResidentPickupService] POST ${ApiConfig.residentWasteDeliveries}/$deliveryId/confirm');
+      
+      final response = await _dio.post(
+        '${ApiConfig.residentWasteDeliveries}/$deliveryId/confirm',
+      );
+      
+      final body = response.data as Map<String, dynamic>;
+      print('📦 [ResidentPickupService] Confirm Response: $body');
+      
+      if (body['success'] == true) {
+        final msg = body['message']?.toString() ?? 
+            'Terima kasih! Pengambilan sampah telah dikonfirmasi.';
+        final data = body['data'] as Map<String, dynamic>?;
+        
+        print('✅ [ResidentPickupService] Confirmation successful');
+        return (true, msg, data);
+      } else {
+        final msg = body['message']?.toString() ?? 
+            'Gagal mengkonfirmasi pengambilan';
+        return (false, msg, null);
+      }
+    } on DioException catch (e) {
+      print('💥 [ResidentPickupService] DioException on confirm: ${e.type}');
+      print('💥 [ResidentPickupService] Response: ${e.response?.statusCode} - ${e.response?.data}');
+      
+      String msg = 'Terjadi kesalahan jaringan';
+      
+      if (e.response?.statusCode == 400) {
+        // Handle specific error messages from API
+        if (e.response?.data is Map) {
+          final body = e.response!.data as Map;
+          msg = body['message']?.toString() ?? msg;
+          
+          // Specific error messages
+          if (msg.contains('belum dilakukan')) {
+            msg = 'Pengambilan belum dilakukan oleh petugas.';
+          } else if (msg.contains('sudah dikonfirmasi')) {
+            msg = 'Pengambilan sudah dikonfirmasi sebelumnya.';
+          }
+        }
+      } else if (e.response?.statusCode == 404) {
+        msg = 'Pengambilan tidak ditemukan.';
+      } else if (e.response?.data is Map) {
+        final body = e.response!.data as Map;
+        msg = body['message']?.toString() ?? msg;
+      }
+      
+      return (false, msg, null);
+    } catch (e) {
+      print('💥 [ResidentPickupService] Exception on confirm: $e');
+      return (false, 'Error: $e', null);
     }
   }
 

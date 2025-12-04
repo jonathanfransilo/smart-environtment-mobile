@@ -289,23 +289,42 @@ class _OffSchedulePickupDetailScreenState extends State<OffSchedulePickupDetailS
     );
   }
 
-  // Build status stepper widget
+  // Helper function to get full photo URL
+  String _getFullPhotoUrl(String photoUrl) {
+    if (photoUrl.startsWith('http://') || photoUrl.startsWith('https://')) {
+      return photoUrl;
+    }
+    // Add base URL for relative paths
+    const baseUrl = 'https://smart-environment-web.citiasiainc.id';
+    if (photoUrl.startsWith('/')) {
+      return '$baseUrl$photoUrl';
+    }
+    return '$baseUrl/$photoUrl';
+  }
+
+  // Build status stepper widget with timestamps like complaint detail
   Widget _buildStatusStepper(String requestStatus) {
-    // Map status to stepper stages
-    // sent/pending -> Menunggu
-    // processing -> Di-proses  
-    // completed/paid -> Selesai
+    // Map status to stepper stages - CORRECT FLOW:
+    // sent -> Menunggu (request baru dikirim, menunggu penugasan)
+    // processing -> Di-proses (kolektor sedang proses pengambilan)
+    // pending -> Selesai/Menunggu Konfirmasi (sampah sudah diambil, menunggu konfirmasi user)
+    // completed/paid -> Selesai (sudah dikonfirmasi)
     
-    bool isWaitingActive = requestStatus == 'sent' || requestStatus == 'pending';
-    bool isWaitingCompleted = requestStatus == 'processing' || requestStatus == 'completed' || requestStatus == 'paid';
+    bool isWaitingActive = requestStatus == 'sent';
+    bool isWaitingCompleted = requestStatus == 'processing' || requestStatus == 'pending' || requestStatus == 'completed' || requestStatus == 'paid';
     
     bool isProcessingActive = requestStatus == 'processing';
-    bool isProcessingCompleted = requestStatus == 'completed' || requestStatus == 'paid';
+    bool isProcessingCompleted = requestStatus == 'pending' || requestStatus == 'completed' || requestStatus == 'paid';
     
-    bool isCompletedActive = requestStatus == 'completed' || requestStatus == 'paid';
+    bool isCompletedActive = requestStatus == 'pending' || requestStatus == 'completed' || requestStatus == 'paid';
+    
+    // Get timestamps
+    final createdAt = _pickup?.createdAt;
+    final processedAt = _pickup?.processedAt ?? _pickup?.assignedAt;
+    final completedAt = _pickup?.completedAt ?? _pickup?.collectedAt;
     
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -317,105 +336,184 @@ class _OffSchedulePickupDetailScreenState extends State<OffSchedulePickupDetailS
           ),
         ],
       ),
-      child: Row(
+      child: Column(
         children: [
-          // Step 1: Menunggu
-          _buildStatusStep(
-            icon: Icons.access_time_rounded,
-            label: 'Menunggu',
-            isActive: isWaitingActive,
-            isCompleted: isWaitingCompleted,
+          // Timestamps row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildTimestamp(createdAt),
+              _buildTimestamp(processedAt),
+              _buildTimestamp(completedAt),
+            ],
           ),
+          const SizedBox(height: 12),
           
-          // Connector line 1
-          Expanded(
-            child: Container(
-              height: 2,
-              margin: const EdgeInsets.only(bottom: 24),
-              decoration: BoxDecoration(
-                color: isWaitingCompleted
-                    ? primaryColor
-                    : Colors.grey.shade300,
+          // Progress indicators row
+          Row(
+            children: [
+              // Step 1: Menunggu
+              _buildStatusStep(
+                icon: Icons.hourglass_empty_rounded,
+                label: 'Menunggu',
+                sublabel: 'Request sedang\nmenunggu untuk\ndiproses',
+                isActive: isWaitingActive,
+                isCompleted: isWaitingCompleted,
               ),
-            ),
-          ),
-          
-          // Step 2: Di-proses
-          _buildStatusStep(
-            icon: Icons.settings_outlined,
-            label: 'Di-proses',
-            isActive: isProcessingActive,
-            isCompleted: isProcessingCompleted,
-          ),
-          
-          // Connector line 2
-          Expanded(
-            child: Container(
-              height: 2,
-              margin: const EdgeInsets.only(bottom: 24),
-              decoration: BoxDecoration(
-                color: isProcessingCompleted
-                    ? primaryColor
-                    : Colors.grey.shade300,
+              
+              // Connector line 1
+              Expanded(
+                child: Container(
+                  height: 3,
+                  margin: const EdgeInsets.only(bottom: 50),
+                  decoration: BoxDecoration(
+                    color: isWaitingCompleted
+                        ? primaryColor
+                        : Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
               ),
-            ),
+              
+              // Step 2: Di-proses
+              _buildStatusStep(
+                icon: Icons.local_shipping_outlined,
+                label: 'Di-proses',
+                sublabel: 'Kolektor sedang\nmenuju lokasi\nAnda',
+                isActive: isProcessingActive,
+                isCompleted: isProcessingCompleted,
+              ),
+              
+              // Connector line 2
+              Expanded(
+                child: Container(
+                  height: 3,
+                  margin: const EdgeInsets.only(bottom: 50),
+                  decoration: BoxDecoration(
+                    color: isProcessingCompleted
+                        ? primaryColor
+                        : Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              
+              // Step 3: Selesai
+              _buildStatusStep(
+                icon: Icons.check_circle_outline_rounded,
+                label: 'Selesai',
+                sublabel: requestStatus == 'pending'
+                    ? 'Menunggu\nkonfirmasi Anda'
+                    : 'Request berhasil\ndiselesaikan',
+                isActive: isCompletedActive,
+                isCompleted: requestStatus == 'completed' || requestStatus == 'paid',
+              ),
+            ],
           ),
-          
-          // Step 3: Selesai
-          _buildStatusStep(
-            icon: Icons.check_circle_outline_rounded,
-            label: 'Selesai',
-            isActive: isCompletedActive,
-            isCompleted: false,
+        ],
+      ),
+    );
+  }
+  
+  // Build timestamp widget
+  Widget _buildTimestamp(DateTime? dateTime) {
+    if (dateTime == null) {
+      return SizedBox(
+        width: 70,
+        child: Text(
+          '-',
+          style: GoogleFonts.poppins(
+            fontSize: 10,
+            color: Colors.grey.shade400,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+    
+    return SizedBox(
+      width: 70,
+      child: Column(
+        children: [
+          Text(
+            DateFormat('d MMM yyyy').format(dateTime),
+            style: GoogleFonts.poppins(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: primaryColor,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          Text(
+            DateFormat('HH:mm').format(dateTime),
+            style: GoogleFonts.poppins(
+              fontSize: 9,
+              color: Colors.grey.shade600,
+            ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
     );
   }
 
-  // Build individual status step
+  // Build individual status step with description
   Widget _buildStatusStep({
     required IconData icon,
     required String label,
+    required String sublabel,
     required bool isActive,
     required bool isCompleted,
   }) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: isActive || isCompleted ? primaryColor : Colors.grey.shade200,
-            shape: BoxShape.circle,
-            boxShadow: isActive || isCompleted
-                ? [
-                    BoxShadow(
-                      color: primaryColor.withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : null,
+    return SizedBox(
+      width: 70,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: isActive || isCompleted ? primaryColor : Colors.grey.shade200,
+              shape: BoxShape.circle,
+              boxShadow: isActive || isCompleted
+                  ? [
+                      BoxShadow(
+                        color: primaryColor.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Icon(
+              isCompleted ? Icons.check_rounded : icon,
+              color: isActive || isCompleted ? Colors.white : Colors.grey.shade500,
+              size: 22,
+            ),
           ),
-          child: Icon(
-            isCompleted ? Icons.check_rounded : icon,
-            color: isActive || isCompleted ? Colors.white : Colors.grey.shade500,
-            size: 24,
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 11,
+              fontWeight: isActive || isCompleted ? FontWeight.w600 : FontWeight.w500,
+              color: isActive || isCompleted ? primaryColor : Colors.grey.shade600,
+            ),
+            textAlign: TextAlign.center,
           ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          label,
-          style: GoogleFonts.poppins(
-            fontSize: 11,
-            fontWeight: isActive || isCompleted ? FontWeight.w600 : FontWeight.w500,
-            color: isActive || isCompleted ? primaryColor : Colors.grey.shade600,
+          const SizedBox(height: 4),
+          Text(
+            sublabel,
+            style: GoogleFonts.poppins(
+              fontSize: 8,
+              color: isActive || isCompleted ? primaryColor.withOpacity(0.7) : Colors.grey.shade500,
+              height: 1.2,
+            ),
+            textAlign: TextAlign.center,
           ),
-          textAlign: TextAlign.center,
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -532,7 +630,7 @@ class _OffSchedulePickupDetailScreenState extends State<OffSchedulePickupDetailS
                             const SizedBox(height: 16),
                             _buildInfoRow(
                               'Tanggal',
-                              DateFormat('EEEE, dd MMMM yyyy', 'id_ID').format(
+                              DateFormat('EEEE, dd MMMM yyyy').format(
                                 DateTime.parse(_pickup!.requestedPickupDate),
                               ),
                               icon: Icons.calendar_today_outlined,
@@ -543,11 +641,6 @@ class _OffSchedulePickupDetailScreenState extends State<OffSchedulePickupDetailS
                                 _pickup!.requestedPickupTime!,
                                 icon: Icons.access_time_outlined,
                               ),
-                            _buildInfoRow(
-                              'Alamat',
-                              _pickup!.address,
-                              icon: Icons.location_on_outlined,
-                            ),
                             if (_pickup!.note != null && _pickup!.note!.isNotEmpty)
                               _buildInfoRow(
                                 'Catatan',
@@ -599,8 +692,8 @@ class _OffSchedulePickupDetailScreenState extends State<OffSchedulePickupDetailS
                         const SizedBox(height: 16),
                       ],
 
-                      // Photo (if collected)
-                      if (_pickup!.photoUrl != null) ...[
+                      // Photo (if collected or pending)
+                      if (_pickup!.photoUrl != null || _pickup!.requestStatus == 'pending' || _pickup!.requestStatus == 'completed' || _pickup!.requestStatus == 'paid') ...[
                         Container(
                           margin: const EdgeInsets.symmetric(horizontal: 16),
                           padding: const EdgeInsets.all(16),
@@ -629,24 +722,78 @@ class _OffSchedulePickupDetailScreenState extends State<OffSchedulePickupDetailS
                               const SizedBox(height: 12),
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(12),
-                                child: Image.network(
-                                  _pickup!.photoUrl!,
-                                  width: double.infinity,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Container(
-                                      height: 200,
-                                      color: Colors.grey.shade200,
-                                      child: Center(
-                                        child: Icon(
-                                          Icons.broken_image_outlined,
-                                          size: 48,
-                                          color: Colors.grey.shade400,
+                                child: _pickup!.photoUrl != null
+                                    ? Image.network(
+                                        _getFullPhotoUrl(_pickup!.photoUrl!),
+                                        width: double.infinity,
+                                        fit: BoxFit.cover,
+                                        loadingBuilder: (context, child, loadingProgress) {
+                                          if (loadingProgress == null) return child;
+                                          return Container(
+                                            height: 200,
+                                            color: Colors.grey.shade100,
+                                            child: Center(
+                                              child: CircularProgressIndicator(
+                                                value: loadingProgress.expectedTotalBytes != null
+                                                    ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                                    : null,
+                                                color: primaryColor,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                        errorBuilder: (context, error, stackTrace) {
+                                          print('❌ [Photo] Error loading: $error');
+                                          return Container(
+                                            height: 200,
+                                            color: Colors.grey.shade200,
+                                            child: Center(
+                                              child: Column(
+                                                mainAxisAlignment: MainAxisAlignment.center,
+                                                children: [
+                                                  Icon(
+                                                    Icons.broken_image_outlined,
+                                                    size: 48,
+                                                    color: Colors.grey.shade400,
+                                                  ),
+                                                  const SizedBox(height: 8),
+                                                  Text(
+                                                    'Gagal memuat foto',
+                                                    style: GoogleFonts.poppins(
+                                                      fontSize: 12,
+                                                      color: Colors.grey.shade500,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      )
+                                    : Container(
+                                        height: 200,
+                                        color: Colors.grey.shade200,
+                                        child: Center(
+                                          child: Column(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Icon(
+                                                Icons.image_outlined,
+                                                size: 48,
+                                                color: Colors.grey.shade400,
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Text(
+                                                'Foto belum tersedia',
+                                                style: GoogleFonts.poppins(
+                                                  fontSize: 12,
+                                                  color: Colors.grey.shade500,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       ),
-                                    );
-                                  },
-                                ),
                               ),
                             ],
                           ),

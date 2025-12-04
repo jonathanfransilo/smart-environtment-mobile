@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../services/resident_pickup_service.dart';
+import '../../services/off_schedule_pickup_service.dart';
 import 'package:intl/intl.dart';
 import 'pelaporan_screen.dart';
 
@@ -25,6 +26,7 @@ class RiwayatPengambilanScreen extends StatefulWidget {
 
 class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
   final ResidentPickupService _pickupService = ResidentPickupService();
+  final OffSchedulePickupService _offScheduleService = OffSchedulePickupService();
   bool _isLoading = true;
   List<Map<String, dynamic>> _pickupHistory = [];
   String? _errorMessage;
@@ -57,8 +59,8 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
         throw Exception('ID akun tidak valid');
       }
 
-      // Kirim service_account_id ke API untuk filter data yang spesifik
-      final (success, message, pickups) = await _pickupService.getPickupHistory(
+      // 1. Load regular scheduled pickups
+      final (success, message, regularPickups) = await _pickupService.getPickupHistory(
         serviceAccountId: widget.serviceAccountId,
       );
 
@@ -68,17 +70,123 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
       }
 
       print(
-        '📊 [RiwayatPengambilan] API Result - Success: $success, Message: $message, Items: ${pickups?.length ?? 0}',
+        '📊 [RiwayatPengambilan] Regular pickups - Success: $success, Message: $message, Items: ${regularPickups?.length ?? 0}',
       );
 
-      if (success && pickups != null) {
+      // 2. Load off-schedule pickups
+      List<Map<String, dynamic>> offSchedulePickups = [];
+      try {
+        final offScheduleList = await _offScheduleService.listRequests(
+          // Tidak filter by status - ambil semua
+          perPage: 100,
+        );
+        
+        print('📊 [RiwayatPengambilan] Raw off-schedule list from API: ${offScheduleList.length} items');
+        for (var p in offScheduleList) {
+          print('   - ID: ${p.id}, Status: ${p.status}, ServiceAccountId: ${p.serviceAccountId}');
+        }
+        
+        // Filter berdasarkan service account ID
+        final serviceAccountIdInt = int.tryParse(widget.serviceAccountId);
+        print('🔍 [RiwayatPengambilan] Filtering for serviceAccountId: $serviceAccountIdInt');
+        
+        if (serviceAccountIdInt != null) {
+          offSchedulePickups = offScheduleList
+              .where((p) {
+                // Filter by service account
+                final matches = p.serviceAccountId == serviceAccountIdInt;
+                print('   Pickup #${p.id}: serviceAccountId=${p.serviceAccountId}, matches=$matches, status=${p.status}');
+                return matches;
+              })
+              .map((p) {
+                // Konversi OffSchedulePickup ke Map dengan flag is_off_schedule
+                final json = p.toJson();
+                json['is_off_schedule'] = true; // Tandai sebagai off-schedule
+                json['pickup_type'] = 'request'; // Pastikan pickup_type adalah request
+                print('✅ [RiwayatPengambilan] Added off-schedule pickup #${p.id} to list');
+                return json;
+              })
+              .toList();
+        }
+        
+        print('📊 [RiwayatPengambilan] Filtered off-schedule pickups: ${offSchedulePickups.length} items');
+      } catch (e, stackTrace) {
+        print('⚠️ [RiwayatPengambilan] Error loading off-schedule pickups: $e');
+        print('   Stack: $stackTrace');
+        // Continue dengan regular pickups saja jika off-schedule gagal
+      }
+
+      // 3. Gabungkan kedua list
+      List<Map<String, dynamic>> allPickups = [];
+      
+      // Set untuk tracking ID off-schedule yang sudah diambil
+      Set<int> offScheduleIds = offSchedulePickups
+          .map((p) => p['id'] as int?)
+          .whereType<int>()
+          .toSet();
+      
+      print('🔍 [RiwayatPengambilan] Off-schedule IDs: $offScheduleIds');
+      
+      if (success && regularPickups != null) {
+        // Proses regular pickups - cek apakah sebenarnya off-schedule
+        for (var pickup in regularPickups) {
+          final pickupId = pickup['id'];
+          final pickupIdInt = pickupId is int ? pickupId : int.tryParse(pickupId?.toString() ?? '');
+          
+          // ⭐ PENTING: Cek apakah pickup ini ada di daftar off-schedule berdasarkan ID
+          final bool isInOffScheduleList = pickupIdInt != null && offScheduleIds.contains(pickupIdInt);
+          
+          // Cek apakah pickup ini sebenarnya off-schedule berdasarkan berbagai indikator
+          final pickupType = pickup['pickup_type']?.toString().toLowerCase() ?? '';
+          final bool isActuallyOffSchedule = 
+              // ⭐ Prioritas 1: Cek apakah ada di daftar off-schedule
+              isInOffScheduleList ||
+              // Cek dari pickup_type
+              pickupType == 'request' ||
+              pickupType == 'off_schedule' ||
+              pickupType == 'off-schedule' ||
+              pickupType == 'express' ||
+              // Cek dari field khusus off-schedule
+              pickup['is_off_schedule'] == true ||
+              pickup['is_request'] == true ||
+              // Cek field yang hanya ada di off-schedule
+              (pickup['bag_count'] != null && (pickup['bag_count'] as num) > 0) ||
+              (pickup['extra_fee'] != null && (pickup['extra_fee'] as num) > 0) ||
+              pickup['base_amount'] != null ||
+              pickup['requested_pickup_date'] != null ||
+              pickup['request_status'] != null ||
+              // ⭐ Cek jika source/origin adalah request
+              pickup['source']?.toString().toLowerCase() == 'request' ||
+              pickup['origin']?.toString().toLowerCase() == 'request' ||
+              // Cek jika off_schedule_pickup_id ada
+              pickup['off_schedule_pickup_id'] != null;
+          
+          // Skip jika sudah ada di offSchedulePickups (menghindari duplikat)
+          if (isInOffScheduleList) {
+            print('⏭️ [RiwayatPengambilan] Skipping pickup #$pickupId - already in off-schedule list, will use that instead');
+            continue;
+          }
+          
+          // Tandai berdasarkan deteksi
+          pickup['is_off_schedule'] = isActuallyOffSchedule;
+          pickup['pickup_type'] = isActuallyOffSchedule ? 'request' : (pickup['pickup_type'] ?? 'scheduled');
+          
+          print('🏷️ [RiwayatPengambilan] Pickup #$pickupId - detected as ${isActuallyOffSchedule ? "OFF-SCHEDULE" : "REGULAR"}');
+          print('   pickup_type: $pickupType, bag_count: ${pickup['bag_count']}, extra_fee: ${pickup['extra_fee']}');
+          print('   base_amount: ${pickup['base_amount']}, requested_pickup_date: ${pickup['requested_pickup_date']}');
+          print('   source: ${pickup['source']}, origin: ${pickup['origin']}, off_schedule_pickup_id: ${pickup['off_schedule_pickup_id']}');
+          
+          allPickups.add(pickup);
+        }
+        
         // Debug: Print sample data structure
-        if (pickups.isNotEmpty) {
-          print('🔍 [RiwayatPengambilan] Sample pickup data:');
-          print('   Keys: ${pickups[0].keys}');
+        if (regularPickups.isNotEmpty) {
+          print('🔍 [RiwayatPengambilan] Sample regular pickup data:');
+          print('   Keys: ${regularPickups[0].keys}');
+          print('   ALL DATA: ${regularPickups[0]}');
           
           // ⚠️ PENTING: Cek service_account structure
-          final serviceAccount = pickups[0]['service_account'];
+          final serviceAccount = regularPickups[0]['service_account'];
           print('🏢 [RiwayatPengambilan] SERVICE ACCOUNT DATA: $serviceAccount');
           if (serviceAccount is Map<String, dynamic>) {
             print('🏢 [RiwayatPengambilan] SERVICE ACCOUNT KEYS: ${serviceAccount.keys.toList()}');
@@ -88,18 +196,18 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
           }
           
           // ⚠️ PENTING: Cek confirmation_status dari API
-          final confirmationStatus = pickups[0]['confirmation_status'];
+          final confirmationStatus = regularPickups[0]['confirmation_status'];
           print('⚠️ [RiwayatPengambilan] CONFIRMATION STATUS dari API: $confirmationStatus');
           print('   ❌ Jika status = "confirmed", berarti BACKEND yang salah!');
           print('   ✅ Seharusnya status = "pending" agar user bisa konfirmasi manual');
 
           // Check ALL possible photo fields
-          final photoUrl = pickups[0]['photo_url'];
-          final image = pickups[0]['image'];
-          final photo = pickups[0]['photo'];
-          final pickupPhoto = pickups[0]['pickup_photo'];
-          final photoPath = pickups[0]['photo_path'];
-          final imagePath = pickups[0]['image_path'];
+          final photoUrl = regularPickups[0]['photo_url'];
+          final image = regularPickups[0]['image'];
+          final photo = regularPickups[0]['photo'];
+          final pickupPhoto = regularPickups[0]['pickup_photo'];
+          final photoPath = regularPickups[0]['photo_path'];
+          final imagePath = regularPickups[0]['image_path'];
 
           print('📷 [RiwayatPengambilan] Photo fields:');
           print('   photo_url: $photoUrl');
@@ -108,22 +216,44 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
           print('   pickup_photo: $pickupPhoto');
           print('   photo_path: $photoPath');
           print('   image_path: $imagePath');
+          
+          // Check pickup type fields
+          final pickupType = regularPickups[0]['pickup_type'];
+          final type = regularPickups[0]['type'];
+          final isOffSchedule = regularPickups[0]['is_off_schedule'];
+          final isRequest = regularPickups[0]['is_request'];
+          
+          print('🏷️ [RiwayatPengambilan] Pickup type fields:');
+          print('   pickup_type: $pickupType');
+          print('   type: $type');
+          print('   is_off_schedule: $isOffSchedule');
+          print('   is_request: $isRequest');
         }
+      }
+      
+      // Tambahkan off-schedule pickups
+      allPickups.addAll(offSchedulePickups);
+      
+      // Sort by date (terbaru dulu)
+      allPickups.sort((a, b) {
+        final dateA = a['pickup_date'] ?? a['requested_pickup_date'] ?? a['created_at'] ?? '';
+        final dateB = b['pickup_date'] ?? b['requested_pickup_date'] ?? b['created_at'] ?? '';
+        return dateB.toString().compareTo(dateA.toString());
+      });
 
-        setState(() {
-          _pickupHistory = pickups;
-          _isLoading = false;
-        });
+      print('📊 [RiwayatPengambilan] Total combined pickups: ${allPickups.length}');
 
-        if (pickups.isEmpty) {
-          print('⚠️ [RiwayatPengambilan] No pickup history found');
-        } else {
-          print(
-            '✅ [RiwayatPengambilan] Loaded ${pickups.length} pickup records',
-          );
-        }
+      setState(() {
+        _pickupHistory = allPickups;
+        _isLoading = false;
+      });
+
+      if (allPickups.isEmpty) {
+        print('⚠️ [RiwayatPengambilan] No pickup history found');
       } else {
-        throw Exception(message ?? 'Gagal memuat data dari server');
+        print(
+          '✅ [RiwayatPengambilan] Loaded ${allPickups.length} pickup records (${regularPickups?.length ?? 0} regular + ${offSchedulePickups.length} off-schedule)',
+        );
       }
     } catch (e, stackTrace) {
       print('❌ [RiwayatPengambilan] Error loading history: $e');
@@ -280,19 +410,33 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
   /// Card untuk setiap pickup - Satu card per pickup (bukan per item)
   Widget _buildPickupCard(Map<String, dynamic> pickup) {
     try {
-      final pickupDate = pickup['pickup_date'] as String?;
+      final pickupDate = pickup['pickup_date'] ?? pickup['requested_pickup_date'] as String?;
       final wasteItems = pickup['waste_items'] as List<dynamic>?;
       final serviceAccount = pickup['service_account'] as Map<String, dynamic>?;
       final pickupId = pickup['id']?.toString();
       final confirmationStatus = pickup['confirmation_status']?.toString() ?? 'pending';
+      
+      // Deteksi tipe pickup: request (off-schedule) atau terjadwal (regular/scheduled)
+      // Data sudah ditandai saat load, jadi cukup cek is_off_schedule
+      final bool isOffSchedule = pickup['is_off_schedule'] == true;
+      
+      // Debug log untuk membantu identifikasi
+      print('🏷️ [Card] Pickup #$pickupId - is_off_schedule: $isOffSchedule');
+      
+      // Label dan warna berdasarkan tipe
+      final typeLabel = isOffSchedule ? 'Request' : 'Terjadwal';
+      final typeColor = isOffSchedule ? Colors.orange : const Color(0xFF009688);
+      final typeBgColor = isOffSchedule ? Colors.orange.shade50 : const Color(0xFF009688).withOpacity(0.1);
 
-      if (wasteItems == null || wasteItems.isEmpty) {
-        print('⚠️ [RiwayatPengambilan] Empty waste items for pickup');
+      // Off-schedule pickup mungkin tidak punya waste_items
+      if (!isOffSchedule && (wasteItems == null || wasteItems.isEmpty)) {
+        print('⚠️ [RiwayatPengambilan] Empty waste items for regular pickup');
         return const SizedBox.shrink();
       }
 
       // ✅ CEK AUTO-KONFIRMASI: Jika sudah lewat 3 hari dan masih pending, auto-konfirmasi
-      if (confirmationStatus == 'pending' && pickupDate != null) {
+      // Skip auto-konfirmasi untuk off-schedule pickup
+      if (!isOffSchedule && confirmationStatus == 'pending' && pickupDate != null) {
         try {
           final pickupDateTime = DateTime.parse(pickupDate);
           final now = DateTime.now();
@@ -301,22 +445,22 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
           if (daysDifference >= 3) {
             print('⏰ [RiwayatPengambilan] Pickup #$pickupId sudah $daysDifference hari - AUTO KONFIRMASI');
             
-            // Trigger auto-konfirmasi di background
+            // Trigger auto-konfirmasi di background menggunakan API baru
             Future.microtask(() async {
               try {
-                await _pickupService.confirmPickup(
-                  pickupId: pickupId!,
-                  confirmationStatus: 'confirmed',
-                  residentNote: 'Auto-konfirmasi setelah $daysDifference hari',
-                );
-                print('✅ [RiwayatPengambilan] Auto-konfirmasi berhasil untuk Pickup #$pickupId');
-                
-                // Reload history setelah auto-konfirmasi
-                if (mounted) {
-                  await _loadHistory();
+                final (success, message, data) = await _pickupService.confirmWasteDelivery(pickupId!);
+                if (success) {
+                  print('✅ [RiwayatPengambilan] Auto-konfirmasi berhasil untuk Pickup #$pickupId');
+                  
+                  // Reload history setelah auto-konfirmasi
+                  if (mounted) {
+                    await _loadHistory();
+                  }
+                } else {
+                  print('❌ [RiwayatPengambilan] Gagal auto-konfirmasi: $message');
                 }
               } catch (e) {
-                print('❌ [RiwayatPengambilan] Gagal auto-konfirmasi: $e');
+                print('❌ [RiwayatPengambilan] Error auto-konfirmasi: $e');
               }
             });
           }
@@ -326,28 +470,52 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
       }
 
       // Calculate totals for this pickup
-      int totalItems = wasteItems.length;
+      // Untuk off-schedule, waste_items mungkin kosong, gunakan bag_count
+      int totalItems = isOffSchedule 
+          ? (pickup['bag_count'] ?? 1) 
+          : (wasteItems?.length ?? 0);
+      
+      // ✅ Gunakan total_amount dari API sebagai sumber kebenaran
+      // Ini memastikan harga yang ditampilkan sama dengan yang ada di admin/kolektor
       double totalPrice = 0;
+      final apiTotalAmount = pickup['total_amount'];
+      if (apiTotalAmount != null) {
+        if (apiTotalAmount is num) {
+          totalPrice = apiTotalAmount.toDouble();
+        } else if (apiTotalAmount is String) {
+          totalPrice = double.tryParse(apiTotalAmount) ?? 0;
+        }
+        print('💰 [RiwayatPengambilan] Using total_amount from API: $totalPrice');
+      } else if (wasteItems != null && wasteItems.isNotEmpty) {
+        // Fallback: hitung dari waste_items jika total_amount tidak tersedia
+        print('⚠️ [RiwayatPengambilan] total_amount not found, calculating from waste_items');
+        for (var item in wasteItems) {
+          try {
+            final itemPrice = item['total_price'] ?? 0;
+            totalPrice += itemPrice is String
+                ? double.tryParse(itemPrice) ?? 0
+                : (itemPrice as num).toDouble();
+          } catch (e) {
+            print('⚠️ [RiwayatPengambilan] Error calculating item price: $e');
+          }
+        }
+      }
 
       // Get dominant waste type (yang paling banyak)
       Map<String, int> typeCount = {};
 
-      for (var item in wasteItems) {
-        try {
-          // Calculate price
-          final itemPrice = item['total_price'] ?? 0;
-          totalPrice += itemPrice is String
-              ? double.tryParse(itemPrice) ?? 0
-              : (itemPrice as num).toDouble();
-
-          // Count waste types
-          final wasteType =
-              item['waste_type']?.toString() ??
-              item['waste']?['type']?.toString() ??
-              _getCategoryFromName(item['waste_category'] ?? '');
-          typeCount[wasteType] = (typeCount[wasteType] ?? 0) + 1;
-        } catch (e) {
-          print('⚠️ [RiwayatPengambilan] Error processing waste item: $e');
+      if (wasteItems != null && wasteItems.isNotEmpty) {
+        for (var item in wasteItems) {
+          try {
+            // Count waste types
+            final wasteType =
+                item['waste_type']?.toString() ??
+                item['waste']?['type']?.toString() ??
+                _getCategoryFromName(item['waste_category'] ?? '');
+            typeCount[wasteType] = (typeCount[wasteType] ?? 0) + 1;
+          } catch (e) {
+            print('⚠️ [RiwayatPengambilan] Error processing waste item: $e');
+          }
         }
       }
 
@@ -423,7 +591,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header dengan tanggal saja (tanpa badge kategori)
+              // Header dengan label tipe pickup dan tanggal
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -433,9 +601,56 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                     topRight: Radius.circular(16),
                   ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Row pertama: Label tipe dan tanggal
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Badge tipe pickup (Request / Terjadwal)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: typeBgColor,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: typeColor.withOpacity(0.3)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                isOffSchedule ? Icons.flash_on : Icons.schedule,
+                                size: 14,
+                                color: typeColor,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                typeLabel,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: typeColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Tanggal
+                        Text(
+                          pickupDate != null
+                              ? _formatDateShort(pickupDate)
+                              : '-',
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    // Row kedua: Icon dan judul
                     Row(
                       children: [
                         Icon(
@@ -450,21 +665,6 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                             color: Colors.black87,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        // Badge foto dihapus
-                        Text(
-                          pickupDate != null
-                              ? _formatDateShort(pickupDate)
-                              : '-',
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.grey[700],
                           ),
                         ),
                       ],
@@ -1012,7 +1212,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
-              _confirmPickup(pickupId, 'confirmed');
+              _confirmPickup(pickupId);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF4CAF50),
@@ -1034,12 +1234,9 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
     );
   }
 
-  /// Konfirmasi pickup ke API
-  Future<void> _confirmPickup(
-    String pickupId,
-    String confirmationStatus, {
-    String? residentNote,
-  }) async {
+  /// Konfirmasi pickup ke API menggunakan Waste Delivery API baru
+  /// POST /resident/waste-deliveries/{id}/confirm
+  Future<void> _confirmPickup(String pickupId) async {
     // Show loading
     showDialog(
       context: context,
@@ -1073,11 +1270,8 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
     );
 
     try {
-      final (success, message) = await _pickupService.confirmPickup(
-        pickupId: pickupId,
-        confirmationStatus: confirmationStatus,
-        residentNote: residentNote,
-      );
+      // ⭐ Gunakan API baru: POST /resident/waste-deliveries/{id}/confirm
+      final (success, message, data) = await _pickupService.confirmWasteDelivery(pickupId);
 
       if (!mounted) return;
 
@@ -1085,19 +1279,99 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
       Navigator.pop(context);
 
       if (success) {
-        // Show success message
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              confirmationStatus == 'confirmed'
-                  ? '✅ Pengambilan sampah berhasil dikonfirmasi!\nTagihan akan dibuat dan muncul di menu Riwayat Pembayaran.'
-                  : '✅ Status berhasil diperbarui. Tidak ada tagihan yang dibuat.',
-              style: GoogleFonts.poppins(),
+        // Show success dialog
+        if (mounted) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (ctx) => AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.check_circle_rounded,
+                      color: Colors.green.shade600,
+                      size: 48,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Terima Kasih!',
+                    style: GoogleFonts.poppins(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                  if (data != null && data['confirmed_at'] != null) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.receipt_long, size: 16, color: Colors.blue.shade700),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Tagihan akan muncul di Riwayat Pembayaran',
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              color: Colors.blue.shade700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(ctx); // Close dialog
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF4CAF50),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(
+                      'OK',
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-            backgroundColor: const Color(0xFF4CAF50),
-            duration: const Duration(seconds: 4),
-          ),
-        );
+          );
+        }
 
         // Reload data
         await _loadHistory();
@@ -1106,7 +1380,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              message ?? 'Gagal mengkonfirmasi pengambilan',
+              message,
               style: GoogleFonts.poppins(),
             ),
             backgroundColor: Colors.red,
@@ -1182,9 +1456,14 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
   /// Get category color based on waste type
   /// Show detail dialog - Design sesuai gambar
   void _showDetailDialog(Map<String, dynamic> pickup) {
-    final pickupDate = pickup['pickup_date'] as String?;
+    final pickupDate = pickup['pickup_date'] ?? pickup['requested_pickup_date'] as String?;
     final wasteItems = pickup['waste_items'] as List<dynamic>?;
     final accountId = pickup['id']?.toString() ?? '-';
+    
+    // Deteksi tipe pickup: data sudah ditandai saat load
+    final isOffSchedule = pickup['is_off_schedule'] == true;
+    final typeLabel = isOffSchedule ? 'Request' : 'Terjadwal';
+    final typeColor = isOffSchedule ? Colors.orange : const Color(0xFF009688);
 
     // Get photo URL - check multiple possible field names
     String? photoUrl =
@@ -1227,7 +1506,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header dengan checkmark dan title
+                // Header dengan checkmark, title dan badge tipe
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
@@ -1237,30 +1516,61 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                       topRight: Radius.circular(20),
                     ),
                   ),
-                  child: Row(
+                  child: Column(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF4CAF50),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.check,
-                          color: Colors.white,
-                          size: 24,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Pengambilan Sampah',
-                          style: GoogleFonts.poppins(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black87,
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF4CAF50),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.check,
+                              color: Colors.white,
+                              size: 24,
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Pengambilan Sampah',
+                              style: GoogleFonts.poppins(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          // Badge tipe pickup
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: typeColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: typeColor.withOpacity(0.3)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  isOffSchedule ? Icons.flash_on : Icons.schedule,
+                                  size: 12,
+                                  color: typeColor,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  typeLabel,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: typeColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -1633,6 +1943,35 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                           );
                         }),
 
+                      // Untuk off-schedule pickup yang tidak punya waste_items
+                      if (isOffSchedule && (wasteItems == null || wasteItems.isEmpty))
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'Pengambilan Request',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 14,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '${pickup['bag_count'] ?? 1} kantong',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
                       const SizedBox(height: 16),
                       const Divider(height: 1),
                       const SizedBox(height: 16),
@@ -1650,7 +1989,9 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                             ),
                           ),
                           Text(
-                            '${wasteItems?.fold<int>(0, (sum, item) => sum + (item['quantity'] as int? ?? 0)) ?? 0}',
+                            isOffSchedule && (wasteItems == null || wasteItems.isEmpty)
+                                ? '${pickup['bag_count'] ?? 1} kantong'
+                                : '${wasteItems?.fold<int>(0, (sum, item) => sum + (item['quantity'] as int? ?? 0)) ?? 0}',
                             style: GoogleFonts.poppins(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,

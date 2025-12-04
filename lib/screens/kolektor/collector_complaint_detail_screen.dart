@@ -53,6 +53,10 @@ class _CollectorComplaintDetailScreenState
       // Debug logging - PRINT FULL RESPONSE
       debugPrint('🔍 [CollectorDetail] ========== COMPLAINT DETAIL ==========');
       debugPrint('   - Service Account ID: ${detailedComplaint.serviceAccountId}');
+      debugPrint('   - Photos count: ${detailedComplaint.photos.length}');
+      for (var photo in detailedComplaint.photos) {
+        debugPrint('   - Photo ID: ${photo.id}, URL: ${photo.url}');
+      }
       debugPrint('   - Reporter data: ${detailedComplaint.reporter}');
       debugPrint('   - Reporter keys: ${detailedComplaint.reporter?.keys.toList()}');
       if (detailedComplaint.reporter != null) {
@@ -157,6 +161,68 @@ class _CollectorComplaintDetailScreenState
     } catch (e) {
       _showErrorSnackBar('Gagal mengambil foto: $e');
     }
+  }
+
+  /// Tampilkan foto dalam layar penuh
+  void _showFullScreenPhoto(String photoUrl) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(
+            backgroundColor: Colors.black,
+            foregroundColor: Colors.white,
+            title: Text(
+              'Foto Bukti',
+              style: GoogleFonts.poppins(),
+            ),
+          ),
+          body: Center(
+            child: InteractiveViewer(
+              child: Image.network(
+                photoUrl,
+                fit: BoxFit.contain,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Center(
+                    child: CircularProgressIndicator(
+                      value: loadingProgress.expectedTotalBytes != null
+                          ? loadingProgress.cumulativeBytesLoaded /
+                              loadingProgress.expectedTotalBytes!
+                          : null,
+                      color: Colors.white,
+                    ),
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.broken_image,
+                          size: 64,
+                          color: Colors.white54,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Foto tidak dapat dimuat',
+                          style: GoogleFonts.poppins(
+                            color: Colors.white70,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _updateStatus(String newStatus) async {
@@ -481,21 +547,68 @@ class _CollectorComplaintDetailScreenState
                           itemCount: _currentComplaint.photos.length,
                           itemBuilder: (context, index) {
                             final photo = _currentComplaint.photos[index];
-                            return Container(
-                              margin: const EdgeInsets.only(right: 12),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.network(
-                                  photo.url,
-                                  width: 120,
-                                  height: 120,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      Container(
+                            // Fix photo URL - tambahkan base URL jika relative path
+                            String photoUrl = photo.url;
+                            if (photoUrl.isNotEmpty && !photoUrl.startsWith('http')) {
+                              // Hapus leading slash jika ada
+                              if (photoUrl.startsWith('/')) {
+                                photoUrl = photoUrl.substring(1);
+                              }
+                              photoUrl = 'https://smart-environment-web.citiasiainc.id/$photoUrl';
+                            }
+                            debugPrint('📷 [Photos] Loading photo: $photoUrl');
+                            
+                            return GestureDetector(
+                              onTap: () => _showFullScreenPhoto(photoUrl),
+                              child: Container(
+                                margin: const EdgeInsets.only(right: 12),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.network(
+                                    photoUrl,
                                     width: 120,
                                     height: 120,
-                                    color: Colors.grey[300],
-                                    child: const Icon(Icons.broken_image),
+                                    fit: BoxFit.cover,
+                                    loadingBuilder: (context, child, loadingProgress) {
+                                      if (loadingProgress == null) return child;
+                                      return Container(
+                                        width: 120,
+                                        height: 120,
+                                        color: Colors.grey[200],
+                                        child: Center(
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            value: loadingProgress.expectedTotalBytes != null
+                                                ? loadingProgress.cumulativeBytesLoaded /
+                                                    loadingProgress.expectedTotalBytes!
+                                                : null,
+                                            color: const Color.fromARGB(255, 21, 145, 137),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    errorBuilder: (context, error, stackTrace) {
+                                      debugPrint('❌ [Photos] Error loading: $error');
+                                      return Container(
+                                        width: 120,
+                                        height: 120,
+                                        color: Colors.grey[300],
+                                        child: Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            const Icon(Icons.broken_image, color: Colors.grey),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Gagal',
+                                              style: GoogleFonts.poppins(
+                                                fontSize: 10,
+                                                color: Colors.grey[600],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
                                   ),
                                 ),
                               ),

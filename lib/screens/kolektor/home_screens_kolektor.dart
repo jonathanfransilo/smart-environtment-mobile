@@ -4,9 +4,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'pengambilan_sampah_screen.dart';
 import 'ambil_foto_screen.dart';
 import 'collector_complaint_detail_screen.dart';
+import 'tps_map_screen.dart';
 import '../../services/pickup_service.dart';
 import '../../services/kolektor_notification_service.dart';
 import '../../services/user_storage.dart';
+import '../../services/tps_deposit_service.dart';
+import '../../models/tps.dart';
+import '../../models/tps_deposit.dart';
 import 'profile_screen.dart';
 import 'riwayat_sampah_screen.dart';
 import '../user/notification_screen.dart';
@@ -49,6 +53,12 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
   int _riwayatTabIndex = 0; // 0 = Pengambilan, 1 = Pengangkutan
   int _tugasTabIndex = 0; // 0 = Pengambilan, 1 = Pelaporan
 
+  // ✅ TPS DEPOSITS STATE
+  List<TPS> _tpsList = [];
+  List<TPSDeposit> _depositHistory = [];
+  bool _isLoadingTPS = false;
+  bool _isLoadingDeposits = false;
+
   // ✅ TAMBAHAN: Simpan semua RW yang ditugaskan ke kolektor (bisa lebih dari 1)
   List<String> _kolektorRWList = [];
   @override
@@ -77,14 +87,9 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
     if (state == AppLifecycleState.resumed) {
       // App kembali ke foreground - refresh data
       print('✨ [HomeCollector] App resumed, refreshing pickups...');
-      _loadTodayPickups(forceRefresh: true);
       
-      // ✅ REFRESH COMPLAINTS DAN OFF-SCHEDULE PICKUPS
-      _loadAssignedComplaints();
-      _loadOffSchedulePickups();
-      
-      // ✅ REFRESH RIWAYAT untuk update completed tasks
-      _loadPengambilanData();
+      // ✅ FIX: Gunakan async function untuk memastikan urutan yang benar
+      _refreshDataOnResume();
     } else if (state == AppLifecycleState.paused) {
       print('⏸️ [HomeCollector] App paused');
     } else if (state == AppLifecycleState.inactive) {
@@ -92,23 +97,51 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
     }
   }
 
+  /// ✅ METHOD BARU: Refresh data saat app resume dengan urutan yang benar
+  Future<void> _refreshDataOnResume() async {
+    // Load semua data secara paralel terlebih dahulu
+    await Future.wait([
+      _loadTodayPickups(forceRefresh: true),
+      _loadAssignedComplaints(),
+      _loadOffSchedulePickups(),
+      _loadPengambilanDataOnly(),
+      _loadTPSList(), // ✅ TAMBAHAN: Refresh TPS list
+      _loadDepositHistory(), // ✅ TAMBAHAN: Refresh deposit history
+    ]);
+    
+    // ✅ FIX: Panggil _addCompletedTasksToHistory SETELAH semua data selesai dimuat
+    _addCompletedTasksToHistory();
+  }
+
   /// Initialize semua data dan trigger notifikasi otomatis
   Future<void> _initializeData() async {
+    print('🚀 [HomeCollector] ===== INITIALIZING DATA =====');
     await _loadUserData();
     
     // ✅ OPTIMASI: Load data secara parallel untuk mengurangi waktu loading
+    // PENTING: _loadPengambilanData diganti dengan _loadPengambilanDataOnly
+    // karena _addCompletedTasksToHistory harus dipanggil SETELAH offSchedulePickups terisi
+    print('📂 [HomeCollector] Loading all data in parallel...');
     await Future.wait([
       _loadTodayPickups(),
       _loadAssignedComplaints(),
-      _loadPengambilanData(),
+      _loadPengambilanDataOnly(), // ✅ GANTI: Tidak memanggil _addCompletedTasksToHistory
       _loadOffSchedulePickups(),
+      _loadTPSList(), // ✅ TAMBAHAN: Load TPS list
+      _loadDepositHistory(), // ✅ TAMBAHAN: Load deposit history
     ]);
+
+    print('✅ [HomeCollector] All data loaded. offSchedulePickups count: ${offSchedulePickups.length}');
+    
+    // ✅ FIX: Panggil _addCompletedTasksToHistory SETELAH semua data selesai dimuat
+    _addCompletedTasksToHistory();
 
     // Trigger notifikasi otomatis setelah data dimuat
     await _checkAndTriggerNotifications();
 
     // Load unread notification count
     await _loadUnreadNotifCount();
+    print('🏁 [HomeCollector] ===== INITIALIZATION COMPLETE =====');
   }
 
   /// Load user data dari UserStorage
@@ -539,6 +572,36 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
     }
   }
 
+  /// ✅ METHOD BARU: Load pengambilan data TANPA memanggil _addCompletedTasksToHistory
+  /// Digunakan oleh _initializeData agar _addCompletedTasksToHistory dipanggil 
+  /// SETELAH semua data (termasuk offSchedulePickups) selesai dimuat
+  Future<void> _loadPengambilanDataOnly() async {
+    setState(() {
+      _isLoadingHistory = true;
+    });
+
+    final (success, message, data) =
+        await PickupService.getPickupHistoryFromAPI();
+    if (mounted) {
+      setState(() {
+        _isLoadingHistory = false;
+        if (success && data != null) {
+          pengambilanList = data;
+        } else {
+          pengambilanList = [];
+        }
+      });
+
+      // CATATAN: _addCompletedTasksToHistory TIDAK dipanggil di sini
+      // Akan dipanggil oleh _initializeData setelah semua data dimuat
+
+      // Trigger notifikasi setelah data history dimuat
+      if (success && data != null && data.isNotEmpty) {
+        await _checkAndTriggerNotifications();
+      }
+    }
+  }
+
   /// ✅ METHOD BARU: Tambahkan off-schedule dan complaint yang selesai ke riwayat
   void _addCompletedTasksToHistory() {
     print('📊 [HomeCollector] ===== ADDING COMPLETED TASKS TO HISTORY =====');
@@ -709,6 +772,82 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
       if (mounted) {
         setState(() {
           offSchedulePickups = [];
+        });
+      }
+    }
+  }
+
+  /// ✅ METHOD BARU: Load TPS list dari API
+  Future<void> _loadTPSList() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isLoadingTPS = true;
+    });
+
+    try {
+      print('🏭 [HomeCollector] ===== LOADING TPS LIST =====');
+      final tpsList = await TPSDepositService.getAssignedTPS();
+      
+      if (mounted) {
+        setState(() {
+          _tpsList = tpsList;
+          _isLoadingTPS = false;
+        });
+        print('✅ [HomeCollector] Loaded ${_tpsList.length} TPS');
+      }
+    } catch (e, stackTrace) {
+      print('❌ [HomeCollector] Error loading TPS: $e');
+      print('Stack trace: $stackTrace');
+      if (mounted) {
+        setState(() {
+          _tpsList = [];
+          _isLoadingTPS = false;
+        });
+      }
+    }
+  }
+
+  /// ✅ METHOD BARU: Load deposit history dari API
+  Future<void> _loadDepositHistory() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isLoadingDeposits = true;
+    });
+
+    try {
+      print('📋 [HomeCollector] ===== LOADING DEPOSIT HISTORY =====');
+      final (success, message, deposits, meta) = await TPSDepositService.getDepositHistory();
+      
+      if (mounted) {
+        setState(() {
+          if (success) {
+            _depositHistory = deposits;
+            // Also update pengangkutanList for backward compatibility
+            pengangkutanList = deposits.map((d) => {
+              'id': d.id,
+              'tpsId': d.garbageDumpId,
+              'tpsName': d.tpsName,
+              'tpsAddress': d.tpsAddress,
+              'date': d.formattedDate,
+              'time': d.formattedTime,
+              'timestamp': d.depositedAt.toIso8601String(),
+              'notes': d.notes,
+              'status': 'completed',
+            }).toList();
+          }
+          _isLoadingDeposits = false;
+        });
+        print('✅ [HomeCollector] Loaded ${_depositHistory.length} deposits');
+      }
+    } catch (e, stackTrace) {
+      print('❌ [HomeCollector] Error loading deposits: $e');
+      print('Stack trace: $stackTrace');
+      if (mounted) {
+        setState(() {
+          _depositHistory = [];
+          _isLoadingDeposits = false;
         });
       }
     }
@@ -1664,69 +1803,104 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
   }
 
   Widget _buildPengangkutanPage(Color primaryColor, TextStyle titleStyle) {
-    // Data TPS (Tempat Pembuangan Sampah)
-    final List<Map<String, dynamic>> tpsList = [
-      {
-        'name': 'TPS Bantar Gebang',
-        'location': 'Ciketing Udik, Bantar Gebang',
-        'distance': '50km',
-        'distanceValue': 60, // dalam menit
-        'image': 'assets/images/TPS 1.png',
-        'id': 'TPS001',
-      },
-      {
-        'name': 'TPS Bantar Gebang',
-        'location': 'Ciketing Udik, Bantar Gebang',
-        'distance': '50km',
-        'distanceValue': 60, // dalam menit
-        'image': 'assets/images/TPS 2.jpeg',
-        'id': 'TPS002',
-      },
-    ];
-
     return SafeArea(
-      child: Column(
-        children: [
-          // Header
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            child: Row(
-              children: [
-                Text(
-                  'Daftar TPS',
-                  style: GoogleFonts.poppins(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
+      child: RefreshIndicator(
+        onRefresh: () async {
+          await _loadTPSList();
+        },
+        color: primaryColor,
+        child: Column(
+          children: [
+            // Header
+            Container(
+              color: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: Row(
+                children: [
+                  Text(
+                    'Daftar TPS',
+                    style: GoogleFonts.poppins(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
                   ),
-                ),
-              ],
+                  const Spacer(),
+                  // Refresh button
+                  IconButton(
+                    onPressed: _isLoadingTPS ? null : () => _loadTPSList(),
+                    icon: _isLoadingTPS 
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(Icons.refresh, color: primaryColor),
+                    tooltip: 'Refresh',
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-          // List TPS
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: tpsList.length,
-              itemBuilder: (context, index) {
-                final tps = tpsList[index];
-                return _buildTPSCard(
-                  tps['name'],
-                  tps['location'],
-                  tps['distance'],
-                  tps['distanceValue'],
-                  tps['image'],
-                  tps['id'],
-                  primaryColor,
-                  context,
-                );
-              },
+            // List TPS
+            Expanded(
+              child: _isLoadingTPS
+                ? const Center(child: CircularProgressIndicator())
+                : _tpsList.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.location_off_outlined,
+                            size: 80,
+                            color: Colors.grey[300],
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Belum ada TPS yang di-assign',
+                            style: GoogleFonts.poppins(
+                              fontSize: 16,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Hubungi admin untuk assign TPS',
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          ElevatedButton.icon(
+                            onPressed: () => _loadTPSList(),
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Refresh'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: primaryColor,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: _tpsList.length,
+                      itemBuilder: (context, index) {
+                        final tps = _tpsList[index];
+                        return _buildTPSCardFromAPI(
+                          tps: tps,
+                          primaryColor: primaryColor,
+                          context: context,
+                        );
+                      },
+                    ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1976,146 +2150,268 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
 
   // Riwayat Pengangkutan Content
   Widget _buildRiwayatPengangkutanContent(Color primaryColor) {
-    return pengangkutanList.isEmpty
-        ? Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.local_shipping_outlined,
-                  size: 100,
-                  color: Colors.grey[300],
+    // Loading state
+    if (_isLoadingDeposits) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    // Empty state
+    if (_depositHistory.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.local_shipping_outlined,
+              size: 100,
+              color: Colors.grey[300],
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Belum Ada Riwayat',
+              style: GoogleFonts.poppins(
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 40),
+              child: Text(
+                'Riwayat pengangkutan akan muncul setelah Anda menyelesaikan tugas pengangkutan ke TPS',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: Colors.grey[600],
                 ),
-                const SizedBox(height: 24),
-                Text(
-                  'Belum Ada Riwayat',
-                  style: GoogleFonts.poppins(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 40),
-                  child: Text(
-                    'Riwayat pengangkutan akan muncul setelah Anda menyelesaikan tugas pengangkutan',
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      color: Colors.grey[600],
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () => _loadDepositHistory(),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Refresh'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // List content
+    return RefreshIndicator(
+      onRefresh: () => _loadDepositHistory(),
+      color: primaryColor,
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: _depositHistory.length,
+        itemBuilder: (context, index) {
+          final deposit = _depositHistory[index];
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
                 ),
               ],
             ),
-          )
-        : ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: pengangkutanList.length,
-            itemBuilder: (context, index) {
-              final item = pengangkutanList[index];
-              return Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
+            child: InkWell(
+              onTap: () => _showDepositDetailDialog(context, deposit),
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    // Icon
+                    Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        Icons.local_shipping,
+                        color: Colors.green[600],
+                        size: 28,
+                      ),
                     ),
-                  ],
-                ),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.all(16),
-                  leading: Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(
-                      Icons.local_shipping,
-                      color: Colors.green[600],
-                      size: 28,
-                    ),
-                  ),
-                  title: Text(
-                    item['tpsName'] ?? 'TPS',
-                    style: GoogleFonts.poppins(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 4),
-                      Row(
+                    const SizedBox(width: 12),
+                    // Info
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
-                            Icons.calendar_today,
-                            size: 14,
-                            color: Colors.grey[600],
-                          ),
-                          const SizedBox(width: 4),
                           Text(
-                            item['date'] ?? '',
+                            deposit.tpsName,
                             style: GoogleFonts.poppins(
-                              fontSize: 13,
-                              color: Colors.grey[600],
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          Icon(
-                            Icons.access_time,
-                            size: 14,
-                            color: Colors.grey[600],
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.calendar_today,
+                                size: 14,
+                                color: Colors.grey[600],
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                deposit.formattedDate,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Icon(
+                                Icons.access_time,
+                                size: 14,
+                                color: Colors.grey[600],
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                deposit.formattedTime,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 4),
-                          Text(
-                            item['time'] ?? '',
-                            style: GoogleFonts.poppins(
-                              fontSize: 13,
-                              color: Colors.grey[600],
+                          if (deposit.notes != null && deposit.notes!.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              deposit.notes!,
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                color: Colors.grey[500],
+                                fontStyle: FontStyle.italic,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                          const SizedBox(height: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              'Selesai',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                color: Colors.green[700],
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          'Selesai',
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            color: Colors.green[700],
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  trailing: Icon(
-                    Icons.check_circle,
-                    color: Colors.green[600],
-                    size: 28,
-                  ),
+                    ),
+                    // Check icon
+                    Icon(
+                      Icons.check_circle,
+                      color: Colors.green[600],
+                      size: 28,
+                    ),
+                  ],
                 ),
-              );
-            },
+              ),
+            ),
           );
+        },
+      ),
+    );
+  }
+
+  /// Show deposit detail dialog
+  void _showDepositDetailDialog(BuildContext context, TPSDeposit deposit) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Text(
+          'Detail Setor',
+          style: GoogleFonts.poppins(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _detailRow('TPS', deposit.tpsName),
+            _detailRow('Alamat', deposit.tpsAddress),
+            _detailRow('Tanggal', deposit.formattedDate),
+            _detailRow('Waktu', deposit.formattedTime),
+            if (deposit.notes != null && deposit.notes!.isNotEmpty)
+              _detailRow('Catatan', deposit.notes!),
+            _detailRow('Lokasi GPS', '${deposit.latitude.toStringAsFixed(6)}, ${deposit.longitude.toStringAsFixed(6)}'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Tutup',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(
+              label,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                color: Colors.grey[600],
+              ),
+            ),
+          ),
+          const Text(': '),
+          Expanded(
+            child: Text(
+              value,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _statItem(String value, String label) {
@@ -2278,8 +2574,10 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
                               idPengambilan: pickupId,
                             ),
                           ),
-                        ).then((_) {
+                        ).then((_) async {
                           // Refresh data setelah kembali dari foto screen
+                          // ✅ FIX: Load off-schedule dulu agar _addCompletedTasksToHistory bekerja dengan benar
+                          await _loadOffSchedulePickups();
                           _loadTodayPickups();
                           _loadPengambilanData();
                         });
@@ -2388,8 +2686,10 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
                             isOffSchedule: isOffSchedule, // Pass flag off-schedule
                           ),
                         ),
-                      ).then((_) {
+                      ).then((_) async {
                         // Refresh list setelah kembali
+                        // ✅ FIX: Load off-schedule dulu agar _addCompletedTasksToHistory bekerja dengan benar
+                        await _loadOffSchedulePickups();
                         _loadTodayPickups();
                         _loadPengambilanData();
                       });
@@ -2551,17 +2851,29 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
     );
   }
 
-  // Widget untuk Card TPS
-  Widget _buildTPSCard(
-    String name,
-    String location,
-    String distance,
-    int distanceMinutes,
-    String imagePath,
-    String tpsId,
-    Color primaryColor,
-    BuildContext context,
-  ) {
+  /// ✅ NEW: Widget untuk Card TPS dari API
+  Widget _buildTPSCardFromAPI({
+    required TPS tps,
+    required Color primaryColor,
+    required BuildContext context,
+  }) {
+    // Build location string
+    String locationStr = tps.address;
+    if (tps.kelurahan != null || tps.kecamatan != null) {
+      final parts = <String>[];
+      if (tps.kelurahan != null) parts.add(tps.kelurahan!.name);
+      if (tps.kecamatan != null) parts.add(tps.kecamatan!.name);
+      if (parts.isNotEmpty) {
+        locationStr = parts.join(', ');
+      }
+    }
+
+    // Build capacity info
+    String capacityInfo = '';
+    if (tps.capacityWeight != null) {
+      capacityInfo = '${tps.capacityWeight!.toStringAsFixed(0)} kg';
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -2581,37 +2893,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
           // Gambar TPS
           ClipRRect(
             borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-            child: Image.asset(
-              imagePath,
-              width: double.infinity,
-              height: 180,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return Container(
-                  width: double.infinity,
-                  height: 180,
-                  color: Colors.grey[300],
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.image_not_supported,
-                        size: 50,
-                        color: Colors.grey[600],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Gambar tidak ditemukan',
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
+            child: _buildTPSImage(tps.imageUrl),
           ),
 
           // Info TPS
@@ -2620,28 +2902,34 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Nama TPS
-                Text(
-                  name,
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 8),
-
-                // Lokasi
+                // Nama TPS dengan status badge
                 Row(
                   children: [
-                    Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
-                    const SizedBox(width: 4),
                     Expanded(
                       child: Text(
-                        location,
+                        tps.name,
                         style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          color: Colors.grey[600],
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ),
+                    // Status badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: tps.status == 'active' 
+                            ? Colors.green.withOpacity(0.1)
+                            : Colors.grey.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        tps.status == 'active' ? 'Aktif' : 'Nonaktif',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: tps.status == 'active' ? Colors.green : Colors.grey,
                         ),
                       ),
                     ),
@@ -2649,32 +2937,56 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
                 ),
                 const SizedBox(height: 8),
 
-                // Jarak dan Waktu
+                // Lokasi
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        locationStr,
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          color: Colors.grey[600],
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+
+                // Info tambahan (Kapasitas & RW jika ada)
                 Row(
                   children: [
-                    // Jarak
-                    Icon(Icons.straighten, size: 16, color: Colors.grey[600]),
-                    const SizedBox(width: 4),
-                    Text(
-                      distance,
-                      style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        color: Colors.grey[600],
+                    // Kapasitas
+                    if (capacityInfo.isNotEmpty) ...[
+                      Icon(Icons.scale, size: 16, color: Colors.grey[600]),
+                      const SizedBox(width: 4),
+                      Text(
+                        capacityInfo,
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          color: Colors.grey[600],
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 16),
-
-                    // Waktu tempuh
-                    Icon(Icons.access_time, size: 16, color: primaryColor),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${distanceMinutes}m',
-                      style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        color: primaryColor,
-                        fontWeight: FontWeight.w600,
+                      const SizedBox(width: 16),
+                    ],
+                    // RW
+                    if (tps.rw != null) ...[
+                      Icon(Icons.people_outline, size: 16, color: primaryColor),
+                      const SizedBox(width: 4),
+                      Text(
+                        tps.rw!.name,
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          color: primaryColor,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -2683,10 +2995,13 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () => _handleAngkutSampah(context, name, tpsId),
+                    onPressed: tps.status == 'active' 
+                        ? () => _handleAngkutSampahFromAPI(context, tps)
+                        : null,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryColor,
                       foregroundColor: Colors.white,
+                      disabledBackgroundColor: Colors.grey[300],
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -2710,239 +3025,104 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
     );
   }
 
-  // Handler untuk angkut sampah
-  void _handleAngkutSampah(BuildContext context, String tpsName, String tpsId) {
-    // Tampilkan dialog konfirmasi
-    showDialog(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+  /// Build TPS image widget
+  Widget _buildTPSImage(String? imageUrl) {
+    // Default placeholder
+    Widget placeholder = Container(
+      width: double.infinity,
+      height: 180,
+      color: Colors.grey[200],
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.delete_outline,
+            size: 60,
+            color: Colors.grey[400],
           ),
-          contentPadding: const EdgeInsets.all(24),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Icon
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF009688).withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.local_shipping,
-                  size: 40,
-                  color: Color(0xFF009688),
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Title
-              Text(
-                'Konfirmasi Pengangkutan',
-                style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-
-              // Message
-              Text(
-                'Apakah Anda yakin telah menyerahkan sampah ke $tpsName?',
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
+          const SizedBox(height: 8),
+          Text(
+            'TPS',
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              color: Colors.grey[500],
+              fontWeight: FontWeight.w600,
+            ),
           ),
-          actions: [
-            // Tombol Batal
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: Text(
-                'Batal',
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ),
+        ],
+      ),
+    );
 
-            // Tombol Konfirmasi
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-                _confirmPengangkutan(context, tpsName, tpsId);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF009688),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                elevation: 0,
-              ),
-              child: Text(
-                'Ya, Serahkan',
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+    if (imageUrl == null || imageUrl.isEmpty) {
+      return placeholder;
+    }
+
+    // Handle relative URLs
+    String fullUrl = imageUrl;
+    if (!imageUrl.startsWith('http')) {
+      fullUrl = 'https://smart-environment-web.citiasiainc.id$imageUrl';
+    }
+
+    return Image.network(
+      fullUrl,
+      width: double.infinity,
+      height: 180,
+      fit: BoxFit.cover,
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return Container(
+          width: double.infinity,
+          height: 180,
+          color: Colors.grey[200],
+          child: Center(
+            child: CircularProgressIndicator(
+              value: loadingProgress.expectedTotalBytes != null
+                  ? loadingProgress.cumulativeBytesLoaded /
+                      loadingProgress.expectedTotalBytes!
+                  : null,
+              strokeWidth: 2,
             ),
-          ],
+          ),
         );
       },
+      errorBuilder: (context, error, stackTrace) => placeholder,
     );
   }
 
-  // Konfirmasi pengangkutan dan simpan ke riwayat
-  void _confirmPengangkutan(
-    BuildContext context,
-    String tpsName,
-    String tpsId,
-  ) {
-    // Simpan ke riwayat pengangkutan
-    final DateTime now = DateTime.now();
+  /// ✅ NEW: Handler untuk angkut sampah - Navigate to Maps
+  void _handleAngkutSampahFromAPI(BuildContext context, TPS tps) async {
+    // Navigate to TPS Map Screen
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TPSMapScreen(tps: tps),
+      ),
+    );
 
-    // Buat data pengangkutan baru
-    final newPengangkutan = {
-      'id': 'ANG${now.millisecondsSinceEpoch}',
-      'tpsName': tpsName,
-      'tpsId': tpsId,
-      'timestamp': now.toIso8601String(),
-      'date': '${now.day}/${now.month}/${now.year}',
-      'time': '${now.hour}:${now.minute.toString().padLeft(2, '0')}',
-      'status': 'completed',
-    };
-
-    // Tambahkan ke list riwayat
-    setState(() {
-      pengangkutanList.insert(0, newPengangkutan);
-    });
-
-    // TODO: Simpan ke database/API untuk persistensi
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          contentPadding: const EdgeInsets.all(32),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
+    // If deposit was successful, refresh data
+    if (result == true && mounted) {
+      _loadTPSList();
+      _loadDepositHistory();
+      
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
             children: [
-              // Icon Success
-              Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.check_circle,
-                  size: 60,
-                  color: Colors.green,
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Title
+              const Icon(Icons.check_circle, color: Colors.white),
+              const SizedBox(width: 12),
               Text(
-                'Selamat!',
-                style: GoogleFonts.poppins(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              // Message
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.05),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: Colors.green.withOpacity(0.2),
-                    width: 1,
-                  ),
-                ),
-                child: Text(
-                  'Anda telah menyelesaikan tugas pengangkutan hari ini',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    color: Colors.black87,
-                    height: 1.5,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              // Detail info
-              Text(
-                'Data telah disimpan ke riwayat pengangkutan',
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                ),
-                textAlign: TextAlign.center,
+                'Berhasil setor ke ${tps.name}',
+                style: GoogleFonts.poppins(fontSize: 14),
               ),
             ],
           ),
-          actions: [
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.of(dialogContext).pop();
-                  // Pindah ke tab Riwayat
-                  setState(() {
-                    _selectedIndex = 2; // Tab Riwayat
-                    _riwayatTabIndex = 1; // Tab Pengangkutan
-                  });
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF009688),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  elevation: 0,
-                ),
-                child: Text(
-                  'Lihat Riwayat',
-                  style: GoogleFonts.poppins(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      );
+    }
   }
 
   // Helper methods
@@ -3160,12 +3340,15 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
                         // Refresh data setelah proses selesai
                         if (result == true) {
                           print('🔄 [HomeCollector] Complaint resolved, refreshing data...');
+                          // ✅ FIX: Load semua data paralel dulu, baru panggil _addCompletedTasksToHistory
                           await Future.wait([
                             _loadAssignedComplaints(),
-                            _loadPengambilanData(),
+                            _loadPengambilanDataOnly(),
                             _loadOffSchedulePickups(),
                             _loadTodayPickups(forceRefresh: true),
                           ]);
+                          // Panggil _addCompletedTasksToHistory setelah semua data dimuat
+                          _addCompletedTasksToHistory();
                           if (mounted) setState(() {});
                         }
                       },

@@ -7,6 +7,75 @@ import '../models/off_schedule_pickup.dart';
 class OffSchedulePickupService {
   final String baseUrl = ApiConfig.baseUrl;
 
+  /// Get active/pending request for a specific service account
+  /// Returns the most recent active request (sent, processing, pending status)
+  Future<OffSchedulePickup?> getActiveRequestByServiceAccount(int serviceAccountId) async {
+    try {
+      final token = await TokenStorage.getToken();
+      if (token == null) {
+        throw Exception('No authentication token found');
+      }
+
+      // Get all requests and filter by service account
+      final url = Uri.parse('$baseUrl/mobile/resident/off-schedule-pickups?per_page=50&page=1');
+      
+      print('🔍 [getActiveRequest] Fetching pickups for serviceAccountId: $serviceAccountId');
+      
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('🔍 [getActiveRequest] Response status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final List<dynamic> pickupsJson = data['data'];
+        
+        print('🔍 [getActiveRequest] Total pickups found: ${pickupsJson.length}');
+        
+        // Find active request for this service account
+        // Active status: sent, processing, pending, completed, paid (exclude rejected only)
+        final activeStatuses = ['sent', 'processing', 'pending', 'completed', 'paid'];
+        
+        for (final json in pickupsJson) {
+          // Get service account ID from either nested object or direct field
+          int pickupServiceAccountId = 0;
+          if (json['service_account'] != null && json['service_account']['id'] != null) {
+            final saId = json['service_account']['id'];
+            pickupServiceAccountId = saId is int ? saId : int.tryParse(saId.toString()) ?? 0;
+          } else if (json['service_account_id'] != null) {
+            final saId = json['service_account_id'];
+            pickupServiceAccountId = saId is int ? saId : int.tryParse(saId.toString()) ?? 0;
+          }
+          
+          final requestStatus = json['request_status'] ?? '';
+          final pickupId = json['id'] ?? 0;
+          
+          print('🔍 [getActiveRequest] Checking pickup $pickupId: serviceAccountId=$pickupServiceAccountId, status=$requestStatus');
+          
+          if (pickupServiceAccountId == serviceAccountId && 
+              activeStatuses.contains(requestStatus)) {
+            print('✅ [getActiveRequest] Found active request: $pickupId with status $requestStatus');
+            return OffSchedulePickup.fromJson(json);
+          }
+        }
+        print('❌ [getActiveRequest] No active request found for serviceAccountId: $serviceAccountId');
+        return null;
+      } else {
+        print('❌ [getActiveRequest] API error: ${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      print('❌ [getActiveRequest] Error: $e');
+      return null;
+    }
+  }
+
   /// Get pricing info for off-schedule pickups
   Future<Map<String, dynamic>> getPricingInfo() async {
     try {

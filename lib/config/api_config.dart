@@ -52,6 +52,11 @@ class ApiConfig {
   static const String residentPickupDetail = '/mobile/resident/pickups'; // /{id}
   static const String residentProfile = '/mobile/resident/profile';
   static const String residentChangePassword = '/mobile/resident/profile/change-password';
+  
+  // Waste Delivery endpoints (NEW API)
+  static const String residentWasteDeliveries = '/mobile/resident/waste-deliveries';
+  static const String residentWasteDeliveriesNextPickup = '/mobile/resident/waste-deliveries/next/pickup';
+  static const String residentWasteDeliveriesStatistics = '/mobile/resident/waste-deliveries/statistics';
 
   // Article endpoints
   static const String articles = '/mobile/resident/articles';

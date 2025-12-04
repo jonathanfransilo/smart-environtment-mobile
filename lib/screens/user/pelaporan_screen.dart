@@ -61,10 +61,12 @@ class Laporan {
   final List<String> resolutionPhotoUrls; // ✅ Multiple foto resolution dari collector
   final bool isAsset;
   final DateTime createdAt;
-  final String
-  status; // Status dari database: 'open', 'in_progress', 'resolved', 'rejected'
+  final String status; // Status dari database: 'open', 'in_progress', 'pending_confirmation', 'resolved', 'rejected'
+  final String? type; // ✅ NEW: Tipe asli dari API (sampah_tidak_diangkut, dll)
+  final String? rejectionReason; // ✅ NEW: Alasan penolakan
 
   Laporan({
+    String? id, // ✅ FIXED: Accept ID from API
     required this.kota,
     required this.kategori,
     required this.lokasi,
@@ -78,8 +80,11 @@ class Laporan {
     this.resolutionPhotoUrls = const [], // ✅ Multiple foto resolution dari collector
     required this.isAsset,
     this.status = 'open', // Default status
-  }) : id = DateTime.now().microsecondsSinceEpoch.toString(),
-       createdAt = DateTime.now();
+    this.type, // ✅ NEW
+    this.rejectionReason, // ✅ NEW
+    DateTime? createdAt, // ✅ FIXED: Accept createdAt from API
+  }) : id = id ?? DateTime.now().microsecondsSinceEpoch.toString(),
+       createdAt = createdAt ?? DateTime.now();
 
   // Get status display text in Indonesian
   String get statusText {
@@ -88,6 +93,8 @@ class Laporan {
         return 'Menunggu';
       case 'in_progress':
         return 'Diproses';
+      case 'pending_confirmation': // ✅ NEW
+        return 'Menunggu Konfirmasi';
       case 'resolved':
         return 'Selesai';
       case 'rejected':
@@ -95,6 +102,20 @@ class Laporan {
       default:
         return status;
     }
+  }
+
+  // ✅ NEW: Check if this is "sampah_tidak_diangkut" type complaint
+  bool get isSampahTidakDiangkut {
+    final typeCheck = type?.toLowerCase() == 'sampah_tidak_diangkut';
+    final kategoriCheck = kategori.toLowerCase().contains('sampah') && 
+                          kategori.toLowerCase().contains('tidak') && 
+                          kategori.toLowerCase().contains('diangkut');
+    return typeCheck || kategoriCheck;
+  }
+  
+  // ✅ NEW: Check if confirmation is needed
+  bool get needsConfirmation {
+    return isSampahTidakDiangkut && status.toLowerCase() == 'pending_confirmation';
   }
 
   // Helper untuk mendapatkan deskripsi singkat
@@ -117,6 +138,8 @@ class Laporan {
       'resolutionPhotoUrls': resolutionPhotoUrls,
       'isAsset': isAsset,
       'status': status,
+      'type': type,
+      'rejectionReason': rejectionReason,
       'createdAt': createdAt.toIso8601String(),
     };
   }
@@ -139,6 +162,8 @@ class Laporan {
       resolutionPhotoUrls: (json['resolutionPhotoUrls'] as List<dynamic>?)?.cast<String>() ?? [],
       isAsset: json['isAsset'] as bool? ?? false,
       status: json['status'] as String? ?? 'open',
+      type: json['type'] as String?,
+      rejectionReason: json['rejectionReason'] as String?,
     );
   }
 }
@@ -1458,8 +1483,9 @@ class DetailLaporanScreen extends StatelessWidget {
         type: reportData['type']!, // Langsung dari dropdown value
         description: reportData['deskripsi']!,
         location: reportData['lokasi']!, // Tambahkan lokasi
-        serviceAccountId:
-            reportData['serviceAccount'], // Kirim service account ke API
+        serviceAccountId: reportData['serviceAccount'] != null 
+            ? int.tryParse(reportData['serviceAccount']!) 
+            : null, // Convert String to int
         images: imageFiles, // Kirim semua foto
       );
 
@@ -1838,12 +1864,26 @@ class DetailLaporanScreen extends StatelessWidget {
 // BAGIAN 1.6: SCREEN DETAIL LAPORAN TERKIRIM (DetailLaporanTerkirimScreen)
 // ====================================================================
 
-class DetailLaporanTerkirimScreen extends StatelessWidget {
+class DetailLaporanTerkirimScreen extends StatefulWidget {
   final Laporan laporan;
 
   const DetailLaporanTerkirimScreen({super.key, required this.laporan});
 
+  @override
+  State<DetailLaporanTerkirimScreen> createState() => _DetailLaporanTerkirimScreenState();
+}
+
+class _DetailLaporanTerkirimScreenState extends State<DetailLaporanTerkirimScreen> {
   static const Color primaryColor = Color.fromARGB(255, 21, 145, 137);
+  
+  bool _isConfirming = false;
+  final TextEditingController _rejectionNoteController = TextEditingController();
+  
+  @override
+  void dispose() {
+    _rejectionNoteController.dispose();
+    super.dispose();
+  }
 
   // Widget untuk menampilkan sepasang Label dan Value dengan Icon
   Widget _buildDetailRow(String label, String value, IconData icon) {
@@ -1894,32 +1934,38 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
 
   // Widget untuk membuat progress timeline sesuai Figma
   Widget _buildProgressTimeline(String currentStatus) {
-    // Status flow: Menunggu -> Diproses -> Selesai/Ditolak
+    // Status flow: Menunggu -> Diproses -> Menunggu Konfirmasi -> Selesai/Ditolak
     final isOpen = currentStatus.toLowerCase() == 'open';
     final isInProgress = currentStatus.toLowerCase() == 'in_progress';
+    final isPendingConfirmation = currentStatus.toLowerCase() == 'pending_confirmation';
     final isResolved = currentStatus.toLowerCase() == 'resolved';
     final isRejected = currentStatus.toLowerCase() == 'rejected';
+    
+    // pending_confirmation dianggap sudah melewati tahap "Diproses"
+    final hasPassedInProgress = isInProgress || isPendingConfirmation || isResolved || isRejected;
+    final hasPassedResolved = isResolved || isRejected;
+    
     final Color pendingColor =
-        (isOpen || isInProgress || isResolved || isRejected)
+        (isOpen || hasPassedInProgress || hasPassedResolved)
         ? primaryColor
         : Colors.grey.shade300;
 
-    final Color inProgressColor = (isInProgress || isResolved || isRejected)
+    final Color inProgressColor = hasPassedInProgress
         ? primaryColor
         : Colors.grey.shade300;
 
     final Color resolvedColor = isResolved
         ? primaryColor
-        : (isRejected ? Colors.red : Colors.grey.shade300);
+        : (isRejected ? Colors.red : (isPendingConfirmation ? Colors.orange : Colors.grey.shade300));
 
     // Line color logic
-    final Color line1Color = (isInProgress || isResolved || isRejected)
+    final Color line1Color = hasPassedInProgress
         ? primaryColor
         : Colors.grey.shade300;
 
-    final Color line2Color = (isResolved || isRejected)
+    final Color line2Color = hasPassedResolved
         ? primaryColor
-        : Colors.grey.shade300;
+        : (isPendingConfirmation ? Colors.orange : Colors.grey.shade300);
 
     // Format tanggal dan waktu (gunakan data dari laporan jika ada)
     final now = DateTime.now();
@@ -1937,23 +1983,23 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
       return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
     }
     
-    final createdDate = formatDate(laporan.createdAt);
-    final createdTime = formatTime(laporan.createdAt);
+    final createdDate = formatDate(widget.laporan.createdAt);
+    final createdTime = formatTime(widget.laporan.createdAt);
     
     // Simulasi waktu untuk status lainnya (bisa diganti dengan data real dari API)
-    final processDateTime = laporan.createdAt.add(const Duration(hours: 2));
-    final processDate = isInProgress || isResolved || isRejected 
+    final processDateTime = widget.laporan.createdAt.add(const Duration(hours: 2));
+    final processDate = hasPassedInProgress 
         ? formatDate(processDateTime)
         : formatDate(now);
-    final processTime = isInProgress || isResolved || isRejected
+    final processTime = hasPassedInProgress
         ? formatTime(processDateTime)
         : formatTime(now);
     
-    final completedDateTime = laporan.createdAt.add(const Duration(hours: 4));
-    final completedDate = isResolved || isRejected
+    final completedDateTime = widget.laporan.createdAt.add(const Duration(hours: 4));
+    final completedDate = hasPassedResolved || isPendingConfirmation
         ? formatDate(completedDateTime)
         : formatDate(now);
-    final completedTime = isResolved || isRejected
+    final completedTime = hasPassedResolved || isPendingConfirmation
         ? formatTime(completedDateTime)
         : formatTime(now);
 
@@ -2002,7 +2048,7 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
                     ),
                     child: isOpen
                         ? Icon(Icons.schedule, color: Colors.white, size: 24)
-                        : (isInProgress || isResolved || isRejected)
+                        : hasPassedInProgress
                         ? Icon(Icons.check, color: pendingColor, size: 24)
                         : null,
                   ),
@@ -2056,7 +2102,7 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
                     style: GoogleFonts.poppins(
                       fontSize: 10,
                       fontWeight: FontWeight.w500,
-                      color: isInProgress || isResolved || isRejected
+                      color: hasPassedInProgress
                           ? primaryColor
                           : Colors.grey.shade400,
                       height: 1.2,
@@ -2068,7 +2114,7 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
                     style: GoogleFonts.poppins(
                       fontSize: 10,
                       fontWeight: FontWeight.w500,
-                      color: isInProgress || isResolved || isRejected
+                      color: hasPassedInProgress
                           ? primaryColor
                           : Colors.grey.shade400,
                       height: 1.2,
@@ -2088,7 +2134,7 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
                     ),
                     child: isInProgress
                         ? Icon(Icons.autorenew, color: Colors.white, size: 24)
-                        : (isResolved || isRejected)
+                        : (isPendingConfirmation || hasPassedResolved)
                         ? Icon(Icons.check, color: inProgressColor, size: 24)
                         : null,
                   ),
@@ -2099,7 +2145,7 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
                     style: GoogleFonts.poppins(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: isInProgress || isResolved || isRejected
+                      color: hasPassedInProgress
                           ? Colors.black87
                           : Colors.grey.shade600,
                       height: 1.2,
@@ -2109,7 +2155,7 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4),
                     child: Text(
-                      isInProgress || isResolved || isRejected
+                      hasPassedInProgress
                           ? "Sampah telah di proses oleh admin"
                           : "",
                       textAlign: TextAlign.center,
@@ -2135,7 +2181,7 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
               ),
             ),
 
-            // 3. Resolve (Selesai) - hijau atau merah tergantung status
+            // 3. Resolve (Selesai) - hijau, orange (pending), atau merah tergantung status
             Expanded(
               child: Column(
                 children: [
@@ -2146,7 +2192,7 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
                     style: GoogleFonts.poppins(
                       fontSize: 10,
                       fontWeight: FontWeight.w500,
-                      color: isResolved || isRejected
+                      color: hasPassedResolved || isPendingConfirmation
                           ? primaryColor
                           : Colors.grey.shade400,
                       height: 1.2,
@@ -2158,7 +2204,7 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
                     style: GoogleFonts.poppins(
                       fontSize: 10,
                       fontWeight: FontWeight.w500,
-                      color: isResolved || isRejected
+                      color: hasPassedResolved || isPendingConfirmation
                           ? primaryColor
                           : Colors.grey.shade400,
                       height: 1.2,
@@ -2170,30 +2216,38 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
                     height: 48,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: (isResolved || isRejected)
+                      color: (hasPassedResolved || isPendingConfirmation)
                           ? resolvedColor
                           : Colors.white,
                       border: Border.all(
                         color: resolvedColor,
-                        width: (isResolved || isRejected) ? 3 : 2,
+                        width: (hasPassedResolved || isPendingConfirmation) ? 3 : 2,
                       ),
                     ),
-                    child: (isResolved || isRejected)
+                    child: hasPassedResolved
                         ? Icon(
                             Icons.check_circle,
                             color: Colors.white,
                             size: 24,
                           )
-                        : null,
+                        : isPendingConfirmation
+                            ? Icon(
+                                Icons.hourglass_empty,
+                                color: Colors.white,
+                                size: 24,
+                              )
+                            : null,
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    "Selesai",
+                    isPendingConfirmation 
+                        ? "Konfirmasi"
+                        : "Selesai",
                     textAlign: TextAlign.center,
                     style: GoogleFonts.poppins(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: (isResolved || isRejected)
+                      color: (hasPassedResolved || isPendingConfirmation)
                           ? Colors.black87
                           : Colors.grey.shade600,
                       height: 1.2,
@@ -2207,12 +2261,14 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
                           ? "Laporan berhasil diselesaikan"
                           : isRejected
                               ? "Laporan ditolak"
-                              : "",
+                              : isPendingConfirmation
+                                  ? "Menunggu konfirmasi dari warga"
+                                  : "",
                       textAlign: TextAlign.center,
                       style: GoogleFonts.poppins(
                         fontSize: 9,
                         fontWeight: FontWeight.w400,
-                        color: primaryColor,
+                        color: isPendingConfirmation ? Colors.orange : primaryColor,
                         height: 1.3,
                       ),
                     ),
@@ -2243,18 +2299,18 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
     Widget imageWidget;
 
     // Prioritaskan photoUrls (multiple photos dari API)
-    if (laporan.photoUrls.isNotEmpty) {
-      print('🖼️ Loading ${laporan.photoUrls.length} images from API');
+    if (widget.laporan.photoUrls.isNotEmpty) {
+      print('🖼️ Loading ${widget.laporan.photoUrls.length} images from API');
       imageWidget = _InstagramStylePhotoGalleryNetwork(
-        photoUrls: laporan.photoUrls,
+        photoUrls: widget.laporan.photoUrls,
       );
-    } else if (laporan.photoUrl != null) {
+    } else if (widget.laporan.photoUrl != null) {
       // Fallback untuk single photo (backward compatibility)
-      print('🖼️ Loading single image from URL: ${laporan.photoUrl}');
+      print('🖼️ Loading single image from URL: ${widget.laporan.photoUrl}');
       imageWidget = _InstagramStylePhotoGalleryNetwork(
-        photoUrls: [laporan.photoUrl!],
+        photoUrls: [widget.laporan.photoUrl!],
       );
-    } else if (laporan.imageFile != null) {
+    } else if (widget.laporan.imageFile != null) {
       // File dari local (jarang digunakan untuk detail terkirim)
       imageWidget = Container(
         height: 250,
@@ -2267,7 +2323,7 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(12),
           child: buildPlatformImage(
-            laporan.imageFile!,
+            widget.laporan.imageFile!,
             fit: BoxFit.cover,
             height: 250,
             width: double.infinity,
@@ -2392,9 +2448,9 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
                     const SizedBox(height: 8),
                     // Subtitle lokasi/kategori dan service account
                     Text(
-                      laporan.lokasi.isNotEmpty
-                          ? "${laporan.lokasi} • ${laporan.serviceAccountName ?? 'None'}"
-                          : "${laporan.kategori} • ${laporan.serviceAccountName ?? 'None'}",
+                      widget.laporan.lokasi.isNotEmpty
+                          ? "${widget.laporan.lokasi} • ${widget.laporan.serviceAccountName ?? 'None'}"
+                          : "${widget.laporan.kategori} • ${widget.laporan.serviceAccountName ?? 'None'}",
                       style: GoogleFonts.poppins(
                         fontSize: 14,
                         color: Colors.grey.shade600,
@@ -2403,11 +2459,11 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
                     const SizedBox(height: 24),
 
                     // Progress Bar dengan 4 Status
-                    _buildProgressTimeline(laporan.status),
+                    _buildProgressTimeline(widget.laporan.status),
                     
                     // Foto Penyelesaian dari Kolektor (tampil di bawah status Selesai)
-                    if (laporan.status.toLowerCase() == 'resolved' && 
-                        laporan.resolutionPhotoUrls.isNotEmpty) ...[
+                    if (widget.laporan.status.toLowerCase() == 'resolved' && 
+                        widget.laporan.resolutionPhotoUrls.isNotEmpty) ...[
                       const SizedBox(height: 24),
                       
                       // Container untuk Tombol Lihat Foto
@@ -2416,7 +2472,7 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
                           color: Colors.transparent,
                           child: InkWell(
                             onTap: () {
-                              _showResolutionPhotosGallery(context, laporan.resolutionPhotoUrls);
+                              _showResolutionPhotosGallery(context, widget.laporan.resolutionPhotoUrls);
                             },
                             borderRadius: BorderRadius.circular(12),
                             child: Container(
@@ -2450,7 +2506,7 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
                                   ),
                                   const SizedBox(width: 10),
                                   Text(
-                                    'Lihat Foto (${laporan.resolutionPhotoUrls.length})',
+                                    'Lihat Foto (${widget.laporan.resolutionPhotoUrls.length})',
                                     style: GoogleFonts.poppins(
                                       fontSize: 15,
                                       fontWeight: FontWeight.w600,
@@ -2518,7 +2574,7 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
                     
                     // Isi Deskripsi
                     Text(
-                      laporan.ciriCiri,
+                      widget.laporan.ciriCiri,
                       style: GoogleFonts.poppins(
                         fontSize: 14,
                         color: Colors.grey.shade700,
@@ -2580,7 +2636,7 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
                                 ),
                               ),
                               Text(
-                                "ID: ${laporan.id.substring(0, 12)}",
+                                "ID: ${widget.laporan.id.length > 12 ? widget.laporan.id.substring(0, 12) : widget.laporan.id}",
                                 style: GoogleFonts.poppins(
                                   fontSize: 11,
                                   color: Colors.grey.shade600,
@@ -2596,34 +2652,34 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
                     const SizedBox(height: 24),
 
                     // Detail Data dengan Icon (TANPA Deskripsi karena sudah terpisah)
-                    _buildDetailRow("Kota", laporan.kota, Icons.location_city),
+                    _buildDetailRow("Kota", widget.laporan.kota, Icons.location_city),
                     const Divider(height: 24),
                     _buildDetailRow(
                       "Kategori",
-                      laporan.kategori,
+                      widget.laporan.kategori,
                       Icons.category,
                     ),
-                    if (laporan.lokasi.isNotEmpty) ...[
+                    if (widget.laporan.lokasi.isNotEmpty) ...[
                       const Divider(height: 24),
                       _buildDetailRow(
                         "Lokasi",
-                        laporan.lokasi,
+                        widget.laporan.lokasi,
                         Icons.location_on,
                       ),
                     ],
-                    if (laporan.serviceAccount != null &&
-                        laporan.serviceAccount!.isNotEmpty) ...[
+                    if (widget.laporan.serviceAccount != null &&
+                        widget.laporan.serviceAccount!.isNotEmpty) ...[
                       const Divider(height: 24),
                       _buildDetailRow(
                         "Service Account",
-                        laporan.serviceAccount!,
+                        widget.laporan.serviceAccount!,
                         Icons.business,
                       ),
                     ],
                     const Divider(height: 24),
                     _buildDetailRow(
                       "Waktu Pelanggaran",
-                      laporan.waktuPelanggaran,
+                      widget.laporan.waktuPelanggaran,
                       Icons.access_time,
                     ),
                   ],
@@ -2631,11 +2687,397 @@ class DetailLaporanTerkirimScreen extends StatelessWidget {
               ),
             ),
 
+            // ✅ NEW: Tombol Konfirmasi untuk status pending_confirmation
+            if (widget.laporan.needsConfirmation) ...[
+              const SizedBox(height: 20),
+              _buildConfirmationSection(),
+            ],
+
             const SizedBox(height: 32),
           ],
         ),
       ),
     );
+  }
+
+  // ✅ NEW: Build Confirmation Section Widget
+  Widget _buildConfirmationSection() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.orange.shade50,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.orange.shade200, width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.orange.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade100,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.help_outline_rounded,
+                    color: Colors.orange.shade700,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Konfirmasi Penyelesaian",
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.orange.shade800,
+                        ),
+                      ),
+                      Text(
+                        "Petugas sudah mengangkut sampah Anda",
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: Colors.orange.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            
+            // Resolution photo preview if available
+            if (widget.laporan.resolutionPhotoUrls.isNotEmpty) ...[
+              InkWell(
+                onTap: () => _showResolutionPhotosGallery(context, widget.laporan.resolutionPhotoUrls),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.orange.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.photo_library, color: Colors.orange.shade600, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        "Lihat Foto Bukti dari Petugas",
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.orange.shade700,
+                        ),
+                      ),
+                      const Spacer(),
+                      Icon(Icons.arrow_forward_ios, color: Colors.orange.shade400, size: 16),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            Text(
+              "Apakah sampah Anda sudah benar-benar diangkut?",
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey.shade700,
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Action buttons
+            Row(
+              children: [
+                // Reject Button
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _isConfirming ? null : () => _showRejectDialog(),
+                    icon: Icon(
+                      Icons.close_rounded,
+                      color: _isConfirming ? Colors.grey : Colors.red.shade600,
+                    ),
+                    label: Text(
+                      "Belum",
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600,
+                        color: _isConfirming ? Colors.grey : Colors.red.shade600,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      side: BorderSide(
+                        color: _isConfirming ? Colors.grey.shade300 : Colors.red.shade300,
+                        width: 1.5,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Confirm Button
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _isConfirming ? null : () => _confirmResolution(true),
+                    icon: _isConfirming
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.check_rounded, color: Colors.white),
+                    label: Text(
+                      _isConfirming ? "Memproses..." : "Ya, Sudah",
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryColor,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 2,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ✅ NEW: Show Reject Dialog with rejection note
+  void _showRejectDialog() {
+    _rejectionNoteController.clear();
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Icon(Icons.report_problem_rounded, color: Colors.orange.shade600),
+              const SizedBox(width: 8),
+              Text(
+                "Sampah Belum Diangkut?",
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Berikan alasan kenapa pengaduan belum selesai:",
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _rejectionNoteController,
+                maxLines: 3,
+                maxLength: 500,
+                decoration: InputDecoration(
+                  hintText: "Contoh: Sampah masih ada sebagian yang belum diangkut...",
+                  hintStyle: GoogleFonts.poppins(
+                    fontSize: 13,
+                    color: Colors.grey.shade400,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: primaryColor, width: 2),
+                  ),
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                "Batal",
+                style: GoogleFonts.poppins(color: Colors.grey.shade600),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _confirmResolution(false, rejectionNote: _rejectionNoteController.text);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange.shade600,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: Text(
+                "Kirim",
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ✅ NEW: Confirm Resolution API Call
+  Future<void> _confirmResolution(bool confirmed, {String? rejectionNote}) async {
+    setState(() {
+      _isConfirming = true;
+    });
+
+    try {
+      final (success, message, data) = await ComplaintService.confirmResolution(
+        id: widget.laporan.id,
+        confirmed: confirmed,
+        rejectionNote: rejectionNote,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _isConfirming = false;
+      });
+
+      if (success) {
+        // Show success dialog
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: confirmed ? Colors.green.shade50 : Colors.orange.shade50,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      confirmed ? Icons.check_circle_rounded : Icons.refresh_rounded,
+                      color: confirmed ? Colors.green.shade600 : Colors.orange.shade600,
+                      size: 48,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    confirmed ? "Terima Kasih!" : "Pengaduan Dilanjutkan",
+                    style: GoogleFonts.poppins(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context); // Close dialog
+                      Navigator.pop(context, true); // Return to list with refresh flag
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryColor,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(
+                      "OK",
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      } else {
+        // Show error
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: Colors.red.shade600,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      
+      setState(() {
+        _isConfirming = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Terjadi kesalahan: $e'),
+          backgroundColor: Colors.red.shade600,
+        ),
+      );
+    }
   }
 }
 
@@ -2678,7 +3120,7 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
     try {
       // Ambil data dari API
       final (success, message, data) = await ComplaintService.getComplaints(
-        limit: 100, // Ambil maksimal 100 laporan
+        perPage: 100, // Ambil maksimal 100 laporan per page
       );
 
       if (success && data != null) {
@@ -2833,6 +3275,7 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
     }
     
     final laporan = Laporan(
+      id: complaint.id.toString(), // ✅ FIXED: Use ID from API
       kota: kota,
       kategori: complaint.typeText, // Gunakan getter typeText untuk display
       lokasi: complaint.location ?? '', // Ambil lokasi dari API
@@ -2846,10 +3289,17 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
       resolutionPhotoUrls: resolutionPhotoUrl != null ? [resolutionPhotoUrl] : [],
       isAsset: complaint.photos.isNotEmpty, // Ada foto dari API
       status: complaint.status, // Ambil status dari database
+      type: complaint.type, // ✅ NEW: Simpan tipe asli dari API
+      rejectionReason: complaint.rejectionReason, // ✅ NEW: Alasan penolakan
+      createdAt: complaint.createdAt, // ✅ FIXED: Use createdAt from API
     );
 
+    print('📋 Laporan ID from API: ${laporan.id}');
     print('📍 Laporan object lokasi: ${laporan.lokasi}');
     print('📍 Laporan lokasi isEmpty: ${laporan.lokasi.isEmpty}');
+    print('📋 Laporan type: ${laporan.type}');
+    print('📋 Laporan status: ${laporan.status}');
+    print('📋 Laporan needsConfirmation: ${laporan.needsConfirmation}');
 
     return laporan;
   }
@@ -2921,7 +3371,10 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
 
       // 3. Jika tidak ada gambar, tampilkan daftar laporan atau empty state
       if (_submittedReports.isNotEmpty) {
-        return _ReportList(reports: _submittedReports);
+        return _ReportList(
+          reports: _submittedReports,
+          onRefresh: _loadSavedReports, // ✅ Pass refresh callback
+        );
       }
 
       return _PelaporanEmptyState(
@@ -2974,8 +3427,12 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
 // Widget untuk menampilkan daftar laporan yang sudah dikirim
 class _ReportList extends StatelessWidget {
   final List<Laporan> reports;
+  final VoidCallback? onRefresh; // ✅ NEW: Callback untuk refresh
 
-  const _ReportList({required this.reports});
+  const _ReportList({
+    required this.reports,
+    this.onRefresh,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -3004,14 +3461,19 @@ class _ReportList extends StatelessWidget {
               final report = reports[index];
               return _ReportCard(
                 report: report,
-                onTap: () {
+                onTap: () async {
                   // Navigasi ke detail laporan yang sudah terkirim
-                  Navigator.of(context).push(
+                  final shouldRefresh = await Navigator.of(context).push<bool>(
                     MaterialPageRoute(
                       builder: (ctx) =>
                           DetailLaporanTerkirimScreen(laporan: report),
                     ),
                   );
+                  
+                  // ✅ Refresh list jika ada perubahan (konfirmasi/reject)
+                  if (shouldRefresh == true && onRefresh != null) {
+                    onRefresh!();
+                  }
                 },
               );
             },
@@ -3025,7 +3487,7 @@ class _ReportList extends StatelessWidget {
 // Widget Card untuk setiap laporan (sesuai desain Figma)
 class _ReportCard extends StatelessWidget {
   final Laporan report;
-  final VoidCallback onTap;
+  final Future<void> Function() onTap; // ✅ Changed to async function
 
   const _ReportCard({required this.report, required this.onTap});
 
@@ -3070,7 +3532,7 @@ class _ReportCard extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: onTap,
+          onTap: () => onTap(), // ✅ Call async function
           borderRadius: BorderRadius.circular(16),
           child: Padding(
             padding: const EdgeInsets.all(14),

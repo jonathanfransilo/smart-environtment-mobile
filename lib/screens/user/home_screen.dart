@@ -204,60 +204,43 @@ class _HomeScreenState extends State<HomeScreen> {
       print('📊 [HomeScreen] Loaded ${invoices.length} total unpaid invoices from API');
 
       // Debug: Print struktur invoice untuk melihat field apa saja yang ada
-      if (invoices.isNotEmpty) {
-        print('🔍 [HomeScreen] Sample invoice structure:');
-        print('   Keys: ${invoices[0].keys.toList()}');
-        if (invoices[0]['pickup'] != null) {
-          print('   pickup keys: ${invoices[0]['pickup'].keys.toList()}');
-        }
-        if (invoices[0]['resident_pickup'] != null) {
-          print('   resident_pickup keys: ${invoices[0]['resident_pickup'].keys.toList()}');
-        }
+      for (int i = 0; i < invoices.length; i++) {
+        final invoice = invoices[i];
+        print('🔍 [HomeScreen] Invoice #${i + 1}:');
+        print('   - id: ${invoice['id']}');
+        print('   - invoice_number: ${invoice['invoice_number']}');
+        print('   - status: ${invoice['status']}');
+        print('   - total_amount: ${invoice['total_amount']}');
+        print('   - Keys: ${invoice.keys.toList()}');
       }
 
-      // ✅ FILTER: Hanya tampilkan invoice dari pickup yang sudah dikonfirmasi user
-      final confirmedInvoices = invoices.where((invoice) {
-        final invoiceId = invoice['id'] ?? 'unknown';
-        
-        // Cek apakah invoice memiliki pickup terkait
-        final pickup = invoice['pickup'] ?? invoice['resident_pickup'];
-        
-        if (pickup == null) {
-          // Jika tidak ada pickup data, CEK apakah ini invoice dari pickup atau bukan
-          // Invoice tanpa pickup field kemungkinan adalah invoice manual/admin
-          print('   ⚠️ Invoice #$invoiceId TIDAK ADA pickup field - akan DITOLAK untuk keamanan');
-          return false; // TOLAK invoice tanpa pickup data untuk menghindari tampilkan yang pending
-        }
-        
-        // Cek confirmation_status dari pickup
-        final confirmationStatus = pickup['confirmation_status']?.toString();
-        final pickupId = pickup['id'] ?? 'unknown';
-        
-        if (confirmationStatus == null) {
-          print('   ⚠️ Invoice #$invoiceId dari Pickup #$pickupId - TIDAK ADA confirmation_status field (DITOLAK)');
-          return false;
-        }
-        
-        if (confirmationStatus == 'confirmed') {
-          print('   ✅ Invoice #$invoiceId dari Pickup #$pickupId - STATUS: CONFIRMED (DITAMPILKAN)');
-          return true;
-        } else {
-          print('   ❌ Invoice #$invoiceId dari Pickup #$pickupId - STATUS: $confirmationStatus (DISEMBUNYIKAN)');
-          return false;
-        }
-      }).toList();
+      // ✅ SIMPLIFIED: Tampilkan SEMUA invoice dari endpoint unpaid
+      // Backend sudah mem-filter invoice yang valid untuk ditampilkan
+      // Tidak perlu filter tambahan di mobile app
+      print('📋 [HomeScreen] Menampilkan ${invoices.length} invoice (tanpa filter tambahan)');
 
-      invoices = confirmedInvoices;
-      print('📋 [HomeScreen] Setelah filter konfirmasi: ${invoices.length} invoice yang bisa dibayar');
-
-      // Filter by selected account if one is selected
+      // Filter by selected account if one is selected AND there are multiple accounts
       if (_selectedAkun != null && _akunList.length > 1) {
         final selectedAccountId = _selectedAkun!['id']?.toString();
-        invoices = invoices.where((invoice) {
+        print('🔍 [HomeScreen] Filtering by selected account ID: $selectedAccountId');
+        
+        final filteredInvoices = invoices.where((invoice) {
           final serviceAccount = invoice['service_account'];
-          if (serviceAccount == null) return false;
-          return serviceAccount['id']?.toString() == selectedAccountId;
+          
+          // Jika invoice tidak punya service_account, tetap tampilkan
+          if (serviceAccount == null) {
+            print('   ⚠️ Invoice #${invoice['id']} tidak punya service_account, tetap tampilkan');
+            return true;
+          }
+          
+          final invoiceAccountId = serviceAccount['id']?.toString();
+          final matches = invoiceAccountId == selectedAccountId;
+          print('   ${matches ? "✅" : "❌"} Invoice #${invoice['id']} account: $invoiceAccountId ${matches ? "MATCH" : "NO MATCH"}');
+          return matches;
         }).toList();
+        
+        invoices = filteredInvoices;
+        print('📋 [HomeScreen] Setelah filter akun: ${invoices.length} invoice');
       }
 
       // Calculate total amount for filtered invoices
@@ -272,7 +255,9 @@ class _HomeScreenState extends State<HomeScreen> {
         _totalUnpaidAmount = totalAmount;
         _isLoadingInvoices = false;
       });
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('❌ [HomeScreen] Error loading unpaid invoices: $e');
+      print('   Stack trace: $stackTrace');
       if (!mounted) return;
       setState(() {
         _unpaidInvoices = [];

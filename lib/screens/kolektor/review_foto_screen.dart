@@ -11,6 +11,7 @@ class ReviewFotoScreen extends StatefulWidget {
   final String address;
   final String idPengambilan;
   final XFile imageFile;
+  final bool isOffSchedule;
 
   const ReviewFotoScreen({
     super.key,
@@ -19,6 +20,7 @@ class ReviewFotoScreen extends StatefulWidget {
     required this.address,
     required this.idPengambilan,
     required this.imageFile,
+    this.isOffSchedule = false,
   });
 
   @override
@@ -87,6 +89,7 @@ class _ReviewFotoScreenState extends State<ReviewFotoScreen> {
             address: widget.address,
             idPengambilan: widget.idPengambilan,
             imageFile: widget.imageFile,
+            isOffSchedule: widget.isOffSchedule,
           ),
         ),
       );

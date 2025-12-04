@@ -1,6 +1,7 @@
 class OffSchedulePickup {
   final int id;
   final ServiceAccount? serviceAccount;
+  final int? _serviceAccountIdDirect; // Fallback if service_account is null
   final String pickupType;
   final String requestStatus;
   final String status;
@@ -19,10 +20,15 @@ class OffSchedulePickup {
   final String? note;
   final String? collectorNotes;
   final DateTime? collectedAt;
+  // Timestamps for status tracking
+  final DateTime? processedAt;
+  final DateTime? completedAt;
+  final DateTime? assignedAt;
 
   OffSchedulePickup({
     required this.id,
     this.serviceAccount,
+    int? serviceAccountIdDirect,
     required this.pickupType,
     required this.requestStatus,
     required this.status,
@@ -41,19 +47,35 @@ class OffSchedulePickup {
     this.note,
     this.collectorNotes,
     this.collectedAt,
-  });
+    this.processedAt,
+    this.completedAt,
+    this.assignedAt,
+  }) : _serviceAccountIdDirect = serviceAccountIdDirect;
 
   // Convenience getters for backward compatibility
-  int get serviceAccountId => serviceAccount?.id ?? 0;
+  int get serviceAccountId {
+    if (serviceAccount != null) {
+      return serviceAccount!.id;
+    }
+    return _serviceAccountIdDirect ?? 0;
+  }
   String get serviceAccountName => serviceAccount?.name ?? '';
   String get address => serviceAccount?.address ?? '';
 
   factory OffSchedulePickup.fromJson(Map<String, dynamic> json) {
+    // Parse service_account_id directly as fallback
+    int? directServiceAccountId;
+    if (json['service_account_id'] != null) {
+      final saId = json['service_account_id'];
+      directServiceAccountId = saId is int ? saId : int.tryParse(saId.toString());
+    }
+    
     return OffSchedulePickup(
       id: json['id'] ?? 0,
       serviceAccount: json['service_account'] != null
           ? ServiceAccount.fromJson(json['service_account'])
           : null,
+      serviceAccountIdDirect: directServiceAccountId,
       pickupType: json['pickup_type'] ?? 'request',
       requestStatus: json['request_status'] ?? 'sent',
       status: json['status'] ?? 'pending',
@@ -78,6 +100,15 @@ class OffSchedulePickup {
       collectedAt: json['collected_at'] != null
           ? DateTime.parse(json['collected_at'])
           : null,
+      processedAt: json['processed_at'] != null
+          ? DateTime.parse(json['processed_at'])
+          : null,
+      completedAt: json['completed_at'] != null
+          ? DateTime.parse(json['completed_at'])
+          : null,
+      assignedAt: json['assigned_at'] != null
+          ? DateTime.parse(json['assigned_at'])
+          : null,
     );
   }
 
@@ -85,6 +116,7 @@ class OffSchedulePickup {
     return {
       'id': id,
       'service_account': serviceAccount?.toJson(),
+      'service_account_id': serviceAccountId,
       'pickup_type': pickupType,
       'request_status': requestStatus,
       'status': status,
@@ -103,6 +135,9 @@ class OffSchedulePickup {
       'note': note,
       'collector_notes': collectorNotes,
       'collected_at': collectedAt?.toIso8601String(),
+      'processed_at': processedAt?.toIso8601String(),
+      'completed_at': completedAt?.toIso8601String(),
+      'assigned_at': assignedAt?.toIso8601String(),
     };
   }
 
@@ -167,8 +202,18 @@ class ServiceAccount {
     print('🔍 [ServiceAccount] Parsing from JSON with keys: ${json.keys.toList()}');
     print('   Raw JSON: $json');
     
+    // Parse id as int, handling both int and string
+    int parsedId = 0;
+    if (json['id'] != null) {
+      if (json['id'] is int) {
+        parsedId = json['id'];
+      } else {
+        parsedId = int.tryParse(json['id'].toString()) ?? 0;
+      }
+    }
+    
     return ServiceAccount(
-      id: json['id'] ?? 0,
+      id: parsedId,
       name: json['name'] ?? '',
       address: json['address'] ?? '',
       latitude: json['latitude'] != null ? double.tryParse(json['latitude'].toString()) : null,

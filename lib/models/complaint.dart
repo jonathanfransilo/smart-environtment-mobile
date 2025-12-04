@@ -7,10 +7,21 @@ class ComplaintPhoto {
   ComplaintPhoto({required this.id, required this.url, required this.order});
 
   factory ComplaintPhoto.fromJson(Map<String, dynamic> json) {
+    print('📷 [ComplaintPhoto] Parsing photo: $json');
+    
+    // Parse URL - coba berbagai kemungkinan field
+    String photoUrl = json['url']?.toString() ?? 
+                      json['photo_url']?.toString() ?? 
+                      json['path']?.toString() ?? 
+                      json['file_path']?.toString() ?? 
+                      json['image']?.toString() ?? '';
+    
+    print('📷 [ComplaintPhoto] Parsed URL: $photoUrl');
+    
     return ComplaintPhoto(
-      id: json['id'] as int,
-      url: json['url'] as String,
-      order: json['order'] as int,
+      id: json['id'] as int? ?? 0,
+      url: photoUrl,
+      order: json['order'] as int? ?? 0,
     );
   }
 
@@ -26,11 +37,16 @@ class Complaint {
   final String? assigneeId;
   final String type; // Jenis keluhan
   final String description;
-  final String? location; // Lokasi kejadian
-  final String status; // 'open', 'in_progress', 'resolved', 'rejected'
+  final String? location; // Lokasi kejadian (address)
+  final double? latitude; // ✅ NEW: Latitude lokasi
+  final double? longitude; // ✅ NEW: Longitude lokasi
+  final String status; // 'open', 'in_progress', 'pending_confirmation', 'resolved', 'rejected'
   final List<ComplaintPhoto> photos; // Evidence photos
   final String? resolutionPhoto; // ✅ Foto penyelesaian dari collector
+  final String? rejectionReason; // ✅ NEW: Alasan penolakan
   final Map<String, dynamic>? reporter; // Reporter information for collector view
+  final Map<String, dynamic>? serviceAccount; // ✅ NEW: Service account info
+  final Map<String, dynamic>? assignee; // ✅ NEW: Assignee (collector) info
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -42,10 +58,15 @@ class Complaint {
     required this.type,
     required this.description,
     this.location,
+    this.latitude,
+    this.longitude,
     required this.status,
     this.photos = const [],
     this.resolutionPhoto,
+    this.rejectionReason,
     this.reporter,
+    this.serviceAccount,
+    this.assignee,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -128,10 +149,15 @@ class Complaint {
       type: json['type'] ?? '',
       description: json['description'] ?? '',
       location: json['address']?.toString(), // ✅ API menggunakan field 'address'
+      latitude: json['latitude'] != null ? (json['latitude'] as num).toDouble() : null, // ✅ NEW
+      longitude: json['longitude'] != null ? (json['longitude'] as num).toDouble() : null, // ✅ NEW
       status: json['status'] ?? 'open',
       photos: photos,
       resolutionPhoto: json['resolution_photo']?.toString(), // ✅ Foto resolution
+      rejectionReason: json['rejection_reason']?.toString(), // ✅ NEW
       reporter: reporterData,
+      serviceAccount: json['service_account'] as Map<String, dynamic>?, // ✅ NEW
+      assignee: json['assignee'] as Map<String, dynamic>?, // ✅ NEW
       createdAt: createdAt,
       updatedAt: updatedAt,
     );
@@ -145,11 +171,16 @@ class Complaint {
       'assignee_id': assigneeId,
       'type': type,
       'description': description,
-      'location': location,
+      'address': location,
+      'latitude': latitude,
+      'longitude': longitude,
       'status': status,
       'photos': photos.map((p) => p.toJson()).toList(),
       'resolution_photo': resolutionPhoto,
+      'rejection_reason': rejectionReason,
       'reporter': reporter,
+      'service_account': serviceAccount,
+      'assignee': assignee,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
     };
@@ -162,6 +193,8 @@ class Complaint {
         return 'Menunggu';
       case 'in_progress':
         return 'Diproses';
+      case 'pending_confirmation': // ✅ NEW: Status menunggu konfirmasi
+        return 'Menunggu Konfirmasi';
       case 'resolved':
         return 'Selesai';
       case 'rejected':
@@ -208,10 +241,16 @@ class Complaint {
     String? assigneeId,
     String? type,
     String? description,
+    String? location,
+    double? latitude,
+    double? longitude,
     String? status,
     List<ComplaintPhoto>? photos,
     String? resolutionPhoto,
+    String? rejectionReason,
     Map<String, dynamic>? reporter,
+    Map<String, dynamic>? serviceAccount,
+    Map<String, dynamic>? assignee,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -222,10 +261,16 @@ class Complaint {
       assigneeId: assigneeId ?? this.assigneeId,
       type: type ?? this.type,
       description: description ?? this.description,
+      location: location ?? this.location,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
       status: status ?? this.status,
       photos: photos ?? this.photos,
       resolutionPhoto: resolutionPhoto ?? this.resolutionPhoto,
+      rejectionReason: rejectionReason ?? this.rejectionReason,
       reporter: reporter ?? this.reporter,
+      serviceAccount: serviceAccount ?? this.serviceAccount,
+      assignee: assignee ?? this.assignee,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

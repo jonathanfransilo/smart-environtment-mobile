@@ -10,6 +10,7 @@ class InputKantongScreen extends StatefulWidget {
   final String address;
   final String idPengambilan;
   final XFile imageFile;
+  final bool isOffSchedule;
 
   const InputKantongScreen({
     super.key,
@@ -18,6 +19,7 @@ class InputKantongScreen extends StatefulWidget {
     required this.address,
     required this.idPengambilan,
     required this.imageFile,
+    this.isOffSchedule = false,
   });
 
   @override
@@ -187,6 +189,7 @@ class _InputKantongScreenState extends State<InputKantongScreen> {
           idPengambilan: widget.idPengambilan,
           selectedSampah: _sampahCategories,
           imageFile: widget.imageFile,
+          isOffSchedule: widget.isOffSchedule,
         ),
       ),
     );

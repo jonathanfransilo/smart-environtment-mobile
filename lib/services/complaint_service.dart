@@ -2,18 +2,17 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'token_storage.dart';
+import '../config/api_config.dart';
 import '../utils/file.dart'; // Conditional import for File class
 
 class ComplaintService {
-  static const String baseUrl =
-      'https://smart-environment-web.citiasiainc.id/api/v1/mobile/resident/complaints';
-
-  /// Get list of complaints
-  /// Returns: (success, message, data)
+  // ✅ FIX: Gunakan format URL yang konsisten dengan API lainnya
+  static String get baseUrl => '${ApiConfig.baseUrl}/mobile/resident/complaints';
   static Future<(bool, String, List<Map<String, dynamic>>?)> getComplaints({
-    String? status, // 'open', 'in_progress', 'resolved', 'cancelled'
-    int? limit,
-    int? offset,
+    String? status,
+    String? type,
+    int? serviceAccountId,
+    int? perPage,
   }) async {
     try {
       final token = await TokenStorage.getToken();
@@ -24,8 +23,9 @@ class ComplaintService {
       // Build query parameters
       final queryParams = <String, String>{};
       if (status != null) queryParams['status'] = status;
-      if (limit != null) queryParams['limit'] = limit.toString();
-      if (offset != null) queryParams['offset'] = offset.toString();
+      if (type != null) queryParams['type'] = type;
+      if (serviceAccountId != null) queryParams['service_account_id'] = serviceAccountId.toString();
+      if (perPage != null) queryParams['per_page'] = perPage.toString();
 
       final uri = Uri.parse(
         baseUrl,
@@ -94,16 +94,15 @@ class ComplaintService {
     }
   }
 
-  /// Create new complaint
-  /// Returns: (success, message, data)
   static Future<(bool, String, Map<String, dynamic>?)> createComplaint({
-    required String
-    type, // Jenis keluhan (illegal_dumping, uncollected_waste, damaged_facility, other)
+    required String type,
     required String description,
-    required String location, // Lokasi kejadian
-    String? serviceAccountId, // ID service account (opsional)
-    File? image, // Single image (backward compatibility)
-    List<File>? images, // Multiple images
+    String? location,
+    double? latitude,
+    double? longitude,
+    int? serviceAccountId,
+    File? image, 
+    List<File>? images, 
   }) async {
     try {
       final token = await TokenStorage.getToken();
@@ -117,10 +116,18 @@ class ComplaintService {
       // Add text fields
       request.fields['type'] = type;
       request.fields['description'] = description;
-      request.fields['address'] = location; // API menggunakan field 'address'
+      if (location != null && location.isNotEmpty) {
+        request.fields['address'] = location;
+      }
+      if (latitude != null) {
+        request.fields['latitude'] = latitude.toString();
+      }
+      if (longitude != null) {
+        request.fields['longitude'] = longitude.toString();
+      }
 
       if (serviceAccountId != null) {
-        request.fields['service_account_id'] = serviceAccountId;
+        request.fields['service_account_id'] = serviceAccountId.toString();
       }
 
       // Add images - support both single and multiple
@@ -370,8 +377,9 @@ class ComplaintService {
       // Add text fields only if provided
       if (category != null) request.fields['category'] = category;
       if (description != null) request.fields['description'] = description;
-      if (location != null)
+      if (location != null) {
         request.fields['address'] = location; // API menggunakan field 'address'
+      }
 
       // Add image file if provided
       if (image != null) {
@@ -507,6 +515,110 @@ class ComplaintService {
       }
     } catch (e) {
       print('❌ Error cancel complaint: $e');
+      return (false, 'Terjadi kesalahan: $e', null);
+    }
+  }
+
+  /// Konfirmasi Penyelesaian Pengaduan
+  /// Hanya berlaku untuk pengaduan dengan status 'pending_confirmation'
+  /// (khususnya tipe 'sampah_tidak_diangkut')
+  /// 
+  /// Parameters:
+  /// - id: ID pengaduan
+  /// - confirmed: true untuk konfirmasi selesai, false untuk menolak
+  /// - rejectionNote: Alasan penolakan (wajib jika confirmed=false, max: 500 karakter)
+  /// 
+  /// Returns: (success, message, data)
+  static Future<(bool, String, Map<String, dynamic>?)> confirmResolution({
+    required String id,
+    required bool confirmed,
+    String? rejectionNote,
+  }) async {
+    try {
+      final token = await TokenStorage.getToken();
+      if (token == null) {
+        return (false, 'Token tidak ditemukan. Silakan login kembali.', null);
+      }
+
+      // Build request body
+      final body = <String, dynamic>{
+        'confirmed': confirmed,
+      };
+      
+      // Add rejection note if rejecting
+      if (!confirmed && rejectionNote != null && rejectionNote.isNotEmpty) {
+        body['rejection_note'] = rejectionNote;
+      }
+
+      print('📤 Confirming resolution for complaint: $id');
+      print('   Confirmed: $confirmed');
+      if (!confirmed) print('   Rejection Note: $rejectionNote');
+
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/$id/confirm-resolution'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+            },
+            body: json.encode(body),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      print('📋 Confirm Resolution Response: ${response.statusCode}');
+      print('📋 Response Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> jsonResponse = json.decode(response.body);
+
+        if (jsonResponse['success'] == true) {
+          final String successMessage = jsonResponse['message']?.toString() ?? 
+              (confirmed 
+                  ? 'Terima kasih! Pengaduan telah dikonfirmasi selesai.'
+                  : 'Pengaduan dikembalikan ke status dalam proses.');
+          
+          final dataWrapper = jsonResponse['data'];
+
+          // Handle response structure
+          if (dataWrapper is Map<String, dynamic>) {
+            return (true, successMessage, dataWrapper);
+          } else {
+            return (true, successMessage, null);
+          }
+        } else {
+          final String message =
+              jsonResponse['message']?.toString() ??
+              'Gagal mengkonfirmasi penyelesaian';
+          return (false, message, null);
+        }
+      } else if (response.statusCode == 400) {
+        final errorData = json.decode(response.body);
+        final String message =
+            errorData['message']?.toString() ??
+            'Pengaduan ini tidak dalam status menunggu konfirmasi.';
+        return (false, message, null);
+      } else if (response.statusCode == 401) {
+        return (false, 'Sesi telah berakhir. Silakan login kembali.', null);
+      } else if (response.statusCode == 404) {
+        return (false, 'Keluhan tidak ditemukan', null);
+      } else if (response.statusCode == 422) {
+        final errorData = json.decode(response.body);
+        final String message =
+            errorData['message']?.toString() ?? 'Validasi gagal';
+        return (false, message, null);
+      } else {
+        final errorData = json.decode(response.body);
+        final String message =
+            errorData['message']?.toString() ??
+            'Gagal mengkonfirmasi penyelesaian';
+        return (false, message, null);
+      }
+    } on SocketException {
+      return (false, 'Tidak ada koneksi internet', null);
+    } on http.ClientException {
+      return (false, 'Koneksi ke server gagal', null);
+    } catch (e) {
+      print('❌ Error confirm resolution: $e');
       return (false, 'Terjadi kesalahan: $e', null);
     }
   }
