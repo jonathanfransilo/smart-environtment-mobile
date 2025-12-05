@@ -77,7 +77,7 @@ class _TPSMapScreenState extends State<TPSMapScreen> {
       // Move camera to show both markers
       _fitBounds();
     } catch (e) {
-      print('❌ Error getting location: $e');
+      print('[ERROR] Error getting location: $e');
       setState(() => _isLoadingLocation = false);
       _showErrorSnackbar('Gagal mendapatkan lokasi: $e');
     }

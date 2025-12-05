@@ -40,7 +40,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
   /// Muat riwayat pickup dari API
   Future<void> _loadHistory() async {
     if (!mounted) {
-      print('⚠️ [RiwayatPengambilan] Widget not mounted, aborting load');
+      print('[WARN] [RiwayatPengambilan] Widget not mounted, aborting load');
       return;
     }
 
@@ -51,7 +51,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
 
     try {
       print(
-        '🔄 [RiwayatPengambilan] Loading history for account: ${widget.accountName} (ID: ${widget.serviceAccountId})',
+        '[SYNC] [RiwayatPengambilan] Loading history for account: ${widget.accountName} (ID: ${widget.serviceAccountId})',
       );
 
       // Validasi service account ID
@@ -65,12 +65,12 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
       );
 
       if (!mounted) {
-        print('⚠️ [RiwayatPengambilan] Widget unmounted during API call');
+        print('[WARN] [RiwayatPengambilan] Widget unmounted during API call');
         return;
       }
 
       print(
-        '📊 [RiwayatPengambilan] Regular pickups - Success: $success, Message: $message, Items: ${regularPickups?.length ?? 0}',
+        '[STATS] [RiwayatPengambilan] Regular pickups - Success: $success, Message: $message, Items: ${regularPickups?.length ?? 0}',
       );
 
       // 2. Load off-schedule pickups
@@ -81,14 +81,14 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
           perPage: 100,
         );
         
-        print('📊 [RiwayatPengambilan] Raw off-schedule list from API: ${offScheduleList.length} items');
+        print('[STATS] [RiwayatPengambilan] Raw off-schedule list from API: ${offScheduleList.length} items');
         for (var p in offScheduleList) {
           print('   - ID: ${p.id}, Status: ${p.status}, ServiceAccountId: ${p.serviceAccountId}');
         }
         
         // Filter berdasarkan service account ID
         final serviceAccountIdInt = int.tryParse(widget.serviceAccountId);
-        print('🔍 [RiwayatPengambilan] Filtering for serviceAccountId: $serviceAccountIdInt');
+        print('[SEARCH] [RiwayatPengambilan] Filtering for serviceAccountId: $serviceAccountIdInt');
         
         if (serviceAccountIdInt != null) {
           offSchedulePickups = offScheduleList
@@ -103,15 +103,15 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                 final json = p.toJson();
                 json['is_off_schedule'] = true; // Tandai sebagai off-schedule
                 json['pickup_type'] = 'request'; // Pastikan pickup_type adalah request
-                print('✅ [RiwayatPengambilan] Added off-schedule pickup #${p.id} to list');
+                print('[OK] [RiwayatPengambilan] Added off-schedule pickup #${p.id} to list');
                 return json;
               })
               .toList();
         }
         
-        print('📊 [RiwayatPengambilan] Filtered off-schedule pickups: ${offSchedulePickups.length} items');
+        print('[STATS] [RiwayatPengambilan] Filtered off-schedule pickups: ${offSchedulePickups.length} items');
       } catch (e, stackTrace) {
-        print('⚠️ [RiwayatPengambilan] Error loading off-schedule pickups: $e');
+        print('[WARN] [RiwayatPengambilan] Error loading off-schedule pickups: $e');
         print('   Stack: $stackTrace');
         // Continue dengan regular pickups saja jika off-schedule gagal
       }
@@ -125,7 +125,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
           .whereType<int>()
           .toSet();
       
-      print('🔍 [RiwayatPengambilan] Off-schedule IDs: $offScheduleIds');
+      print('[SEARCH] [RiwayatPengambilan] Off-schedule IDs: $offScheduleIds');
       
       if (success && regularPickups != null) {
         // Proses regular pickups - cek apakah sebenarnya off-schedule
@@ -163,7 +163,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
           
           // Skip jika sudah ada di offSchedulePickups (menghindari duplikat)
           if (isInOffScheduleList) {
-            print('⏭️ [RiwayatPengambilan] Skipping pickup #$pickupId - already in off-schedule list, will use that instead');
+            print('[SKIP] [RiwayatPengambilan] Skipping pickup #$pickupId - already in off-schedule list, will use that instead');
             continue;
           }
           
@@ -171,7 +171,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
           pickup['is_off_schedule'] = isActuallyOffSchedule;
           pickup['pickup_type'] = isActuallyOffSchedule ? 'request' : (pickup['pickup_type'] ?? 'scheduled');
           
-          print('🏷️ [RiwayatPengambilan] Pickup #$pickupId - detected as ${isActuallyOffSchedule ? "OFF-SCHEDULE" : "REGULAR"}');
+          print('[TAG] [RiwayatPengambilan] Pickup #$pickupId - detected as ${isActuallyOffSchedule ? "OFF-SCHEDULE" : "REGULAR"}');
           print('   pickup_type: $pickupType, bag_count: ${pickup['bag_count']}, extra_fee: ${pickup['extra_fee']}');
           print('   base_amount: ${pickup['base_amount']}, requested_pickup_date: ${pickup['requested_pickup_date']}');
           print('   source: ${pickup['source']}, origin: ${pickup['origin']}, off_schedule_pickup_id: ${pickup['off_schedule_pickup_id']}');
@@ -181,25 +181,25 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
         
         // Debug: Print sample data structure
         if (regularPickups.isNotEmpty) {
-          print('🔍 [RiwayatPengambilan] Sample regular pickup data:');
+          print('[SEARCH] [RiwayatPengambilan] Sample regular pickup data:');
           print('   Keys: ${regularPickups[0].keys}');
           print('   ALL DATA: ${regularPickups[0]}');
           
           // ⚠️ PENTING: Cek service_account structure
           final serviceAccount = regularPickups[0]['service_account'];
-          print('🏢 [RiwayatPengambilan] SERVICE ACCOUNT DATA: $serviceAccount');
+          print('[BLDG] [RiwayatPengambilan] SERVICE ACCOUNT DATA: $serviceAccount');
           if (serviceAccount is Map<String, dynamic>) {
-            print('🏢 [RiwayatPengambilan] SERVICE ACCOUNT KEYS: ${serviceAccount.keys.toList()}');
-            print('🏢 [RiwayatPengambilan] ADDRESS FIELD: ${serviceAccount['address']}');
-            print('🏢 [RiwayatPengambilan] ALAMAT FIELD: ${serviceAccount['alamat']}');
-            print('🏢 [RiwayatPengambilan] ALAMAT_LENGKAP FIELD: ${serviceAccount['alamat_lengkap']}');
+            print('[BLDG] [RiwayatPengambilan] SERVICE ACCOUNT KEYS: ${serviceAccount.keys.toList()}');
+            print('[BLDG] [RiwayatPengambilan] ADDRESS FIELD: ${serviceAccount['address']}');
+            print('[BLDG] [RiwayatPengambilan] ALAMAT FIELD: ${serviceAccount['alamat']}');
+            print('[BLDG] [RiwayatPengambilan] ALAMAT_LENGKAP FIELD: ${serviceAccount['alamat_lengkap']}');
           }
           
           // ⚠️ PENTING: Cek confirmation_status dari API
           final confirmationStatus = regularPickups[0]['confirmation_status'];
-          print('⚠️ [RiwayatPengambilan] CONFIRMATION STATUS dari API: $confirmationStatus');
-          print('   ❌ Jika status = "confirmed", berarti BACKEND yang salah!');
-          print('   ✅ Seharusnya status = "pending" agar user bisa konfirmasi manual');
+          print('[WARN] [RiwayatPengambilan] CONFIRMATION STATUS dari API: $confirmationStatus');
+          print('   [NO] Jika status = "confirmed", berarti BACKEND yang salah!');
+          print('   [OK] Seharusnya status = "pending" agar user bisa konfirmasi manual');
 
           // Check ALL possible photo fields
           final photoUrl = regularPickups[0]['photo_url'];
@@ -209,7 +209,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
           final photoPath = regularPickups[0]['photo_path'];
           final imagePath = regularPickups[0]['image_path'];
 
-          print('📷 [RiwayatPengambilan] Photo fields:');
+          print('[IMG] [RiwayatPengambilan] Photo fields:');
           print('   photo_url: $photoUrl');
           print('   image: $image');
           print('   photo: $photo');
@@ -223,7 +223,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
           final isOffSchedule = regularPickups[0]['is_off_schedule'];
           final isRequest = regularPickups[0]['is_request'];
           
-          print('🏷️ [RiwayatPengambilan] Pickup type fields:');
+          print('[TAG] [RiwayatPengambilan] Pickup type fields:');
           print('   pickup_type: $pickupType');
           print('   type: $type');
           print('   is_off_schedule: $isOffSchedule');
@@ -241,7 +241,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
         return dateB.toString().compareTo(dateA.toString());
       });
 
-      print('📊 [RiwayatPengambilan] Total combined pickups: ${allPickups.length}');
+      print('[STATS] [RiwayatPengambilan] Total combined pickups: ${allPickups.length}');
 
       setState(() {
         _pickupHistory = allPickups;
@@ -249,14 +249,14 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
       });
 
       if (allPickups.isEmpty) {
-        print('⚠️ [RiwayatPengambilan] No pickup history found');
+        print('[WARN] [RiwayatPengambilan] No pickup history found');
       } else {
         print(
-          '✅ [RiwayatPengambilan] Loaded ${allPickups.length} pickup records (${regularPickups?.length ?? 0} regular + ${offSchedulePickups.length} off-schedule)',
+          '[OK] [RiwayatPengambilan] Loaded ${allPickups.length} pickup records (${regularPickups?.length ?? 0} regular + ${offSchedulePickups.length} off-schedule)',
         );
       }
     } catch (e, stackTrace) {
-      print('❌ [RiwayatPengambilan] Error loading history: $e');
+      print('[ERROR] [RiwayatPengambilan] Error loading history: $e');
       print('Stack trace: $stackTrace');
 
       if (!mounted) return;
@@ -271,7 +271,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
   @override
   Widget build(BuildContext context) {
     print(
-      '🎨 [RiwayatPengambilan] Building widget - Loading: $_isLoading, Error: $_errorMessage, Items: ${_pickupHistory.length}',
+      '[BUILD] [RiwayatPengambilan] Building widget - Loading: $_isLoading, Error: $_errorMessage, Items: ${_pickupHistory.length}',
     );
 
     return Scaffold(

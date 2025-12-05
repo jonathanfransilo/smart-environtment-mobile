@@ -21,9 +21,9 @@ class CollectorComplaintService {
         url += '?status=$status';
       }
 
-      print('🌐 [ComplaintService] Fetching complaints from: $url');
+      print('[NET] [ComplaintService] Fetching complaints from: $url');
       final previewToken = token.length > 20 ? '${token.substring(0, 20)}...' : token;
-      print('🔑 [ComplaintService] Token: $previewToken');
+      print('[KEY] [ComplaintService] Token: $previewToken');
 
       final response = await http.get(
         Uri.parse(url),
@@ -37,21 +37,21 @@ class CollectorComplaintService {
           throw Exception('Request timeout - server tidak merespon');
         },
       );
-      print('📡 [ComplaintService] Response status: ${response.statusCode}');
-      print('📦 [ComplaintService] Response body: ${response.body}');
+      print('[NET] [ComplaintService] Response status: ${response.statusCode}');
+      print('[DATA] [ComplaintService] Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body) as Map<String, dynamic>;
 
         // ✅ Sesuai dokumentasi API: {"success": true, "data": {"complaints": [...]}}
         if (!responseData.containsKey('success') || responseData['success'] != true) {
-          print('⚠️ [ComplaintService] API returned success=false');
+          print('[WARN] [ComplaintService] API returned success=false');
           return <Complaint>[];
         }
 
         final data = responseData['data'];
         if (data == null) {
-          print('⚠️ [ComplaintService] data is NULL');
+          print('[WARN] [ComplaintService] data is NULL');
           return <Complaint>[];
         }
 
@@ -60,39 +60,39 @@ class CollectorComplaintService {
         
         if (data is Map && data.containsKey('complaints') && data['complaints'] is List) {
           complaintsData = data['complaints'] as List<dynamic>;
-          print('🔍 [ComplaintService] Found complaints array: ${complaintsData.length} items');
+          print('[SEARCH] [ComplaintService] Found complaints array: ${complaintsData.length} items');
           
           // Log pagination metadata jika ada
           if (data.containsKey('meta')) {
             final meta = data['meta'];
-            print('📄 [ComplaintService] Pagination: page ${meta['current_page']} of ${meta['last_page']} (total: ${meta['total']})');
+            print('[PAGE] [ComplaintService] Pagination: page ${meta['current_page']} of ${meta['last_page']} (total: ${meta['total']})');
           }
         } else if (data is List) {
           // Fallback: jika data langsung array
           complaintsData = data;
-          print('🔍 [ComplaintService] Found direct array: ${complaintsData.length} items');
+          print('[SEARCH] [ComplaintService] Found direct array: ${complaintsData.length} items');
         } else {
-          print('⚠️ [ComplaintService] Unknown data format');
+          print('[WARN] [ComplaintService] Unknown data format');
           return <Complaint>[];
         }
 
-        print('✅ [ComplaintService] Parsing ${complaintsData.length} complaints');
+        print('[OK] [ComplaintService] Parsing ${complaintsData.length} complaints');
 
         final complaints = complaintsData
             .map((j) => Complaint.fromJson(j as Map<String, dynamic>))
             .toList(growable: false);
 
         for (final complaint in complaints) {
-          print('   📋 Complaint #${complaint.id}: ${complaint.type}, Status: ${complaint.status}');
+          print('   [LIST] Complaint #${complaint.id}: ${complaint.type}, Status: ${complaint.status}');
         }
 
         return complaints;
       }
-      print('❌ [ComplaintService] Error response: ${response.statusCode}');
+      print('[ERROR] [ComplaintService] Error response: ${response.statusCode}');
       print('   Body: ${response.body}');
       throw Exception('Gagal mengambil data pelaporan: ${response.body}');
     } catch (e) {
-      print('❌ [CollectorComplaintService] Error in getAssignedComplaints: $e');
+      print('[ERROR] [CollectorComplaintService] Error in getAssignedComplaints: $e');
       throw Exception('Error: $e');
     }
   }
@@ -105,7 +105,7 @@ class CollectorComplaintService {
         throw Exception('Token tidak ditemukan');
       }
 
-      print('🔍 [ComplaintService] Getting detail for complaint #$complaintId');
+      print('[SEARCH] [ComplaintService] Getting detail for complaint #$complaintId');
 
       final response = await http.get(
         Uri.parse('$baseUrl/complaints/$complaintId'),
@@ -115,13 +115,13 @@ class CollectorComplaintService {
         },
       );
 
-      print('📡 [ComplaintService] Detail response: ${response.statusCode}');
+      print('[NET] [ComplaintService] Detail response: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body) as Map<String, dynamic>;
         
         // ✅ DEBUG: Print full response
-        print('📦 [ComplaintService] FULL RESPONSE BODY:');
+        print('[DATA] [ComplaintService] FULL RESPONSE BODY:');
         print(json.encode(responseData));
         print('=====================================');
         
@@ -138,7 +138,7 @@ class CollectorComplaintService {
         // Parse complaint object (bisa langsung atau nested dalam 'complaint')
         final complaintData = data.containsKey('complaint') ? data['complaint'] : data;
         
-        print('📋 [ComplaintService] Parsing complaint data:');
+        print('[LIST] [ComplaintService] Parsing complaint data:');
         print('   - Has service_account: ${complaintData.containsKey('service_account')}');
         print('   - service_account_id: ${complaintData['service_account_id']}');
         if (complaintData.containsKey('service_account')) {
@@ -150,7 +150,7 @@ class CollectorComplaintService {
         throw Exception('Gagal mengambil detail pelaporan: ${response.body}');
       }
     } catch (e) {
-      print('❌ [ComplaintService] Error getting detail: $e');
+      print('[ERROR] [ComplaintService] Error getting detail: $e');
       throw Exception('Error: $e');
     }
   }
@@ -168,7 +168,7 @@ class CollectorComplaintService {
         throw Exception('Token tidak ditemukan');
       }
 
-      print('🔄 [ComplaintService] Updating complaint #$complaintId to status: $status');
+      print('[SYNC] [ComplaintService] Updating complaint #$complaintId to status: $status');
 
       var request = http.MultipartRequest(
         'POST',
@@ -184,7 +184,7 @@ class CollectorComplaintService {
 
       // ✅ Sesuai dokumentasi: resolution_photo wajib jika status=resolved
       if (photo != null) {
-        print('📸 [ComplaintService] Adding resolution_photo');
+        print('[IMG] [ComplaintService] Adding resolution_photo');
         request.files.add(
           await http.MultipartFile.fromPath(
             'resolution_photo', // ✅ Field name sesuai API documentation
@@ -192,14 +192,14 @@ class CollectorComplaintService {
           ),
         );
       } else if (status == 'resolved') {
-        print('⚠️ [ComplaintService] WARNING: No photo provided for resolved status');
+        print('[WARN] [ComplaintService] WARNING: No photo provided for resolved status');
       }
 
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
 
-      print('📡 [ComplaintService] Update response: ${response.statusCode}');
-      print('📦 [ComplaintService] Response body: ${response.body}');
+      print('[NET] [ComplaintService] Update response: ${response.statusCode}');
+      print('[DATA] [ComplaintService] Response body: ${response.body}');
 
       if (response.statusCode != 200) {
         throw Exception('Gagal update status: ${response.body}');
@@ -212,11 +212,11 @@ class CollectorComplaintService {
         throw Exception(responseData['message'] ?? 'Update failed');
       }
       
-      print('✅ [ComplaintService] ${responseData['message']}');
+      print('[OK] [ComplaintService] ${responseData['message']}');
       
       return responseData['data'] as Map<String, dynamic>? ?? {};
     } catch (e) {
-      print('❌ [ComplaintService] Error updating status: $e');
+      print('[ERROR] [ComplaintService] Error updating status: $e');
       throw Exception('Error: $e');
     }
   }

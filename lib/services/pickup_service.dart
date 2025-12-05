@@ -100,21 +100,21 @@ class PickupService {
   >
   getWasteItems() async {
     try {
-      print('🌐 [PickupService] Calling API: ${ApiConfig.collectorWasteItems}');
+      print('[NET] [PickupService] Calling API: ${ApiConfig.collectorWasteItems}');
       final response = await _dio.get(ApiConfig.collectorWasteItems);
 
-      print('📡 [PickupService] Response status: ${response.statusCode}');
+      print('[NET] [PickupService] Response status: ${response.statusCode}');
 
       final body = response.data as Map<String, dynamic>;
 
       if (body['success'] == true) {
         final data = body['data'] as List<dynamic>?;
-        print('📦 [PickupService] Data received: ${data?.length} items');
+        print('[DATA] [PickupService] Data received: ${data?.length} items');
 
         if (data != null) {
           final items = data.map((e) => e as Map<String, dynamic>).toList();
           print(
-            '✅ [PickupService] Successfully parsed ${items.length} waste items',
+            '[OK] [PickupService] Successfully parsed ${items.length} waste items',
           );
           return (true, null, items);
         }
@@ -123,13 +123,13 @@ class PickupService {
         final msg =
             body['errors']?['message']?.toString() ??
             'Gagal mengambil data waste items';
-        print('❌ [PickupService] API returned success=false: $msg');
+        print('[ERROR] [PickupService] API returned success=false: $msg');
         return (false, msg, null);
       }
     } on DioException catch (e) {
-      print('💥 [PickupService] DioException: ${e.type}, ${e.message}');
+      print('[CRASH] [PickupService] DioException: ${e.type}, ${e.message}');
       print(
-        '💥 [PickupService] Response: ${e.response?.statusCode} - ${e.response?.data}',
+        '[CRASH] [PickupService] Response: ${e.response?.statusCode} - ${e.response?.data}',
       );
 
       String msg = 'Terjadi kesalahan jaringan';
@@ -139,7 +139,7 @@ class PickupService {
       }
       return (false, msg, null);
     } catch (e) {
-      print('💥 [PickupService] Exception: $e');
+      print('[CRASH] [PickupService] Exception: $e');
       return (false, 'Error: $e', null);
     }
   }
@@ -150,12 +150,12 @@ class PickupService {
   >
   getTodayPickups() async {
     try {
-      print('🔍 [PickupService] ===== FETCHING TODAY PICKUPS =====');
+      print('[SEARCH] [PickupService] ===== FETCHING TODAY PICKUPS =====');
       print(
-        '🌐 [PickupService] Calling API: ${ApiConfig.collectorPickupsToday}',
+        '[NET] [PickupService] Calling API: ${ApiConfig.collectorPickupsToday}',
       );
       print(
-        '⏰ [PickupService] Current time: ${DateTime.now().toIso8601String()}',
+        '[TIME] [PickupService] Current time: ${DateTime.now().toIso8601String()}',
       );
 
       // Get logged in collector info - handle both int and string
@@ -165,25 +165,25 @@ class PickupService {
       final userName = prefs.getString('user_name');
       final userRole = prefs.getString('user_role');
 
-      print('👤 [PickupService] Logged in user:');
+      print('[TAG] [PickupService] Logged in user:');
       print('   - ID: $userId (type: ${userIdRaw.runtimeType})');
       print('   - Name: $userName');
       print('   - Role: $userRole');
 
       final response = await _dio.get(ApiConfig.collectorPickupsToday);
 
-      print('📡 [PickupService] Response status: ${response.statusCode}');
+      print('[NET] [PickupService] Response status: ${response.statusCode}');
 
       final body = response.data as Map<String, dynamic>;
 
       if (body['success'] == true) {
         // API menggunakan key 'items' bukan 'data'
         final items = body['items'] as List<dynamic>?;
-        print('📦 [PickupService] Received ${items?.length ?? 0} pickup items');
+        print('[DATA] [PickupService] Received ${items?.length ?? 0} pickup items');
 
         if (items != null && items.isNotEmpty) {
           // Debug: Print first item structure
-          print('📋 [PickupService] Sample pickup structure:');
+          print('[LIST] [PickupService] Sample pickup structure:');
           final firstItem = items.first as Map<String, dynamic>;
           print('   - Keys: ${firstItem.keys.toList()}');
           print('   - Pickup ID: ${firstItem['id']}');
@@ -201,7 +201,7 @@ class PickupService {
               print('     • contact_phone: ${sa['contact_phone']}');
             }
           } else {
-            print('   - ⚠️ No service_account key found!');
+            print('   - [WARN] No service_account key found!');
           }
           if (firstItem.containsKey('house_info')) {
             final houseInfo = firstItem['house_info'] as Map<String, dynamic>?;
@@ -215,26 +215,26 @@ class PickupService {
 
           final pickups = items.map((e) => e as Map<String, dynamic>).toList();
           print(
-            '✅ [PickupService] Successfully parsed ${pickups.length} pickups',
+            '[OK] [PickupService] Successfully parsed ${pickups.length} pickups',
           );
           print('═══════════════════════════════════════════════════════');
           return (true, null, pickups);
         }
-        print('⚠️ [PickupService] No pickups found for today');
+        print('[WARN] [PickupService] No pickups found for today');
         print('═══════════════════════════════════════════════════════');
         return (true, null, <Map<String, dynamic>>[]);
       } else {
         final msg =
             body['errors']?['message']?.toString() ??
             'Gagal mengambil data pickup';
-        print('❌ [PickupService] API returned success=false: $msg');
+        print('[ERROR] [PickupService] API returned success=false: $msg');
         print('═══════════════════════════════════════════════════════');
         return (false, msg, null);
       }
     } on DioException catch (e) {
-      print('💥 [PickupService] DioException: ${e.type}, ${e.message}');
+      print('[CRASH] [PickupService] DioException: ${e.type}, ${e.message}');
       print(
-        '💥 [PickupService] Response: ${e.response?.statusCode} - ${e.response?.data}',
+        '[CRASH] [PickupService] Response: ${e.response?.statusCode} - ${e.response?.data}',
       );
       print('═══════════════════════════════════════════════════════');
       String msg = 'Terjadi kesalahan jaringan';
@@ -244,7 +244,7 @@ class PickupService {
       }
       return (false, msg, null);
     } catch (e, stackTrace) {
-      print('💥 [PickupService] Exception: $e');
+      print('[CRASH] [PickupService] Exception: $e');
       print('Stack trace: $stackTrace');
       print('═══════════════════════════════════════════════════════');
       return (false, 'Error: $e', null);
@@ -258,7 +258,7 @@ class PickupService {
   getPickupHistoryFromAPI({int? limit}) async {
     try {
       print(
-        '🌐 [PickupService] Calling API: ${ApiConfig.collectorPickupsHistory}',
+        '[NET] [PickupService] Calling API: ${ApiConfig.collectorPickupsHistory}',
       );
 
       final queryParams = limit != null ? {'limit': limit} : null;
@@ -267,14 +267,14 @@ class PickupService {
         queryParameters: queryParams,
       );
 
-      print('📡 [PickupService] Response status: ${response.statusCode}');
+      print('[NET] [PickupService] Response status: ${response.statusCode}');
 
       final body = response.data as Map<String, dynamic>;
 
       if (body['success'] == true) {
         final data = body['data'] as List<dynamic>?;
         print(
-          '📦 [PickupService] History data received: ${data?.length} items',
+          '[DATA] [PickupService] History data received: ${data?.length} items',
         );
 
         if (data != null) {
@@ -319,22 +319,22 @@ class PickupService {
           }).toList();
 
           print(
-            '✅ [PickupService] Successfully parsed ${history.length} history items',
+            '[OK] [PickupService] Successfully parsed ${history.length} history items',
           );
           return (true, null, history);
         }
-        return (true, null, <Map<String, dynamic>>[]);
+return (true, null, <Map<String, dynamic>>[]);
       } else {
         final msg =
             body['errors']?['message']?.toString() ??
             'Gagal mengambil riwayat pickup';
-        print('❌ [PickupService] API returned success=false: $msg');
+        print('[ERROR] [PickupService] API returned success=false: $msg');
         return (false, msg, null);
       }
     } on DioException catch (e) {
-      print('💥 [PickupService] DioException: ${e.type}, ${e.message}');
+      print('[CRASH] [PickupService] DioException: ${e.type}, ${e.message}');
       print(
-        '💥 [PickupService] Response: ${e.response?.statusCode} - ${e.response?.data}',
+        '[CRASH] [PickupService] Response: ${e.response?.statusCode} - ${e.response?.data}',
       );
 
       String msg = 'Terjadi kesalahan jaringan';
@@ -344,7 +344,7 @@ class PickupService {
       }
       return (false, msg, null);
     } catch (e) {
-      print('💥 [PickupService] Exception: $e');
+      print('[CRASH] [PickupService] Exception: $e');
       return (false, 'Error: $e', null);
     }
   }
@@ -416,9 +416,9 @@ class PickupService {
   }) async {
     try {
       final url = '${ApiConfig.collectorPickupDetail}/$id/complete';
-      print('🌐 [PickupService] Calling PUT $url');
-      print('📦 [PickupService] Photo length: ${photo.length} chars');
-      print('📦 [PickupService] Waste items: ${wasteItems.length} items');
+      print('[NET] [PickupService] Calling PUT $url');
+      print('[DATA] [PickupService] Photo length: ${photo.length} chars');
+      print('[DATA] [PickupService] Waste items: ${wasteItems.length} items');
 
       final response = await _dio.put(
         url,
@@ -429,27 +429,27 @@ class PickupService {
         },
       );
 
-      print('📡 [PickupService] Response status: ${response.statusCode}');
+      print('[NET] [PickupService] Response status: ${response.statusCode}');
 
       final body = response.data as Map<String, dynamic>;
 
       if (body['success'] == true) {
         final data = body['data'] as Map<String, dynamic>?;
-        print('✅ [PickupService] Complete pickup SUCCESS');
+        print('[OK] [PickupService] Complete pickup SUCCESS');
         return (true, null, data);
       } else {
         final msg =
             body['errors']?['message']?.toString() ??
             'Gagal menyelesaikan pickup';
-        print('❌ [PickupService] API returned success=false: $msg');
+        print('[ERROR] [PickupService] API returned success=false: $msg');
         return (false, msg, null);
       }
     } on DioException catch (e) {
-      print('💥 [PickupService] DioException Type: ${e.type}');
-      print('💥 [PickupService] DioException Message: ${e.message}');
-      print('💥 [PickupService] Response Status: ${e.response?.statusCode}');
-      print('💥 [PickupService] Response Data: ${e.response?.data}');
-      print('💥 [PickupService] Request Data: ${e.requestOptions.data}');
+      print('[CRASH] [PickupService] DioException Type: ${e.type}');
+      print('[CRASH] [PickupService] DioException Message: ${e.message}');
+      print('[CRASH] [PickupService] Response Status: ${e.response?.statusCode}');
+      print('[CRASH] [PickupService] Response Data: ${e.response?.data}');
+      print('[CRASH] [PickupService] Request Data: ${e.requestOptions.data}');
 
       String msg = 'Terjadi kesalahan jaringan';
       if (e.response?.data is Map) {
@@ -461,7 +461,7 @@ class PickupService {
       }
       return (false, msg, null);
     } catch (e) {
-      print('💥 [PickupService] General Exception: $e');
+      print('[CRASH] [PickupService] General Exception: $e');
       return (false, 'Error: $e', null);
     }
   }

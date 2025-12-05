@@ -19,7 +19,7 @@ class OffSchedulePickupService {
       // Get all requests and filter by service account
       final url = Uri.parse('$baseUrl/mobile/resident/off-schedule-pickups?per_page=50&page=1');
       
-      print('🔍 [getActiveRequest] Fetching pickups for serviceAccountId: $serviceAccountId');
+      print('[SEARCH] [getActiveRequest] Fetching pickups for serviceAccountId: $serviceAccountId');
       
       final response = await http.get(
         url,
@@ -30,13 +30,13 @@ class OffSchedulePickupService {
         },
       );
 
-      print('🔍 [getActiveRequest] Response status: ${response.statusCode}');
+      print('[SEARCH] [getActiveRequest] Response status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final List<dynamic> pickupsJson = data['data'];
         
-        print('🔍 [getActiveRequest] Total pickups found: ${pickupsJson.length}');
+        print('[SEARCH] [getActiveRequest] Total pickups found: ${pickupsJson.length}');
         
         // Find active request for this service account
         // Active status: sent, processing, pending, completed, paid (exclude rejected only)
@@ -56,22 +56,22 @@ class OffSchedulePickupService {
           final requestStatus = json['request_status'] ?? '';
           final pickupId = json['id'] ?? 0;
           
-          print('🔍 [getActiveRequest] Checking pickup $pickupId: serviceAccountId=$pickupServiceAccountId, status=$requestStatus');
+          print('[SEARCH] [getActiveRequest] Checking pickup $pickupId: serviceAccountId=$pickupServiceAccountId, status=$requestStatus');
           
           if (pickupServiceAccountId == serviceAccountId && 
               activeStatuses.contains(requestStatus)) {
-            print('✅ [getActiveRequest] Found active request: $pickupId with status $requestStatus');
+            print('[OK] [getActiveRequest] Found active request: $pickupId with status $requestStatus');
             return OffSchedulePickup.fromJson(json);
           }
         }
-        print('❌ [getActiveRequest] No active request found for serviceAccountId: $serviceAccountId');
+        print('[ERROR] [getActiveRequest] No active request found for serviceAccountId: $serviceAccountId');
         return null;
       } else {
-        print('❌ [getActiveRequest] API error: ${response.statusCode}');
+        print('[ERROR] [getActiveRequest] API error: ${response.statusCode}');
         return null;
       }
     } catch (e) {
-      print('❌ [getActiveRequest] Error: $e');
+      print('[ERROR] [getActiveRequest] Error: $e');
       return null;
     }
   }
@@ -136,8 +136,8 @@ class OffSchedulePickupService {
         }),
       );
 
-      print('🔍 [PreviewSkip] Response status: ${response.statusCode}');
-      print('🔍 [PreviewSkip] Response body: ${response.body}');
+      print('[SEARCH] [PreviewSkip] Response status: ${response.statusCode}');
+      print('[SEARCH] [PreviewSkip] Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -178,7 +178,7 @@ class OffSchedulePickupService {
         'skip_next_scheduled': skipNextScheduled,
       };
 
-      print('📤 [CreateRequest] Request body: ${jsonEncode(requestBody)}');
+      print('[SEND] [CreateRequest] Request body: ${jsonEncode(requestBody)}');
       
       final response = await http.post(
         url,
@@ -190,8 +190,8 @@ class OffSchedulePickupService {
         body: jsonEncode(requestBody),
       );
 
-      print('📡 [CreateRequest] Response status: ${response.statusCode}');
-      print('📡 [CreateRequest] Response body: ${response.body}');
+      print('[NET] [CreateRequest] Response status: ${response.statusCode}');
+      print('[NET] [CreateRequest] Response body: ${response.body}');
 
 
       if (response.statusCode == 201) {
@@ -331,18 +331,18 @@ class OffSchedulePickupService {
     try {
       final token = await TokenStorage.getToken();
       if (token == null) {
-        print('❌ [OffSchedulePickupService] No authentication token found');
+        print('[ERROR] [OffSchedulePickupService] No authentication token found');
         throw Exception('No authentication token found');
       }
 
-      print('🔍 [OffSchedulePickupService] Fetching assigned pickups for collector...');
-      print('🔑 [OffSchedulePickupService] Token: ${token.substring(0, 20)}...');
+      print('[SEARCH] [OffSchedulePickupService] Fetching assigned pickups for collector...');
+      print('[KEY] [OffSchedulePickupService] Token: ${token.substring(0, 20)}...');
       
       // ✅ ENDPOINT sesuai dokumentasi API (tanpa trailing slash)
       final url = Uri.parse('$baseUrl/mobile/collector/off-schedule-pickups');
       
-      print('🌐 [OffSchedulePickupService] API URL: $url');
-      print('📤 [OffSchedulePickupService] Request headers:');
+      print('[NET] [OffSchedulePickupService] API URL: $url');
+      print('[SEND] [OffSchedulePickupService] Request headers:');
       print('   - Content-Type: application/json');
       print('   - Accept: application/json');
       print('   - Authorization: Bearer ${token.substring(0, 20)}...');
@@ -356,19 +356,19 @@ class OffSchedulePickupService {
         },
       );
 
-      print('📡 [OffSchedulePickupService] Response status: ${response.statusCode}');
+      print('[NET] [OffSchedulePickupService] Response status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        print('📦 [OffSchedulePickupService] Response structure: ${data.keys.toList()}');
+        print('[DATA] [OffSchedulePickupService] Response structure: ${data.keys.toList()}');
         
         // Sesuai dokumentasi API: {"success": true, "data": [...]}
         if (data['success'] == true && data['data'] is List) {
           final List<dynamic> pickupsJson = data['data'];
-          print('📊 [OffSchedulePickupService] Total pickups from API: ${pickupsJson.length}');
+          print('[STATS] [OffSchedulePickupService] Total pickups from API: ${pickupsJson.length}');
           
           if (pickupsJson.isNotEmpty) {
-            print('📋 [OffSchedulePickupService] Sample pickup:');
+            print('[LIST] [OffSchedulePickupService] Sample pickup:');
             print('   ID: ${pickupsJson.first['id']}');
             print('   Request Status: ${pickupsJson.first['request_status']}');
             print('   Requested Date: ${pickupsJson.first['requested_pickup_date']}');
@@ -380,7 +380,7 @@ class OffSchedulePickupService {
               .map((json) => OffSchedulePickup.fromJson(json))
               .toList();
           
-          print('📦 [OffSchedulePickupService] Parsed ${allPickups.length} total pickups');
+          print('[DATA] [OffSchedulePickupService] Parsed ${allPickups.length} total pickups');
           
           // ✅ FILTER: Hanya tampilkan request dengan status aktif
           // - request_status: 'processing' (sudah ditugaskan ke collector)
@@ -391,31 +391,31 @@ class OffSchedulePickupService {
             final notCancelled = pickup.status != 'cancelled';
             
             if (!isProcessing || !notCancelled) {
-              print('   ⏭️ Filtered out Pickup #${pickup.id}: request_status=${pickup.requestStatus}, status=${pickup.status}');
+              print('   [SKIP] Filtered out Pickup #${pickup.id}: request_status=${pickup.requestStatus}, status=${pickup.status}');
             }
             
             return isProcessing && notCancelled;
           }).toList();
           
-          print('✅ [OffSchedulePickupService] Active pickups: ${activePickups.length} (filtered from ${allPickups.length})');
+          print('[OK] [OffSchedulePickupService] Active pickups: ${activePickups.length} (filtered from ${allPickups.length})');
           return activePickups;
         } else {
-          print('⚠️ [OffSchedulePickupService] Unexpected response format');
+          print('[WARN] [OffSchedulePickupService] Unexpected response format');
           return [];
         }
       } else {
-        print('❌ [OffSchedulePickupService] Failed: ${response.statusCode}');
-        print('📄 [OffSchedulePickupService] Response body: ${response.body}');
+        print('[ERROR] [OffSchedulePickupService] Failed: ${response.statusCode}');
+        print('[PAGE] [OffSchedulePickupService] Response body: ${response.body}');
         
         if (response.statusCode == 401) {
-          print('🔐 [OffSchedulePickupService] Authentication failed - token may be invalid');
-          print('💡 [OffSchedulePickupService] Ensure the endpoint has auth:sanctum middleware');
+          print('[AUTH] [OffSchedulePickupService] Authentication failed - token may be invalid');
+          print('[TIP] [OffSchedulePickupService] Ensure the endpoint has auth:sanctum middleware');
         }
         
         return [];
       }
     } catch (e, stackTrace) {
-      print('💥 [OffSchedulePickupService] Error: $e');
+      print('[CRASH] [OffSchedulePickupService] Error: $e');
       print('   Stack trace:');
       print(stackTrace);
       
@@ -436,8 +436,8 @@ class OffSchedulePickupService {
 
       final url = Uri.parse('${ApiConfig.baseUrl}/mobile/collector/off-schedule-pickups/$id/start');
       
-      print('🔍 [OffSchedulePickupService] Starting pickup ID: $id');
-      print('🌐 [OffSchedulePickupService] API URL: $url');
+      print('[SEARCH] [OffSchedulePickupService] Starting pickup ID: $id');
+      print('[NET] [OffSchedulePickupService] API URL: $url');
 
       final response = await http.put(
         url,
@@ -448,11 +448,11 @@ class OffSchedulePickupService {
         },
       );
 
-      print('📡 [OffSchedulePickupService] Response status: ${response.statusCode}');
+      print('[NET] [OffSchedulePickupService] Response status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        print('✅ [OffSchedulePickupService] Start pickup SUCCESS');
+        print('[OK] [OffSchedulePickupService] Start pickup SUCCESS');
         
         if (data['success'] == true) {
           return (true, null);
@@ -461,15 +461,15 @@ class OffSchedulePickupService {
           return (false, msg);
         }
       } else {
-        print('❌ [OffSchedulePickupService] Failed: ${response.statusCode}');
-        print('📄 [OffSchedulePickupService] Response: ${response.body}');
+        print('[ERROR] [OffSchedulePickupService] Failed: ${response.statusCode}');
+        print('[PAGE] [OffSchedulePickupService] Response: ${response.body}');
         
         final data = jsonDecode(response.body);
         final msg = data['errors']?['message']?.toString() ?? 'Gagal memulai pengambilan';
         return (false, msg);
       }
     } catch (e) {
-      print('💥 [OffSchedulePickupService] Error: $e');
+      print('[CRASH] [OffSchedulePickupService] Error: $e');
       return (false, 'Terjadi kesalahan: $e');
     }
   }

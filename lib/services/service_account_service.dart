@@ -10,7 +10,7 @@ class ServiceAccountService {
   final Dio _dio;
 
   Future<List<ServiceAccount>> fetchAccounts({int limit = 100}) async {
-    print('🔄 [ServiceAccountService] Fetching accounts...');
+    print('[SYNC] [ServiceAccountService] Fetching accounts...');
 
     final response = await _dio.get(
       ApiConfig.mobileServiceAccounts,
@@ -29,7 +29,7 @@ class ServiceAccountService {
     final data = body['data'] as Map<String, dynamic>?;
     final items = data?['items'] as List<dynamic>? ?? const [];
 
-    print('📦 [ServiceAccountService] Fetched ${items.length} accounts');
+    print('[DATA] [ServiceAccountService] Fetched ${items.length} accounts');
 
     final accounts = items.whereType<Map<String, dynamic>>().map((json) {
       print(
@@ -40,7 +40,7 @@ class ServiceAccountService {
       return ServiceAccount.fromJson(json);
     }).toList();
 
-    print('✅ [ServiceAccountService] Parsed ${accounts.length} accounts');
+    print('[OK] [ServiceAccountService] Parsed ${accounts.length} accounts');
     for (final account in accounts) {
       print(
         '   - ${account.name}: contactPhone = ${account.contactPhone}, RW = ${account.rwName}',
@@ -73,7 +73,7 @@ class ServiceAccountService {
     };
 
     print(
-      '📤 [ServiceAccountService] Creating account with data: $requestData',
+      '[SEND] [ServiceAccountService] Creating account with data: $requestData',
     );
 
     final response = await _dio.post(
@@ -81,8 +81,8 @@ class ServiceAccountService {
       data: requestData,
     );
 
-    print('📥 [ServiceAccountService] Response status: ${response.statusCode}');
-    print('📦 [ServiceAccountService] Response data: ${response.data}');
+    print('[RECV] [ServiceAccountService] Response status: ${response.statusCode}');
+    print('[DATA] [ServiceAccountService] Response data: ${response.data}');
 
     final Map<String, dynamic> body = response.data as Map<String, dynamic>;
     if (body['success'] != true) {
@@ -91,18 +91,18 @@ class ServiceAccountService {
 
     final data = body['data'];
     if (data is Map<String, dynamic>) {
-      print('✅ [ServiceAccountService] Parsed account data: $data');
+      print('[OK] [ServiceAccountService] Parsed account data: $data');
       print(
-        '📞 [ServiceAccountService] Contact phone from response: ${data['contact_phone']}',
+        '[INFO] [ServiceAccountService] Contact phone from response: ${data['contact_phone']}',
       );
-      print('📋 [ServiceAccountService] RW data from response: ${data['rw']}');
+      print('[LIST] [ServiceAccountService] RW data from response: ${data['rw']}');
       print(
-        '📋 [ServiceAccountService] RW name from response: ${data['rw_name']}',
+        '[LIST] [ServiceAccountService] RW name from response: ${data['rw_name']}',
       );
 
       final account = ServiceAccount.fromJson(data);
       print(
-        '✅ [ServiceAccountService] Account created - Phone: ${account.contactPhone}, RW: ${account.rwName}',
+        '[OK] [ServiceAccountService] Account created - Phone: ${account.contactPhone}, RW: ${account.rwName}',
       );
 
       return account;
@@ -114,29 +114,29 @@ class ServiceAccountService {
   /// Ambil detail service account berdasarkan ID
   Future<ServiceAccount?> getAccountById(String id) async {
     try {
-      print('🔄 [ServiceAccountService] Fetching account by ID: $id');
+      print('[SYNC] [ServiceAccountService] Fetching account by ID: $id');
 
       final response = await _dio.get('${ApiConfig.mobileServiceAccounts}/$id');
 
       final Map<String, dynamic> body = response.data as Map<String, dynamic>;
       if (body['success'] != true) {
-        print('❌ [ServiceAccountService] Failed to fetch account');
+        print('[ERROR] [ServiceAccountService] Failed to fetch account');
         return null;
       }
 
       final data = body['data'] as Map<String, dynamic>?;
       if (data != null) {
-        print('✅ [ServiceAccountService] Account fetched: ${data['name']}');
-        print('📋 [ServiceAccountService] RW data in response: ${data['rw']}');
+        print('[OK] [ServiceAccountService] Account fetched: ${data['name']}');
+        print('[LIST] [ServiceAccountService] RW data in response: ${data['rw']}');
         print(
-          '📋 [ServiceAccountService] RW name in response: ${data['rw_name']}',
+          '[LIST] [ServiceAccountService] RW name in response: ${data['rw_name']}',
         );
         return ServiceAccount.fromJson(data);
       }
 
       return null;
     } catch (e) {
-      print('❌ [ServiceAccountService] Error fetching account: $e');
+      print('[ERROR] [ServiceAccountService] Error fetching account: $e');
       return null;
     }
   }
@@ -149,7 +149,7 @@ class ServiceAccountService {
   Future<void> updateAccountStatus(String id, String status) async {
     try {
       print(
-        '🔄 [ServiceAccountService] Updating account $id to status: $status',
+        '[SYNC] [ServiceAccountService] Updating account $id to status: $status',
       );
 
       final response = await _dio.patch(
@@ -158,9 +158,9 @@ class ServiceAccountService {
       );
 
       print(
-        '✅ [ServiceAccountService] Response status: ${response.statusCode}',
+        '[OK] [ServiceAccountService] Response status: ${response.statusCode}',
       );
-      print('📦 [ServiceAccountService] Response data: ${response.data}');
+      print('[DATA] [ServiceAccountService] Response data: ${response.data}');
 
       final Map<String, dynamic> body = response.data as Map<String, dynamic>;
       if (body['success'] != true) {
@@ -169,12 +169,12 @@ class ServiceAccountService {
         );
       }
 
-      print('✅ [ServiceAccountService] Status updated successfully');
+      print('[OK] [ServiceAccountService] Status updated successfully');
     } on DioException catch (e) {
       print(
-        '❌ [ServiceAccountService] DioException: ${e.response?.statusCode}',
+        '[ERROR] [ServiceAccountService] DioException: ${e.response?.statusCode}',
       );
-      print('📦 [ServiceAccountService] Error data: ${e.response?.data}');
+      print('[DATA] [ServiceAccountService] Error data: ${e.response?.data}');
 
       if (e.response?.statusCode == 404) {
         throw Exception('Akun tidak ditemukan');
@@ -184,7 +184,7 @@ class ServiceAccountService {
       }
       throw Exception('Gagal mengubah status akun: ${e.message}');
     } catch (e) {
-      print('❌ [ServiceAccountService] Unexpected error: $e');
+      print('[ERROR] [ServiceAccountService] Unexpected error: $e');
       throw Exception('Gagal mengubah status akun: $e');
     }
   }

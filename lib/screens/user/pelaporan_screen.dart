@@ -450,13 +450,13 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
         _isLoadingServiceAccounts = false;
       });
 
-      print('✅ Loaded ${accounts.length} service accounts');
+      print('[OK] Loaded ${accounts.length} service accounts');
     } catch (e) {
       setState(() {
         _isLoadingServiceAccounts = false;
       });
 
-      print('❌ Error loading service accounts: $e');
+      print('[ERROR] Error loading service accounts: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -489,9 +489,9 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
       }
 
       // Debug print
-      print('🔍 _selectedType: $_selectedType');
-      print('🔍 _deskripsiController.text: ${_deskripsiController.text}');
-      print('🔍 _selectedServiceAccountId: $_selectedServiceAccountId');
+      print('[SEARCH] _selectedType: $_selectedType');
+      print('[SEARCH] _deskripsiController.text: ${_deskripsiController.text}');
+      print('[SEARCH] _selectedServiceAccountId: $_selectedServiceAccountId');
 
       // Ambil data dari state dan controller
       final reportData = <String, String>{
@@ -508,7 +508,7 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
         reportData['serviceAccount'] = _selectedServiceAccountId!;
       }
 
-      print('🔍 reportData: $reportData');
+      print('[SEARCH] reportData: $reportData');
 
       // Navigasi ke DetailLaporanScreen dengan list images
       Navigator.of(context)
@@ -1320,7 +1320,7 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
                 onChanged: _isLoadingServiceAccounts
                     ? null
                     : (value) {
-                        print('🔍 Service Account Selected: $value');
+                        print('[SEARCH] Service Account Selected: $value');
                         setState(() {
                           // ✅ PERBAIKAN: Set ke null jika empty string
                           _selectedServiceAccountId = (value == null || value.isEmpty) ? null : value;
@@ -1471,7 +1471,7 @@ class DetailLaporanScreen extends StatelessWidget {
 
     try {
       // 🔹 Kirim ke API menggunakan ComplaintService
-      print('📤 Sending complaint to API...');
+      print('[SEND] Sending complaint to API...');
       print('  Type: ${reportData['type']}');
       print('  Description: ${reportData['deskripsi']}');
       print('  Location: ${reportData['lokasi']}');
@@ -1489,29 +1489,29 @@ class DetailLaporanScreen extends StatelessWidget {
         images: imageFiles, // Kirim semua foto
       );
 
-      print('📥 API Response - Success: $success, Message: $message');
+      print('[RECV] API Response - Success: $success, Message: $message');
 
       // Tutup loading dialog
       if (context.mounted) Navigator.of(context).pop();
 
       if (success && data != null) {
         // 1. Parse response menjadi Complaint object (optional - tidak critical untuk flow)
-        print('✅ API Success! Data: $data');
+        print('[OK] API Success! Data: $data');
         Complaint? complaint;
         try {
           complaint = Complaint.fromJson(data);
-          print('✅ Complaint parsed: ${complaint.id}');
+          print('[OK] Complaint parsed: ${complaint.id}');
         } catch (e) {
-          print('⚠️ Warning: Could not parse Complaint: $e');
+          print('[WARN] Warning: Could not parse Complaint: $e');
           // Continue anyway, complaint parsing tidak critical
         }
 
         // 2. Buat objek Laporan untuk kompatibilitas UI (temporary mapping)
         // Note: Laporan model masih menggunakan struktur lama untuk backward compatibility
-        print('📋 reportData: $reportData');
+        print('[LIST] reportData: $reportData');
 
         final String typeValue = reportData['type'] ?? 'lainnya';
-        print('📋 typeValue from reportData: $typeValue');
+        print('[LIST] typeValue from reportData: $typeValue');
 
         final typeLabel =
             _types.firstWhere(
@@ -1519,7 +1519,7 @@ class DetailLaporanScreen extends StatelessWidget {
               orElse: () => {'value': typeValue, 'label': 'Lainnya'},
             )['label'] ??
             'Lainnya';
-        print('✅ typeLabel: $typeLabel');
+        print('[OK] typeLabel: $typeLabel');
 
         final newReport = Laporan(
           kota: 'Jakarta', // Default
@@ -1535,7 +1535,7 @@ class DetailLaporanScreen extends StatelessWidget {
           imageFile: imageFiles.isNotEmpty ? imageFiles.first : null,
           isAsset: imageFiles.isNotEmpty,
         );
-        print('✅ newReport created: ${newReport.id}');
+        print('[OK] newReport created: ${newReport.id}');
 
         // 3. Trigger notifikasi pelaporan berhasil dibuat (optional - jangan block flow)
         try {
@@ -1545,7 +1545,7 @@ class DetailLaporanScreen extends StatelessWidget {
             location: reportData['lokasi'] ?? 'Jakarta',
           );
         } catch (e) {
-          print('⚠️ Notifikasi gagal: $e');
+          print('[WARN] Notifikasi gagal: $e');
           // Ignore notification error, don't block the flow
         }
 
@@ -2300,13 +2300,13 @@ class _DetailLaporanTerkirimScreenState extends State<DetailLaporanTerkirimScree
 
     // Prioritaskan photoUrls (multiple photos dari API)
     if (widget.laporan.photoUrls.isNotEmpty) {
-      print('🖼️ Loading ${widget.laporan.photoUrls.length} images from API');
+      print('[IMG] Loading ${widget.laporan.photoUrls.length} images from API');
       imageWidget = _InstagramStylePhotoGalleryNetwork(
         photoUrls: widget.laporan.photoUrls,
       );
     } else if (widget.laporan.photoUrl != null) {
       // Fallback untuk single photo (backward compatibility)
-      print('🖼️ Loading single image from URL: ${widget.laporan.photoUrl}');
+      print('[IMG] Loading single image from URL: ${widget.laporan.photoUrl}');
       imageWidget = _InstagramStylePhotoGalleryNetwork(
         photoUrls: [widget.laporan.photoUrl!],
       );
@@ -3139,7 +3139,7 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
           _isLoading = false;
         });
 
-        print('✅ Loaded ${loadedReports.length} reports from API');
+        print('[OK] Loaded ${loadedReports.length} reports from API');
       } else {
         setState(() {
           _isLoading = false;
@@ -3156,7 +3156,7 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
         _isLoading = false;
       });
 
-      print('❌ Error loading reports: $e');
+      print('[ERROR] Error loading reports: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -3178,13 +3178,13 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
       _serviceAccountNames.clear(); // Clear existing cache
       for (var account in accounts) {
         _serviceAccountNames[account.id] = account.name;
-        print('📋 Mapped Service Account: ID=${account.id}, Name=${account.name}');
+        print('[LIST] Mapped Service Account: ID=${account.id}, Name=${account.name}');
       }
       
-      print('✅ Loaded ${accounts.length} service account names');
-      print('📋 Service Account Cache: $_serviceAccountNames');
+      print('[OK] Loaded ${accounts.length} service account names');
+      print('[LIST] Service Account Cache: $_serviceAccountNames');
     } catch (e) {
-      print('❌ Error loading service account names: $e');
+      print('[ERROR] Error loading service account names: $e');
       // Continue even if this fails
     }
   }
@@ -3198,8 +3198,8 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
     ).format(complaint.createdAt);
 
     // 📍 Debug lokasi dari API
-    print('📍 Location from API: ${complaint.location}');
-    print('📍 Is location empty? ${complaint.location?.isEmpty ?? true}');
+    print('[LOC] Location from API: ${complaint.location}');
+    print('[LOC] Is location empty? ${complaint.location?.isEmpty ?? true}');
 
     // Ambil semua URL foto dari API
     String? photoUrl; // Backward compatibility
@@ -3207,7 +3207,7 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
     if (complaint.photos.isNotEmpty) {
       // Ambil foto pertama untuk backward compatibility
       photoUrl = complaint.photos.first.url;
-      print('📷 Original Photo URL from API: $photoUrl');
+      print('[IMG] Original Photo URL from API: $photoUrl');
 
       // Process semua foto
       for (var photo in complaint.photos) {
@@ -3231,28 +3231,28 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
         photoUrl = photoUrls.first;
       }
 
-      print('📷 Loaded ${photoUrls.length} photos from API');
+      print('[IMG] Loaded ${photoUrls.length} photos from API');
     } else {
-      print('📷 No photos available for this complaint');
+      print('[IMG] No photos available for this complaint');
     }
 
     // Get service account name from cache
     String? serviceAccountName;
     if (complaint.serviceAccountId != null && complaint.serviceAccountId!.isNotEmpty) {
       serviceAccountName = _serviceAccountNames[complaint.serviceAccountId];
-      print('📋 Service Account Lookup:');
+      print('[LIST] Service Account Lookup:');
       print('   - ID from API: ${complaint.serviceAccountId}');
       print('   - Name from cache: ${serviceAccountName ?? "NOT FOUND IN CACHE"}');
       print('   - Cache has ${_serviceAccountNames.length} entries');
       
       // If not found, try to reload service accounts
       if (serviceAccountName == null) {
-        print('⚠️ Service account name not found in cache, will show ID as fallback');
+        print('[WARN] Service account name not found in cache, will show ID as fallback');
         // Fallback: use ID as display name
         serviceAccountName = 'Service Account #${complaint.serviceAccountId}';
       }
     } else {
-      print('📋 No service account ID in complaint');
+      print('[LIST] No service account ID in complaint');
     }
     
     // \u2705 Process resolution photo dari collector
@@ -3294,12 +3294,12 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
       createdAt: complaint.createdAt, // ✅ FIXED: Use createdAt from API
     );
 
-    print('📋 Laporan ID from API: ${laporan.id}');
-    print('📍 Laporan object lokasi: ${laporan.lokasi}');
-    print('📍 Laporan lokasi isEmpty: ${laporan.lokasi.isEmpty}');
-    print('📋 Laporan type: ${laporan.type}');
-    print('📋 Laporan status: ${laporan.status}');
-    print('📋 Laporan needsConfirmation: ${laporan.needsConfirmation}');
+    print('[LIST] Laporan ID from API: ${laporan.id}');
+    print('[LOC] Laporan object lokasi: ${laporan.lokasi}');
+    print('[LOC] Laporan lokasi isEmpty: ${laporan.lokasi.isEmpty}');
+    print('[LIST] Laporan type: ${laporan.type}');
+    print('[LIST] Laporan status: ${laporan.status}');
+    print('[LIST] Laporan needsConfirmation: ${laporan.needsConfirmation}');
 
     return laporan;
   }

@@ -168,13 +168,13 @@ class _HomeScreenState extends State<HomeScreen> {
         final difference = now.difference(_lastNotificationCheck!);
         if (difference.inMinutes < 5) {
           print(
-            '⏭️ [HomeScreen] Skipping notification check - last checked ${difference.inMinutes} minutes ago',
+            '[SKIP] [HomeScreen] Skipping notification check - last checked ${difference.inMinutes} minutes ago',
           );
           return;
         }
       }
 
-      print('🔔 [HomeScreen] Checking automatic notifications...');
+      print('[NOTIFY] [HomeScreen] Checking automatic notifications...');
       _lastNotificationCheck = now;
 
       final helper = NotificationHelper();
@@ -184,9 +184,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
       // Refresh unread count setelah check notifikasi
       await _loadUnreadNotif();
-      print('✅ [HomeScreen] Notification check completed');
+      print('[OK] [HomeScreen] Notification check completed');
     } catch (e) {
-      print('❌ [HomeScreen] Error checking automatic notifications: $e');
+      print('[ERROR] [HomeScreen] Error checking automatic notifications: $e');
     }
   }
 
@@ -201,46 +201,43 @@ class _HomeScreenState extends State<HomeScreen> {
         data['unpaid_invoices'] ?? [],
       );
 
-      print('📊 [HomeScreen] Loaded ${invoices.length} total unpaid invoices from API');
+      print('[LIST] [HomeScreen] Loaded ${invoices.length} total unpaid invoices from API');
 
       // Debug: Print struktur invoice untuk melihat field apa saja yang ada
       for (int i = 0; i < invoices.length; i++) {
         final invoice = invoices[i];
-        print('🔍 [HomeScreen] Invoice #${i + 1}:');
+        print('[SEARCH] [HomeScreen] Invoice #${i + 1}:');
         print('   - id: ${invoice['id']}');
         print('   - invoice_number: ${invoice['invoice_number']}');
         print('   - status: ${invoice['status']}');
         print('   - total_amount: ${invoice['total_amount']}');
         print('   - Keys: ${invoice.keys.toList()}');
       }
-
-      // ✅ SIMPLIFIED: Tampilkan SEMUA invoice dari endpoint unpaid
-      // Backend sudah mem-filter invoice yang valid untuk ditampilkan
-      // Tidak perlu filter tambahan di mobile app
-      print('📋 [HomeScreen] Menampilkan ${invoices.length} invoice (tanpa filter tambahan)');
+      
+      print('[LIST] [HomeScreen] Menampilkan ${invoices.length} invoice (tanpa filter tambahan)');
 
       // Filter by selected account if one is selected AND there are multiple accounts
       if (_selectedAkun != null && _akunList.length > 1) {
         final selectedAccountId = _selectedAkun!['id']?.toString();
-        print('🔍 [HomeScreen] Filtering by selected account ID: $selectedAccountId');
+        print('[SEARCH] [HomeScreen] Filtering by selected account ID: $selectedAccountId');
         
         final filteredInvoices = invoices.where((invoice) {
           final serviceAccount = invoice['service_account'];
           
           // Jika invoice tidak punya service_account, tetap tampilkan
           if (serviceAccount == null) {
-            print('   ⚠️ Invoice #${invoice['id']} tidak punya service_account, tetap tampilkan');
+            print('   [WARN] Invoice #${invoice['id']} tidak punya service_account, tetap tampilkan');
             return true;
           }
           
           final invoiceAccountId = serviceAccount['id']?.toString();
           final matches = invoiceAccountId == selectedAccountId;
-          print('   ${matches ? "✅" : "❌"} Invoice #${invoice['id']} account: $invoiceAccountId ${matches ? "MATCH" : "NO MATCH"}');
+          print('   ${matches ? "[OK]" : "[NO]"} Invoice #${invoice['id']} account: $invoiceAccountId ${matches ? "MATCH" : "NO MATCH"}');
           return matches;
         }).toList();
         
         invoices = filteredInvoices;
-        print('📋 [HomeScreen] Setelah filter akun: ${invoices.length} invoice');
+        print('[LIST] [HomeScreen] Setelah filter akun: ${invoices.length} invoice');
       }
 
       // Calculate total amount for filtered invoices
@@ -256,7 +253,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _isLoadingInvoices = false;
       });
     } catch (e, stackTrace) {
-      print('❌ [HomeScreen] Error loading unpaid invoices: $e');
+      print('[ERROR] [HomeScreen] Error loading unpaid invoices: $e');
       print('   Stack trace: $stackTrace');
       if (!mounted) return;
       setState(() {
@@ -271,7 +268,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _handlePaymentClick() async {
     try {
       print(
-        '🔘 [HomeScreen] Payment button clicked, checking for pending payment...',
+        '[BTN] [HomeScreen] Payment button clicked, checking for pending payment...',
       );
       // Check if there's a pending payment
       final pendingPayment = await _paymentService.checkPendingPayment();
@@ -280,7 +277,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (pendingPayment != null) {
         print(
-          '⚠️ [HomeScreen] Pending payment found! Order ID: ${pendingPayment.orderId}',
+          '[WARN] [HomeScreen] Pending payment found! Order ID: ${pendingPayment.orderId}',
         );
         // Show dialog asking if user wants to continue pending payment
         final shouldContinue = await showDialog<bool>(
@@ -320,7 +317,7 @@ class _HomeScreenState extends State<HomeScreen> {
         );
 
         if (shouldContinue == true) {
-          print('✅ [HomeScreen] User chose to continue pending payment');
+          print('[OK] [HomeScreen] User chose to continue pending payment');
           // Navigate to payment process screen with pending payment
           final result = await Navigator.push(
             context,
@@ -335,11 +332,11 @@ class _HomeScreenState extends State<HomeScreen> {
             await _loadUnpaidInvoices();
           }
         } else {
-          print('❌ [HomeScreen] User cancelled pending payment dialog');
+          print('[NO] [HomeScreen] User cancelled pending payment dialog');
         }
       } else {
         print(
-          '➡️ [HomeScreen] No pending payment, proceeding to payment method screen',
+          '[NAV] [HomeScreen] No pending payment, proceeding to payment method screen',
         );
         // No pending payment, proceed to payment method screen
         final result = await Navigator.push(
@@ -493,13 +490,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   'inactive';
 
               print(
-                '🔄 [HomeScreen] Found account: ${updatedAccount['nama']}, status: ${updatedAccount['status']}',
+                '[SYNC] [HomeScreen] Found account: ${updatedAccount['nama']}, status: ${updatedAccount['status']}',
               );
 
               if (isInactive) {
                 // Jika akun yang dipilih menjadi inactive, pindah ke akun aktif lain
                 print(
-                  '⚠️ [HomeScreen] Selected account became inactive, switching to active account...',
+                  '[WARN] [HomeScreen] Selected account became inactive, switching to active account...',
                 );
 
                 // Cari akun aktif pertama
@@ -512,7 +509,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (activeAccounts.isNotEmpty) {
                   _selectedAkun = activeAccounts.first;
                   print(
-                    '✅ [HomeScreen] Switched to active account: ${_selectedAkun!['nama']}, status: ${_selectedAkun!['status']}',
+                    '[OK] [HomeScreen] Switched to active account: ${_selectedAkun!['nama']}, status: ${_selectedAkun!['status']}',
                   );
 
                   // Trigger refresh data untuk akun yang baru dipilih
@@ -523,14 +520,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   // Tidak ada akun aktif, tetap di akun inactive tapi user tidak bisa akses
                   _selectedAkun = updatedAccount;
                   print(
-                    '⚠️ [HomeScreen] No active accounts found, keeping inactive account: ${_selectedAkun!['nama']}',
+                    '[WARN] [HomeScreen] No active accounts found, keeping inactive account: ${_selectedAkun!['nama']}',
                   );
                 }
               } else {
                 // Akun masih aktif, update dengan data terbaru
                 _selectedAkun = updatedAccount;
                 print(
-                  '✅ [HomeScreen] Updated selected account: ${_selectedAkun!['nama']}, status: ${_selectedAkun!['status']}',
+                  '[OK] [HomeScreen] Updated selected account: ${_selectedAkun!['nama']}, status: ${_selectedAkun!['status']}',
                 );
               }
             } else {
@@ -822,7 +819,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       }
 
                                       print(
-                                        '🔄 [HomeScreen] Activating account: $accountId ($accountName)',
+                                        '[SYNC] [HomeScreen] Activating account: $accountId ($accountName)',
                                       );
 
                                       // Update status ke active via API
@@ -837,7 +834,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                           );
 
                                       print(
-                                        '✅ [HomeScreen] Account activated via API, waiting for sync...',
+                                        '[OK] [HomeScreen] Account activated via API, waiting for sync...',
                                       );
 
                                       // Step 2: Tunggu sebentar agar API sync
@@ -851,7 +848,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       );
 
                                       print(
-                                        '📋 [HomeScreen] Accounts after refresh: ${_akunList.map((a) => "${a['nama']}: ${a['status']}").join(", ")}',
+                                        '[LIST] [HomeScreen] Accounts after refresh: ${_akunList.map((a) => "${a['nama']}: ${a['status']}").join(", ")}',
                                       );
 
                                       // Step 4: Temukan dan set akun yang baru diaktifkan
@@ -872,7 +869,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                           _akunList[updatedAkunIndex];
 
                                       print(
-                                        '🔄 [HomeScreen] Setting selected account: ${updatedAkun["nama"]}, status: ${updatedAkun["status"]}',
+                                        '[SYNC] [HomeScreen] Setting selected account: ${updatedAkun["nama"]}, status: ${updatedAkun["status"]}',
                                       );
 
                                       // Step 5: Update selected account dengan setState
@@ -880,7 +877,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                         setState(() {
                                           _selectedAkun = updatedAkun;
                                           print(
-                                            '✅ [HomeScreen] setState called - Selected: ${_selectedAkun!['nama']}, Status: ${_selectedAkun!['status']}',
+                                            '[OK] [HomeScreen] setState called - Selected: ${_selectedAkun!['nama']}, Status: ${_selectedAkun!['status']}',
                                           );
                                         });
                                       }
@@ -893,13 +890,13 @@ class _HomeScreenState extends State<HomeScreen> {
                                         setState(() {
                                           // Force rebuild UI
                                           print(
-                                            '✅ [HomeScreen] Force UI rebuild',
+                                            '[OK] [HomeScreen] Force UI rebuild',
                                           );
                                         });
                                       }
 
                                       print(
-                                        '✅ [HomeScreen] All data refreshed successfully',
+                                        '[OK] [HomeScreen] All data refreshed successfully',
                                       );
 
                                       // Step 7: Tutup loading
@@ -1484,12 +1481,12 @@ class _HomeScreenState extends State<HomeScreen> {
                             onTap: () async {
                               try {
                                 print(
-                                  '🔘 [HomeScreen] Riwayat Pengambilan clicked',
+                                  '[BTN] [HomeScreen] Riwayat Pengambilan clicked',
                                 );
 
                                 // Navigasi ke riwayat pengambilan sampah
                                 if (_akunList.isEmpty) {
-                                  print('⚠️ [HomeScreen] No account available');
+                                  print('[WARN] [HomeScreen] No account available');
                                   // Jika belum ada akun, tampilkan snackbar
                                   if (!mounted) return;
                                   ScaffoldMessenger.of(context).showSnackBar(
@@ -1521,17 +1518,17 @@ class _HomeScreenState extends State<HomeScreen> {
                                     currentAccount['alamat_lengkap']?.toString();
 
                                 print(
-                                  '📋 [HomeScreen] Opening history for account: $accountName (ID: $serviceAccountId)',
+                                  '[LIST] [HomeScreen] Opening history for account: $accountName (ID: $serviceAccountId)',
                                 );
                                 print(
-                                  '📍 [HomeScreen] Account address: $accountAddress',
+                                  '[LOC] [HomeScreen] Account address: $accountAddress',
                                 );
 
                                 // Validasi ID
                                 if (serviceAccountId == '0' ||
                                     serviceAccountId.isEmpty) {
                                   print(
-                                    '❌ [HomeScreen] Invalid service account ID',
+                                    '[ERROR] [HomeScreen] Invalid service account ID',
                                   );
                                   if (!mounted) return;
                                   ScaffoldMessenger.of(context).showSnackBar(
@@ -1562,11 +1559,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                 );
 
                                 print(
-                                  '✅ [HomeScreen] Returned from RiwayatPengambilan',
+                                  '[OK] [HomeScreen] Returned from RiwayatPengambilan',
                                 );
                               } catch (e, stackTrace) {
                                 print(
-                                  '💥 [HomeScreen] Error opening RiwayatPengambilan: $e',
+                                  '[CRASH] [HomeScreen] Error opening RiwayatPengambilan: $e',
                                 );
                                 print('Stack trace: $stackTrace');
 
@@ -2417,7 +2414,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   // Fallback ke 1 jika tidak ada
                                   serviceAccountId ??= 1;
                                   
-                                  print('🔍 Navigating to JadwalPengambilanScreen with ID: $serviceAccountId');
+                                  print('[SEARCH] Navigating to JadwalPengambilanScreen with ID: $serviceAccountId');
                                   
                                   Navigator.push(
                                     context,

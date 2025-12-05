@@ -41,8 +41,8 @@ class ComplaintService {
           )
           .timeout(const Duration(seconds: 30));
 
-      print('📋 Get Complaints Response: ${response.statusCode}');
-      print('📋 Response Body: ${response.body}');
+      print('[LIST] Get Complaints Response: ${response.statusCode}');
+      print('[LIST] Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> jsonResponse = json.decode(response.body);
@@ -89,7 +89,7 @@ class ComplaintService {
     } on http.ClientException {
       return (false, 'Koneksi ke server gagal', null);
     } catch (e) {
-      print('❌ Error get complaints: $e');
+      print('[ERROR] Error get complaints: $e');
       return (false, 'Terjadi kesalahan: $e', null);
     }
   }
@@ -159,7 +159,7 @@ class ComplaintService {
         }
       }
 
-      print('📤 Creating complaint:');
+      print('[SEND] Creating complaint:');
       print('  Type: $type');
       print(
         '  Description: ${description.substring(0, description.length > 50 ? 50 : description.length)}...',
@@ -173,13 +173,13 @@ class ComplaintService {
       );
       final response = await http.Response.fromStream(streamedResponse);
 
-      print('📋 Create Complaint Response: ${response.statusCode}');
-      print('📋 Response Body: ${response.body}');
+      print('[LIST] Create Complaint Response: ${response.statusCode}');
+      print('[LIST] Response Body: ${response.body}');
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         final Map<String, dynamic> jsonResponse = json.decode(response.body);
 
-        print('📋 JSON Response: $jsonResponse');
+        print('[LIST] JSON Response: $jsonResponse');
 
         if (jsonResponse['success'] == true) {
           final dataWrapper = jsonResponse['data'];
@@ -205,8 +205,8 @@ class ComplaintService {
       } else if (response.statusCode == 401) {
         return (false, 'Sesi telah berakhir. Silakan login kembali.', null);
       } else {
-        print('❌ Error status: ${response.statusCode}');
-        print('❌ Error body: ${response.body}');
+        print('[ERROR] Error status: ${response.statusCode}');
+        print('[ERROR] Error body: ${response.body}');
 
         try {
           final errorData = json.decode(response.body);
@@ -216,13 +216,13 @@ class ComplaintService {
           // Check for validation errors
           if (errorData.containsKey('errors')) {
             final errors = errorData['errors'];
-            print('❌ Validation errors: $errors');
+            print('[ERROR] Validation errors: $errors');
             return (false, 'Validasi gagal: $message', null);
           }
 
           return (false, message, null);
         } catch (e) {
-          print('❌ Error parsing response: $e');
+          print('[ERROR] Error parsing response: $e');
           return (
             false,
             'Gagal mengirim keluhan (Status: ${response.statusCode})',
@@ -235,7 +235,7 @@ class ComplaintService {
     } on http.ClientException {
       return (false, 'Koneksi ke server gagal', null);
     } catch (e) {
-      print('❌ Error create complaint: $e');
+      print('[ERROR] Error create complaint: $e');
       return (false, 'Terjadi kesalahan: $e', null);
     }
   }
@@ -259,7 +259,7 @@ class ComplaintService {
           )
           .timeout(const Duration(seconds: 30));
 
-      print('📊 Get Statistics Response: ${response.statusCode}');
+      print('[STATS] Get Statistics Response: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> jsonResponse = json.decode(response.body);
@@ -290,7 +290,7 @@ class ComplaintService {
         return (false, 'Gagal memuat statistik', null);
       }
     } catch (e) {
-      print('❌ Error get statistics: $e');
+      print('[ERROR] Error get statistics: $e');
       return (false, 'Terjadi kesalahan: $e', null);
     }
   }
@@ -316,7 +316,7 @@ class ComplaintService {
           )
           .timeout(const Duration(seconds: 30));
 
-      print('📋 Get Complaint Detail Response: ${response.statusCode}');
+      print('[LIST] Get Complaint Detail Response: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> jsonResponse = json.decode(response.body);
@@ -351,7 +351,7 @@ class ComplaintService {
         return (false, 'Gagal memuat detail keluhan', null);
       }
     } catch (e) {
-      print('❌ Error get complaint detail: $e');
+      print('[ERROR] Error get complaint detail: $e');
       return (false, 'Terjadi kesalahan: $e', null);
     }
   }
@@ -401,14 +401,14 @@ class ComplaintService {
         }
       }
 
-      print('📤 Updating complaint: $id');
+      print('[SEND] Updating complaint: $id');
 
       final streamedResponse = await request.send().timeout(
         const Duration(seconds: 60),
       );
       final response = await http.Response.fromStream(streamedResponse);
 
-      print('📋 Update Complaint Response: ${response.statusCode}');
+      print('[LIST] Update Complaint Response: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> jsonResponse = json.decode(response.body);
@@ -448,7 +448,7 @@ class ComplaintService {
         return (false, message, null);
       }
     } catch (e) {
-      print('❌ Error update complaint: $e');
+      print('[ERROR] Error update complaint: $e');
       return (false, 'Terjadi kesalahan: $e', null);
     }
   }
@@ -474,7 +474,7 @@ class ComplaintService {
           )
           .timeout(const Duration(seconds: 30));
 
-      print('📋 Cancel Complaint Response: ${response.statusCode}');
+      print('[LIST] Cancel Complaint Response: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> jsonResponse = json.decode(response.body);
@@ -514,7 +514,7 @@ class ComplaintService {
         return (false, message, null);
       }
     } catch (e) {
-      print('❌ Error cancel complaint: $e');
+      print('[ERROR] Error cancel complaint: $e');
       return (false, 'Terjadi kesalahan: $e', null);
     }
   }
@@ -550,7 +550,7 @@ class ComplaintService {
         body['rejection_note'] = rejectionNote;
       }
 
-      print('📤 Confirming resolution for complaint: $id');
+      print('[SEND] Confirming resolution for complaint: $id');
       print('   Confirmed: $confirmed');
       if (!confirmed) print('   Rejection Note: $rejectionNote');
 
@@ -565,8 +565,8 @@ class ComplaintService {
           )
           .timeout(const Duration(seconds: 30));
 
-      print('📋 Confirm Resolution Response: ${response.statusCode}');
-      print('📋 Response Body: ${response.body}');
+      print('[LIST] Confirm Resolution Response: ${response.statusCode}');
+      print('[LIST] Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> jsonResponse = json.decode(response.body);
@@ -618,7 +618,7 @@ class ComplaintService {
     } on http.ClientException {
       return (false, 'Koneksi ke server gagal', null);
     } catch (e) {
-      print('❌ Error confirm resolution: $e');
+      print('[ERROR] Error confirm resolution: $e');
       return (false, 'Terjadi kesalahan: $e', null);
     }
   }

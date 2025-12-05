@@ -100,9 +100,9 @@ class ResidentPickupService {
   Future<(bool success, String? message, List<Map<String, dynamic>>? pickups)> 
       getPickupHistory({String? serviceAccountId}) async {
     try {
-      print('🌐 [ResidentPickupService] Calling GET ${ApiConfig.residentPickupsHistory}');
+      print('[NET] [ResidentPickupService] Calling GET ${ApiConfig.residentPickupsHistory}');
       if (serviceAccountId != null) {
-        print('🔍 [ResidentPickupService] Filtering by service_account_id: $serviceAccountId');
+        print('[SEARCH] [ResidentPickupService] Filtering by service_account_id: $serviceAccountId');
       }
       
       final response = await _dio.get(
@@ -112,34 +112,34 @@ class ResidentPickupService {
             : null,
       );
       
-      print('📡 [ResidentPickupService] Response status: ${response.statusCode}');
+      print('[NET] [ResidentPickupService] Response status: ${response.statusCode}');
       
       final body = response.data as Map<String, dynamic>;
-      print('📦 [ResidentPickupService] Response body: $body');
+      print('[DATA] [ResidentPickupService] Response body: $body');
       
       if (body['success'] == true) {
         final data = body['data'];
-        print('📊 [ResidentPickupService] Data type: ${data.runtimeType}');
+        print('[STATS] [ResidentPickupService] Data type: ${data.runtimeType}');
         
         // API mengembalikan array langsung di body['data']
         if (data is List) {
-          print('✅ [ResidentPickupService] Data is List with ${data.length} items');
+          print('[OK] [ResidentPickupService] Data is List with ${data.length} items');
           final pickups = data
               .whereType<Map<String, dynamic>>()
               .toList();
-          print('✅ [ResidentPickupService] Returning ${pickups.length} pickups');
+          print('[OK] [ResidentPickupService] Returning ${pickups.length} pickups');
           return (true, null, pickups);
         }
         
         // Fallback: cek apakah ada pagination object
         if (data is Map<String, dynamic>) {
-          print('📊 [ResidentPickupService] Data is Map, keys: ${data.keys}');
+          print('[STATS] [ResidentPickupService] Data is Map, keys: ${data.keys}');
           
           // Cek apakah ada key 'data' (paginated response)
           if (data.containsKey('data')) {
             final items = data['data'] as List<dynamic>?;
             if (items != null) {
-              print('✅ [ResidentPickupService] Found paginated data with ${items.length} items');
+              print('[OK] [ResidentPickupService] Found paginated data with ${items.length} items');
               final pickups = items
                   .whereType<Map<String, dynamic>>()
                   .toList();
@@ -148,21 +148,21 @@ class ResidentPickupService {
           }
           
           // Mungkin data langsung adalah single item
-          print('⚠️ [ResidentPickupService] Data is single object, wrapping in array');
+          print('[WARN] [ResidentPickupService] Data is single object, wrapping in array');
           return (true, null, [data]);
         }
         
-        print('⚠️ [ResidentPickupService] No data found, returning empty list');
+        print('[WARN] [ResidentPickupService] No data found, returning empty list');
         return (true, null, <Map<String, dynamic>>[]);
       } else {
         final msg = body['errors']?['message']?.toString() ?? 
             'Gagal mengambil riwayat pickup';
-        print('❌ [ResidentPickupService] API returned success=false: $msg');
+        print('[ERROR] [ResidentPickupService] API returned success=false: $msg');
         return (false, msg, null);
       }
     } on DioException catch (e) {
-      print('💥 [ResidentPickupService] DioException: ${e.type}');
-      print('💥 [ResidentPickupService] Response: ${e.response?.statusCode} - ${e.response?.data}');
+      print('[CRASH] [ResidentPickupService] DioException: ${e.type}');
+      print('[CRASH] [ResidentPickupService] Response: ${e.response?.statusCode} - ${e.response?.data}');
       
       String msg = 'Terjadi kesalahan jaringan';
       if (e.response?.data is Map) {
@@ -171,7 +171,7 @@ class ResidentPickupService {
       }
       return (false, msg, null);
     } catch (e) {
-      print('💥 [ResidentPickupService] Exception: $e');
+      print('[CRASH] [ResidentPickupService] Exception: $e');
       return (false, 'Error: $e', null);
     }
   }
@@ -224,21 +224,21 @@ class ResidentPickupService {
   Future<(bool success, String message, Map<String, dynamic>? data)> 
       confirmWasteDelivery(String deliveryId) async {
     try {
-      print('🌐 [ResidentPickupService] POST ${ApiConfig.residentWasteDeliveries}/$deliveryId/confirm');
+      print('[NET] [ResidentPickupService] POST ${ApiConfig.residentWasteDeliveries}/$deliveryId/confirm');
       
       final response = await _dio.post(
         '${ApiConfig.residentWasteDeliveries}/$deliveryId/confirm',
       );
       
       final body = response.data as Map<String, dynamic>;
-      print('📦 [ResidentPickupService] Confirm Response: $body');
+      print('[DATA] [ResidentPickupService] Confirm Response: $body');
       
       if (body['success'] == true) {
         final msg = body['message']?.toString() ?? 
             'Terima kasih! Pengambilan sampah telah dikonfirmasi.';
         final data = body['data'] as Map<String, dynamic>?;
         
-        print('✅ [ResidentPickupService] Confirmation successful');
+        print('[OK] [ResidentPickupService] Confirmation successful');
         return (true, msg, data);
       } else {
         final msg = body['message']?.toString() ?? 
@@ -246,8 +246,8 @@ class ResidentPickupService {
         return (false, msg, null);
       }
     } on DioException catch (e) {
-      print('💥 [ResidentPickupService] DioException on confirm: ${e.type}');
-      print('💥 [ResidentPickupService] Response: ${e.response?.statusCode} - ${e.response?.data}');
+      print('[CRASH] [ResidentPickupService] DioException on confirm: ${e.type}');
+      print('[CRASH] [ResidentPickupService] Response: ${e.response?.statusCode} - ${e.response?.data}');
       
       String msg = 'Terjadi kesalahan jaringan';
       
@@ -273,7 +273,7 @@ class ResidentPickupService {
       
       return (false, msg, null);
     } catch (e) {
-      print('💥 [ResidentPickupService] Exception on confirm: $e');
+      print('[CRASH] [ResidentPickupService] Exception on confirm: $e');
       return (false, 'Error: $e', null);
     }
   }

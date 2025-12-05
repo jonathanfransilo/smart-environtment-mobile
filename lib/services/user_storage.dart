@@ -92,7 +92,7 @@ class UserStorage {
     try {
       return await hasRole('collector') || await hasRole('kolektor');
     } catch (e) {
-      print('❌ [UserStorage] Error checking isCollector: $e');
+      print('[ERROR] [UserStorage] Error checking isCollector: $e');
       return false; // Default to false jika error
     }
   }
@@ -128,7 +128,7 @@ class UserStorage {
     try {
       return jsonDecode(userDataJson) as Map<String, dynamic>;
     } catch (e) {
-      print('❌ [UserStorage] Error parsing full user data: $e');
+      print('[ERROR] [UserStorage] Error parsing full user data: $e');
       return null;
     }
   }

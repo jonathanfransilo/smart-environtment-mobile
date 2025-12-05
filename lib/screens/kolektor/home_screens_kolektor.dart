@@ -510,29 +510,29 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
 
           todayPickups = filteredPickups;
           print(
-            '✅ [HomeCollector] Loaded ${filteredPickups.length} pickups for RW ${_kolektorRWList.join(", ")}',
+            '[OK] [HomeCollector] Loaded ${filteredPickups.length} pickups for RW ${_kolektorRWList.join(", ")}',
           );
 
           // Debug: Print data structure untuk melihat apa yang diterima dari API
           if (filteredPickups.isNotEmpty) {
             print(
-              '📦 [HomeKolektor] Sample filtered pickup data: ${filteredPickups.first}',
+              '[DATA] [HomeKolektor] Sample filtered pickup data: ${filteredPickups.first}',
             );
             if (filteredPickups.first['service_account'] != null) {
               print(
-                '✅ [HomeKolektor] Service account data: ${filteredPickups.first['service_account']}',
+                '[OK] [HomeKolektor] Service account data: ${filteredPickups.first['service_account']}',
               );
             } else {
-              print('⚠️ [HomeKolektor] No service_account in pickup data');
+              print('[WARN] [HomeKolektor] No service_account in pickup data');
             }
             if (filteredPickups.first['house_info'] != null) {
               print(
-                '🏠 [HomeKolektor] House info data: ${filteredPickups.first['house_info']}',
+                '[HOME] [HomeKolektor] House info data: ${filteredPickups.first['house_info']}',
               );
             }
           }
         } else {
-          print('❌ [HomeCollector] Failed to load pickups: $message');
+          print('[ERROR] [HomeCollector] Failed to load pickups: $message');
           _errorMessage = message;
           todayPickups = [];
         }
@@ -861,7 +861,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
 
   /// Build image widget dengan handling untuk berbagai tipe path
   Widget _buildPickupImage(String imagePath) {
-    print('📷 [HomeKolektor] Building pickup image: $imagePath');
+    print('[IMG] [HomeKolektor] Building pickup image: $imagePath');
 
     // Placeholder widget jika image kosong
     if (imagePath.isEmpty) {
@@ -883,20 +883,20 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
         !imagePath.startsWith('assets/') &&
         imagePath.startsWith('/')) {
       finalImagePath = 'https://smart-environment-web.citiasiainc.id$imagePath';
-      print('🔄 [HomeKolektor] Converted to full URL: $finalImagePath');
+      print('[SYNC] [HomeKolektor] Converted to full URL: $finalImagePath');
     }
 
     // HTTP/HTTPS URL - gunakan Image.network
     if (finalImagePath.startsWith('http://') ||
         finalImagePath.startsWith('https://')) {
-      print('🌐 [HomeKolektor] Loading network image: $finalImagePath');
+      print('[NET] [HomeKolektor] Loading network image: $finalImagePath');
       return Image.network(
         finalImagePath,
         height: 180,
         width: 100,
         fit: BoxFit.cover,
         errorBuilder: (context, error, stackTrace) {
-          print('❌ [HomeKolektor] Image load error: $error');
+          print('[ERROR] [HomeKolektor] Image load error: $error');
           return Container(
             height: 180,
             width: 100,
@@ -920,7 +920,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
         },
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) {
-            print('✅ [HomeKolektor] Image loaded successfully');
+            print('[OK] [HomeKolektor] Image loaded successfully');
             return child;
           }
           return Container(

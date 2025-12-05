@@ -23,7 +23,7 @@ class TPSDepositService {
   /// GET /api/v1/mobile/collector/tps
   static Future<List<TPS>> getAssignedTPS() async {
     try {
-      print('📍 [TPSDepositService] Fetching assigned TPS list...');
+      print('[LOC] [TPSDepositService] Fetching assigned TPS list...');
       
       final headers = await _getHeaders();
       final response = await http.get(
@@ -31,8 +31,8 @@ class TPSDepositService {
         headers: headers,
       );
 
-      print('📥 [TPSDepositService] Response status: ${response.statusCode}');
-      print('📥 [TPSDepositService] Response body: ${response.body}');
+      print('[DATA] [TPSDepositService] Response status: ${response.statusCode}');
+      print('[DATA] [TPSDepositService] Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> jsonResponse = json.decode(response.body);
@@ -41,15 +41,15 @@ class TPSDepositService {
           final tpsList = jsonResponse['data']['tps_list'] as List<dynamic>? ?? [];
           
           final result = tpsList.map((item) => TPS.fromJson(item)).toList();
-          print('✅ [TPSDepositService] Loaded ${result.length} TPS');
+          print('[OK] [TPSDepositService] Loaded ${result.length} TPS');
           return result;
         }
       }
       
-      print('⚠️ [TPSDepositService] No TPS data found');
+      print('[WARN] [TPSDepositService] No TPS data found');
       return [];
     } catch (e, stackTrace) {
-      print('❌ [TPSDepositService] Error fetching TPS: $e');
+      print('[ERROR] [TPSDepositService] Error fetching TPS: $e');
       print('Stack trace: $stackTrace');
       return [];
     }
@@ -83,15 +83,15 @@ class TPSDepositService {
         body: body,
       );
 
-      print('📥 [TPSDepositService] Response status: ${response.statusCode}');
-      print('📥 [TPSDepositService] Response body: ${response.body}');
+      print('[DATA] [TPSDepositService] Response status: ${response.statusCode}');
+      print('[DATA] [TPSDepositService] Response body: ${response.body}');
 
       final Map<String, dynamic> jsonResponse = json.decode(response.body);
 
       if (response.statusCode == 201) {
         if (jsonResponse['success'] == true && jsonResponse['data'] != null) {
           final deposit = TPSDeposit.fromJson(jsonResponse['data']);
-          print('✅ [TPSDepositService] Deposit submitted successfully');
+          print('[OK] [TPSDepositService] Deposit submitted successfully');
           return (true, jsonResponse['message']?.toString(), deposit);
         }
       }
@@ -114,10 +114,10 @@ class TPSDepositService {
         }
       }
 
-      print('❌ [TPSDepositService] Submit failed: $errorMessage');
+      print('[ERROR] [TPSDepositService] Submit failed: $errorMessage');
       return (false, errorMessage, null);
     } catch (e, stackTrace) {
-      print('❌ [TPSDepositService] Error submitting deposit: $e');
+      print('[ERROR] [TPSDepositService] Error submitting deposit: $e');
       print('Stack trace: $stackTrace');
       return (false, 'Terjadi kesalahan: $e', null);
     }
@@ -166,14 +166,14 @@ class TPSDepositService {
           final deposits = depositsJson.map((item) => TPSDeposit.fromJson(item)).toList();
           final meta = jsonResponse['data']['meta'] as Map<String, dynamic>?;
           
-          print('✅ [TPSDepositService] Loaded ${deposits.length} deposits');
+          print('[OK] [TPSDepositService] Loaded ${deposits.length} deposits');
           return (true, null, deposits, meta);
         }
       }
 
       return (false, 'Gagal mengambil riwayat setor', <TPSDeposit>[], null);
     } catch (e, stackTrace) {
-      print('❌ [TPSDepositService] Error fetching history: $e');
+      print('[ERROR] [TPSDepositService] Error fetching history: $e');
       print('Stack trace: $stackTrace');
       return (false, 'Terjadi kesalahan: $e', <TPSDeposit>[], null);
     }
@@ -183,7 +183,7 @@ class TPSDepositService {
   /// GET /api/v1/mobile/collector/tps-deposits/{id}
   static Future<(bool success, String? message, TPSDeposit? data)> getDepositDetail(int id) async {
     try {
-      print('🔍 [TPSDepositService] Fetching deposit detail #$id...');
+      print('[SEARCH] [TPSDepositService] Fetching deposit detail #$id...');
       
       final headers = await _getHeaders();
       final response = await http.get(
@@ -191,14 +191,14 @@ class TPSDepositService {
         headers: headers,
       );
 
-      print('📥 [TPSDepositService] Response status: ${response.statusCode}');
+      print('[DATA] [TPSDepositService] Response status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> jsonResponse = json.decode(response.body);
         
         if (jsonResponse['success'] == true && jsonResponse['data'] != null) {
           final deposit = TPSDeposit.fromJson(jsonResponse['data']);
-          print('✅ [TPSDepositService] Loaded deposit detail');
+          print('[OK] [TPSDepositService] Loaded deposit detail');
           return (true, null, deposit);
         }
       }
@@ -209,7 +209,7 @@ class TPSDepositService {
 
       return (false, 'Gagal mengambil detail setor', null);
     } catch (e, stackTrace) {
-      print('❌ [TPSDepositService] Error fetching detail: $e');
+      print('[ERROR] [TPSDepositService] Error fetching detail: $e');
       print('Stack trace: $stackTrace');
       return (false, 'Terjadi kesalahan: $e', null);
     }

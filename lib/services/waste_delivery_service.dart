@@ -314,7 +314,7 @@ class WasteDeliveryService {
     int? perPage,
   }) async {
     try {
-      print('🌐 [WasteDeliveryService] GET ${ApiConfig.residentWasteDeliveries}');
+      print('[NET] [WasteDeliveryService] GET ${ApiConfig.residentWasteDeliveries}');
       
       final queryParams = <String, dynamic>{};
       if (status != null) queryParams['status'] = status;
@@ -329,7 +329,7 @@ class WasteDeliveryService {
       );
       
       final body = response.data as Map<String, dynamic>;
-      print('📦 [WasteDeliveryService] Response: $body');
+      print('[DATA] [WasteDeliveryService] Response: $body');
       
       if (body['success'] == true) {
         final data = body['data'] as Map<String, dynamic>?;
@@ -342,7 +342,7 @@ class WasteDeliveryService {
           
           final meta = data['meta'] as Map<String, dynamic>?;
           
-          print('✅ [WasteDeliveryService] Loaded ${deliveries.length} deliveries');
+          print('[OK] [WasteDeliveryService] Loaded ${deliveries.length} deliveries');
           return (true, null, deliveries, meta);
         }
         
@@ -354,8 +354,8 @@ class WasteDeliveryService {
         return (false, msg, null, null);
       }
     } on DioException catch (e) {
-      print('💥 [WasteDeliveryService] DioException: ${e.type}');
-      print('💥 [WasteDeliveryService] Response: ${e.response?.statusCode} - ${e.response?.data}');
+      print('[CRASH] [WasteDeliveryService] DioException: ${e.type}');
+      print('[CRASH] [WasteDeliveryService] Response: ${e.response?.statusCode} - ${e.response?.data}');
       
       String msg = 'Terjadi kesalahan jaringan';
       if (e.response?.data is Map) {
@@ -365,7 +365,7 @@ class WasteDeliveryService {
       }
       return (false, msg, null, null);
     } catch (e) {
-      print('💥 [WasteDeliveryService] Exception: $e');
+      print('[CRASH] [WasteDeliveryService] Exception: $e');
       return (false, 'Error: $e', null, null);
     }
   }
@@ -375,7 +375,7 @@ class WasteDeliveryService {
   Future<(bool success, String? message, WasteDelivery? delivery)> 
       getDeliveryDetail(int id) async {
     try {
-      print('🌐 [WasteDeliveryService] GET ${ApiConfig.residentWasteDeliveries}/$id');
+      print('[NET] [WasteDeliveryService] GET ${ApiConfig.residentWasteDeliveries}/$id');
       
       final response = await _dio.get(
         '${ApiConfig.residentWasteDeliveries}/$id',
@@ -416,7 +416,7 @@ class WasteDeliveryService {
   Future<(bool success, String? message, WasteDelivery? nextPickup)> 
       getNextPickup({int? serviceAccountId}) async {
     try {
-      print('🌐 [WasteDeliveryService] GET ${ApiConfig.residentWasteDeliveriesNextPickup}');
+      print('[NET] [WasteDeliveryService] GET ${ApiConfig.residentWasteDeliveriesNextPickup}');
       
       final response = await _dio.get(
         ApiConfig.residentWasteDeliveriesNextPickup,
@@ -462,7 +462,7 @@ class WasteDeliveryService {
   Future<(bool success, String? message, WasteDeliveryStatistics? statistics)> 
       getStatistics({int? serviceAccountId}) async {
     try {
-      print('🌐 [WasteDeliveryService] GET ${ApiConfig.residentWasteDeliveriesStatistics}');
+      print('[NET] [WasteDeliveryService] GET ${ApiConfig.residentWasteDeliveriesStatistics}');
       
       final response = await _dio.get(
         ApiConfig.residentWasteDeliveriesStatistics,
@@ -510,21 +510,21 @@ class WasteDeliveryService {
   Future<(bool success, String message, Map<String, dynamic>? data)> 
       confirmDelivery(int id) async {
     try {
-      print('🌐 [WasteDeliveryService] POST ${ApiConfig.residentWasteDeliveries}/$id/confirm');
+      print('[NET] [WasteDeliveryService] POST ${ApiConfig.residentWasteDeliveries}/$id/confirm');
       
       final response = await _dio.post(
         '${ApiConfig.residentWasteDeliveries}/$id/confirm',
       );
       
       final body = response.data as Map<String, dynamic>;
-      print('📦 [WasteDeliveryService] Confirm Response: $body');
+      print('[DATA] [WasteDeliveryService] Confirm Response: $body');
       
       if (body['success'] == true) {
         final msg = body['message']?.toString() ?? 
             'Terima kasih! Pengambilan sampah telah dikonfirmasi.';
         final data = body['data'] as Map<String, dynamic>?;
         
-        print('✅ [WasteDeliveryService] Confirmation successful');
+        print('[OK] [WasteDeliveryService] Confirmation successful');
         return (true, msg, data);
       } else {
         final msg = body['message']?.toString() ?? 
@@ -532,8 +532,8 @@ class WasteDeliveryService {
         return (false, msg, null);
       }
     } on DioException catch (e) {
-      print('💥 [WasteDeliveryService] DioException on confirm: ${e.type}');
-      print('💥 [WasteDeliveryService] Response: ${e.response?.statusCode} - ${e.response?.data}');
+      print('[CRASH] [WasteDeliveryService] DioException on confirm: ${e.type}');
+      print('[CRASH] [WasteDeliveryService] Response: ${e.response?.statusCode} - ${e.response?.data}');
       
       String msg = 'Terjadi kesalahan jaringan';
       
@@ -559,7 +559,7 @@ class WasteDeliveryService {
       
       return (false, msg, null);
     } catch (e) {
-      print('💥 [WasteDeliveryService] Exception on confirm: $e');
+      print('[CRASH] [WasteDeliveryService] Exception on confirm: $e');
       return (false, 'Error: $e', null);
     }
   }

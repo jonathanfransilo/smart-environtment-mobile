@@ -31,7 +31,7 @@ class TokenStorage {
         return prefs.getString(_key);
       }
     } catch (e) {
-      print('❌ [TokenStorage] Error getting token: $e');
+      print('[ERROR] [TokenStorage] Error getting token: $e');
       return null; // Return null jika error
     }
   }
