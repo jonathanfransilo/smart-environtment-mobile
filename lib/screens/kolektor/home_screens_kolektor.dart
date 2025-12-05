@@ -64,7 +64,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
   @override
   void initState() {
     super.initState();
-    print('🎬 [HomeCollector] Screen initialized');
+    print(' [HomeCollector] Screen initialized');
 
     // Add lifecycle observer untuk detect app resume
     WidgetsBinding.instance.addObserver(this);
@@ -74,7 +74,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
 
   @override
   void dispose() {
-    print('🔚 [HomeCollector] Screen disposed');
+    print(' [HomeCollector] Screen disposed');
     // Remove lifecycle observer
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -82,7 +82,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    print('🔄 [HomeCollector] App lifecycle changed: $state');
+    print('[HomeCollector] App lifecycle changed: $state');
 
     if (state == AppLifecycleState.resumed) {
       // App kembali ke foreground - refresh data
@@ -91,9 +91,9 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
       // ✅ FIX: Gunakan async function untuk memastikan urutan yang benar
       _refreshDataOnResume();
     } else if (state == AppLifecycleState.paused) {
-      print('⏸️ [HomeCollector] App paused');
+      print('[HomeCollector] App paused');
     } else if (state == AppLifecycleState.inactive) {
-      print('💤 [HomeCollector] App inactive');
+      print('[HomeCollector] App inactive');
     }
   }
 
@@ -115,13 +115,13 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
 
   /// Initialize semua data dan trigger notifikasi otomatis
   Future<void> _initializeData() async {
-    print('🚀 [HomeCollector] ===== INITIALIZING DATA =====');
+    print('[HomeCollector] ===== INITIALIZING DATA =====');
     await _loadUserData();
     
     // ✅ OPTIMASI: Load data secara parallel untuk mengurangi waktu loading
     // PENTING: _loadPengambilanData diganti dengan _loadPengambilanDataOnly
     // karena _addCompletedTasksToHistory harus dipanggil SETELAH offSchedulePickups terisi
-    print('📂 [HomeCollector] Loading all data in parallel...');
+    print('[HomeCollector] Loading all data in parallel...');
     await Future.wait([
       _loadTodayPickups(),
       _loadAssignedComplaints(),
@@ -131,7 +131,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
       _loadDepositHistory(), // ✅ TAMBAHAN: Load deposit history
     ]);
 
-    print('✅ [HomeCollector] All data loaded. offSchedulePickups count: ${offSchedulePickups.length}');
+    print('[HomeCollector] All data loaded. offSchedulePickups count: ${offSchedulePickups.length}');
     
     // ✅ FIX: Panggil _addCompletedTasksToHistory SETELAH semua data selesai dimuat
     _addCompletedTasksToHistory();
@@ -141,7 +141,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
 
     // Load unread notification count
     await _loadUnreadNotifCount();
-    print('🏁 [HomeCollector] ===== INITIALIZATION COMPLETE =====');
+    print('[HomeCollector] ===== INITIALIZATION COMPLETE =====');
   }
 
   /// Load user data dari UserStorage
@@ -152,7 +152,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
     // ✅ PERBAIKAN: Load RW kolektor dari UserStorage
     final kolektorRW = await UserStorage.getKolektorRW();
 
-    print('🔍 [HomeCollector] Loading user data...');
+    print('[HomeCollector] Loading user data...');
     print('   - Name: $name');
     print('   - Kolektor RW: $kolektorRW');
 
@@ -175,7 +175,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
           }
           return;
         } catch (e) {
-          print('❌ [HomeCollector] Error parsing user_data: $e');
+          print('[HomeCollector] Error parsing user_data: $e');
         }
       }
     }
@@ -189,13 +189,13 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
     }
 
     if (_kolektorRWList.isEmpty) {
-      print('⚠️ [HomeCollector] WARNING: Kolektor RW list is EMPTY!');
+      print('[HomeCollector] WARNING: Kolektor RW list is EMPTY!');
       print(
         '   This means filtering will NOT work until RW is detected from pickups!',
       );
     } else {
       print(
-        '✅ [HomeCollector] Kolektor RW loaded successfully: ${_kolektorRWList.join(", ")}',
+        '[HomeCollector] Kolektor RW loaded successfully: ${_kolektorRWList.join(", ")}',
       );
     }
   }
@@ -232,22 +232,22 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
   Future<void> _loadAssignedComplaints() async {
     if (!mounted) return;
     
-    print('🔄 [HomeCollector] Loading assigned complaints...');
+    print('[HomeCollector] Loading assigned complaints...');
     
     setState(() {
       _isLoadingComplaints = true;
     });
 
     try {
-      print('📋 [Complaints] ===== LOADING ASSIGNED COMPLAINTS =====');
-      print('📋 [Complaints] API URL: /mobile/collector/complaints');
+      print('[Complaints] ===== LOADING ASSIGNED COMPLAINTS =====');
+      print('[Complaints] API URL: /mobile/collector/complaints');
       
       final service = CollectorComplaintService();
       
       // Load semua complaint yang assigned ke kolektor ini
       final complaints = await service.getAssignedComplaints();
 
-      print('📋 [Complaints] Received ${complaints.length} complaints from API');
+      print('[Complaints] Received ${complaints.length} complaints from API');
       
       // Debug: print setiap complaint
       if (complaints.isNotEmpty) {
@@ -255,7 +255,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
           print('   - Complaint #${complaint.id}: ${complaint.type}, Status: ${complaint.status}');
         }
       } else {
-        print('⚠️ [Complaints] API returned EMPTY list!');
+        print('[Complaints] API returned EMPTY list!');
       }
 
       // ✅ Simpan SEMUA complaints (termasuk resolved) untuk history
@@ -271,7 +271,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
       
       final resolvedCount = complaints.where((c) => c.status == 'resolved').length;
 
-      print('✅ [Complaints] Active: ${activeComplaints.length}, Resolved: $resolvedCount, Total: ${complaints.length}');
+      print('[Complaints] Active: ${activeComplaints.length}, Resolved: $resolvedCount, Total: ${complaints.length}');
       print('═══════════════════════════════════════════════════════');
 
       if (mounted) {
@@ -284,7 +284,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
       
     } on SocketException catch (e) {
       // Network error - retry after delay
-      print('⚠️ [Complaints] Network error: ${e.message}');
+      print('[Complaints] Network error: ${e.message}');
       print('   Will retry in 3 seconds...');
       
       if (mounted) {
@@ -301,7 +301,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
         }
       }
     } catch (e) {
-      print('❌ [Complaints] Error loading: $e');
+      print('[Complaints] Error loading: $e');
       print('   Stack trace: ${StackTrace.current}');
       
       if (mounted) {
@@ -315,7 +315,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
 
   Future<void> _loadTodayPickups({bool forceRefresh = false}) async {
     if (forceRefresh) {
-      print('🔄 [HomeCollector] Force refresh requested');
+      print('[HomeCollector] Force refresh requested');
     }
 
     setState(() {
@@ -327,7 +327,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
     final prefs = await SharedPreferences.getInstance();
     final userIdRaw = prefs.get('user_id');
     final currentCollectorId = userIdRaw?.toString();
-    print('👤 [HomeCollector] Current collector ID: $currentCollectorId');
+    print('[HomeCollector] Current collector ID: $currentCollectorId');
 
     final (success, message, data) = await PickupService.getTodayPickups();
 
@@ -335,11 +335,11 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
       setState(() {
         _isLoadingPickups = false;
         if (success && data != null) {
-          print('📥 [HomeCollector] Received ${data.length} pickups from API');
+          print('[HomeCollector] Received ${data.length} pickups from API');
 
           // Debug: Print first pickup to see structure
           if (data.isNotEmpty) {
-            print('📦 [DEBUG] First pickup structure:');
+            print('[DEBUG] First pickup structure:');
             print(jsonEncode(data.first));
           }
 
@@ -350,7 +350,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
             int assignedPickupCount = 0;
             int otherCollectorCount = 0;
             
-            print('🔍 [AutoDetect] Scanning ${data.length} pickups untuk detect RW yang ASSIGNED ke collector #$currentCollectorId...');
+            print('[AutoDetect] Scanning ${data.length} pickups untuk detect RW yang ASSIGNED ke collector #$currentCollectorId...');
             
             for (var pickup in data) {
               // ✅ KUNCI: Hanya proses pickup yang assigned ke collector ini
@@ -385,11 +385,11 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
                 }
               } else {
                 otherCollectorCount++;
-                print('   ⏭️ Pickup #${pickup['id']}: Assigned to collector #$pickupCollectorId (Skip)');
+                print('Pickup #${pickup['id']}: Assigned to collector #$pickupCollectorId (Skip)');
               }
             }
 
-            print('📊 [AutoDetect] Scan result:');
+            print('[AutoDetect] Scan result:');
             print('   - Total pickups scanned: ${data.length}');
             print('   - Assigned to me: $assignedPickupCount');
             print('   - Assigned to others: $otherCollectorCount');
@@ -401,26 +401,26 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
               
               _kolektorRWList = detectedRWs.toList()..sort();
               print(
-                '✅ [AutoDetect] Total ${_kolektorRWList.length} RW terdeteksi untuk collector ini: ${_kolektorRWList.join(", ")}',
+                '[AutoDetect] Total ${_kolektorRWList.length} RW terdeteksi untuk collector ini: ${_kolektorRWList.join(", ")}',
               );
             } else {
-              print('⚠️ [AutoDetect] TIDAK ADA RW terdeteksi dari $assignedPickupCount pickups yang assigned!');
+              print('[AutoDetect] TIDAK ADA RW terdeteksi dari $assignedPickupCount pickups yang assigned!');
             }
           } else if (currentCollectorId == null) {
-            print('❌ [AutoDetect] GAGAL: Collector ID tidak ditemukan!');
+            print('[AutoDetect] GAGAL: Collector ID tidak ditemukan!');
           }
 
           // ✅ PERBAIKAN: Filter pickup berdasarkan SEMUA RW yang ditugaskan
           List<Map<String, dynamic>> filteredPickups = data;
 
           print(
-            '🔍 [Filter] ===== FILTERING PICKUPS =====',
+            '[Filter] ===== FILTERING PICKUPS =====',
           );
           print(
-            '🔍 [Filter] Kolektor assigned to ${_kolektorRWList.length} RW(s): ${_kolektorRWList.join(", ")}',
+            '[Filter] Kolektor assigned to ${_kolektorRWList.length} RW(s): ${_kolektorRWList.join(", ")}',
           );
           print(
-            '🔍 [Filter] Total pickups to filter: ${data.length}',
+            '[Filter] Total pickups to filter: ${data.length}',
           );
 
           if (_kolektorRWList.isNotEmpty) {
@@ -476,7 +476,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
             }).toList();
 
             print(
-              '📊 [Filter] HASIL:',
+              '[Filter] HASIL:',
             );
             print(
               '   - Original pickups: ${data.length}',
@@ -495,13 +495,13 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
             );
           } else {
             print(
-              '⚠️ [Filter] WARNING: Kolektor RW list is EMPTY!',
+              '[Filter] WARNING: Kolektor RW list is EMPTY!',
             );
             print(
-              '⚠️ [Filter] Showing ALL ${data.length} pickups (NO FILTERING)',
+              '[Filter] Showing ALL ${data.length} pickups (NO FILTERING)',
             );
             print(
-              '⚠️ [Filter] This should NOT happen if collector is assigned!',
+              '[Filter] This should NOT happen if collector is assigned!',
             );
             print(
               '═══════════════════════════════════════════════════════',
@@ -604,7 +604,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
 
   /// ✅ METHOD BARU: Tambahkan off-schedule dan complaint yang selesai ke riwayat
   void _addCompletedTasksToHistory() {
-    print('📊 [HomeCollector] ===== ADDING COMPLETED TASKS TO HISTORY =====');
+    print('[HomeCollector] ===== ADDING COMPLETED TASKS TO HISTORY =====');
     
     // Tambahkan completed off-schedule pickups
     final completedOffSchedule = offSchedulePickups.where((pickup) {
@@ -612,7 +612,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
       return status == 'completed' || status == 'collected';
     }).toList();
     
-    print('📦 [HomeCollector] Found ${completedOffSchedule.length} completed off-schedule pickups');
+    print('[HomeCollector] Found ${completedOffSchedule.length} completed off-schedule pickups');
     
     for (var pickup in completedOffSchedule) {
       // Check if already exists in pengambilanList
@@ -622,7 +622,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
       );
       
       if (!exists) {
-        print('  ✅ Adding off-schedule #$pickupId to history');
+        print('Adding off-schedule #$pickupId to history');
         // Transform off-schedule pickup to history format
         pengambilanList.insert(0, {
           'id': pickup['id'],
@@ -644,8 +644,8 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
       return complaint.status == 'resolved';
     }).toList();
     
-    print('📋 [HomeCollector] Found ${resolvedComplaints.length} resolved complaints in allComplaints');
-    print('📋 [HomeCollector] Total allComplaints: ${allComplaints.length}');
+    print('[HomeCollector] Found ${resolvedComplaints.length} resolved complaints in allComplaints');
+    print('[HomeCollector] Total allComplaints: ${allComplaints.length}');
     
     for (var complaint in resolvedComplaints) {
       // Check if already exists in pengambilanList
@@ -654,7 +654,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
       );
       
       if (!exists) {
-        print('  ✅ Adding complaint #${complaint.id} to history');
+        print('   Adding complaint #${complaint.id} to history');
         print('     - Type: ${complaint.type}');
         print('     - Status: ${complaint.status}');
         print('     - Reporter: ${complaint.reporter?['name'] ?? 'N/A'}');
@@ -893,8 +893,8 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
       return Image.network(
         finalImagePath,
         height: 180,
-        width: 100,
-        fit: BoxFit.cover,
+        width: double.infinity,
+        fit: BoxFit.contain,
         errorBuilder: (context, error, stackTrace) {
           print('[ERROR] [HomeKolektor] Image load error: $error');
           return Container(
@@ -976,8 +976,8 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
       return Image.file(
         file,
         height: 180,
-        width: 100,
-        fit: BoxFit.cover,
+        width: double.infinity,
+        fit: BoxFit.contain,
         errorBuilder: (context, error, stackTrace) {
           return Container(
             height: 180,
@@ -993,8 +993,8 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
     return Image.asset(
       finalImagePath,
       height: 180,
-      width: 100,
-      fit: BoxFit.cover,
+      width: double.infinity,
+      fit: BoxFit.contain,
       errorBuilder: (context, error, stackTrace) {
         return Container(
           height: 180,
@@ -1284,7 +1284,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
                               ),
                               // ✅ TAMPILKAN INFO COMPLAINT
                               Text(
-                                '${todayPickups.length} pickup reguler • ${assignedComplaints.length} pelaporan',
+                                '${todayPickups.length} pickup reguler • ${assignedComplaints.length} pengaduan',
                                 style: GoogleFonts.poppins(
                                   fontSize: 11,
                                   color: Colors.blue.shade700,
@@ -1477,7 +1477,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
                             ),
                             child: Center(
                               child: Text(
-                                "Pelaporan",
+                                "Pengaduan",
                                 style: GoogleFonts.poppins(
                                   fontSize: 14,
                                   fontWeight: _tugasTabIndex == 1
@@ -1775,7 +1775,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
               ),
               const SizedBox(height: 16),
               Text(
-                'Belum ada pelaporan',
+                'Belum ada tugas pengaduan',
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   color: Colors.grey[600],
@@ -3067,7 +3067,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
       fullUrl,
       width: double.infinity,
       height: 180,
-      fit: BoxFit.cover,
+      fit: BoxFit.contain,
       loadingBuilder: (context, child, loadingProgress) {
         if (loadingProgress == null) return child;
         return Container(
@@ -3254,7 +3254,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
                       Icon(Icons.report_problem, size: 12, color: Colors.red.shade700),
                       const SizedBox(width: 4),
                       Text(
-                        'PELAPORAN',
+                        'PENGADUAN',
                         style: GoogleFonts.poppins(
                           fontSize: 10,
                           color: Colors.red.shade700,
@@ -3384,7 +3384,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
   String _getPickupTypeLabel(Map<String, dynamic> data) {
     // Check if it's a complaint
     if (data.containsKey('type') && data['type'] != null) {
-      return 'Pelaporan';
+      return 'Tugas Pengaduan';
     }
     
     // Check if it's off-schedule (request)

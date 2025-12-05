@@ -568,7 +568,7 @@ class _CollectorComplaintDetailScreenState
                                     photoUrl,
                                     width: 120,
                                     height: 120,
-                                    fit: BoxFit.cover,
+                                    fit: BoxFit.contain,
                                     loadingBuilder: (context, child, loadingProgress) {
                                       if (loadingProgress == null) return child;
                                       return Container(
@@ -663,13 +663,13 @@ class _CollectorComplaintDetailScreenState
                                       _selectedImage!.path,
                                       width: double.infinity,
                                       height: 200,
-                                      fit: BoxFit.cover,
+                                      fit: BoxFit.contain,
                                     )
                                   : Image.file(
                                       File(_selectedImage!.path),
                                       width: double.infinity,
                                       height: 200,
-                                      fit: BoxFit.cover,
+                                      fit: BoxFit.contain,
                                     ),
                               Positioned(
                                 top: 8,

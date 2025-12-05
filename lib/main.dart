@@ -14,6 +14,9 @@ import 'screens/user/riwayat_pembayaran_screen.dart';
 import 'screens/user/express_request_screen.dart';
 import 'screens/kolektor/home_screens_kolektor.dart';
 
+/// Global navigator key untuk akses navigation dari mana saja (termasuk ApiClient)
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 void main() {
   runApp(const SirkularApp());
 }
@@ -26,6 +29,7 @@ class SirkularApp extends StatelessWidget {
     return MaterialApp(
       title: 'Sirkular',
       debugShowCheckedModeBanner: false,
+      navigatorKey: navigatorKey, // Global navigator key
       theme: ThemeData.light().copyWith(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
         useMaterial3: true,
@@ -44,7 +48,6 @@ class SirkularApp extends StatelessWidget {
       // 🔹 Daftar route
       routes: {
         // --- ROUTE UMUM ---
-        '/': (context) => const SplashScreen(),
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
         '/forgot-password': (context) => const ForgotPasswordScreen(),
@@ -66,6 +69,18 @@ class SirkularApp extends StatelessWidget {
 
       // Custom route handler for routes with parameters
       onGenerateRoute: (settings) {
+        // Handle splash screen dengan sessionExpired parameter
+        if (settings.name == '/') {
+          final args = settings.arguments;
+          bool sessionExpired = false;
+          if (args is Map<String, dynamic>) {
+            sessionExpired = args['sessionExpired'] ?? false;
+          }
+          return MaterialPageRoute(
+            builder: (context) => SplashScreen(sessionExpired: sessionExpired),
+          );
+        }
+        
         // Handle artikel-detail route with ID parameter
         if (settings.name == '/artikel-detail') {
           final artikelId = settings.arguments as int?;

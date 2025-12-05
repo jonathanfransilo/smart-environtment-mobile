@@ -3,9 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/token_storage.dart';
 import '../services/user_storage.dart';
+import 'login_screen.dart';
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
+  final bool sessionExpired;
+  
+  const SplashScreen({super.key, this.sessionExpired = false});
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -15,8 +18,11 @@ class _SplashScreenState extends State<SplashScreen>
     with TickerProviderStateMixin {
   late AnimationController _waveController;
   late AnimationController _logoController;
+  late AnimationController _exitController;
   late Animation<double> _scaleAnimation;
-  bool _isChecking = true;
+  late Animation<double> _logoScaleExitAnimation;
+  late Animation<double> _logoFadeAnimation;
+  late Animation<double> _backgroundFadeAnimation;
 
   @override
   void initState() {
@@ -34,263 +40,331 @@ class _SplashScreenState extends State<SplashScreen>
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
 
-    _scaleAnimation = Tween<double>(begin: 0.9, end: 1.1).animate(
+    // Controller animasi exit (zoom out + fade)
+    _exitController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+
+    _scaleAnimation = Tween<double>(begin: 0.95, end: 1.05).animate(
       CurvedAnimation(parent: _logoController, curve: Curves.easeInOut),
     );
 
-    // Check auto-login
-    _checkAutoLogin();
+    // Animasi logo zoom out saat exit
+    _logoScaleExitAnimation = Tween<double>(begin: 1.0, end: 3.0).animate(
+      CurvedAnimation(
+        parent: _exitController, 
+        curve: const Interval(0.0, 0.6, curve: Curves.easeInOutCubic),
+      ),
+    );
+
+    // Animasi fade out logo
+    _logoFadeAnimation = Tween<double>(begin: 1.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _exitController, 
+        curve: const Interval(0.3, 0.8, curve: Curves.easeOut),
+      ),
+    );
+
+    // Animasi fade out background
+    _backgroundFadeAnimation = Tween<double>(begin: 1.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _exitController, 
+        curve: const Interval(0.4, 1.0, curve: Curves.easeOut),
+      ),
+    );
+
+    // Cek jika sesi berakhir
+    if (widget.sessionExpired) {
+      // Tampilkan snackbar sesi berakhir lalu redirect ke login
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Sesi Anda telah berakhir. Silakan login kembali.'),
+              backgroundColor: Colors.orange,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      });
+      // Redirect ke login setelah 3 detik
+      Future.delayed(const Duration(seconds: 3), () {
+        if (mounted) {
+          _navigateToLogin();
+        }
+      });
+    } else {
+      // Check auto-login
+      _checkAutoLogin();
+    }
   }
 
   Future<void> _checkAutoLogin() async {
     try {
-      print('🔍 [Splash] Starting auto-login check...');
+      print(' [Splash] Starting auto-login check...');
       
-      await Future.delayed(const Duration(seconds: 2)); // Minimal splash time
+      // Tunggu 5 detik untuk splash screen
+      await Future.delayed(const Duration(seconds: 5));
       
       if (!mounted) {
-        print('⚠️ [Splash] Widget not mounted, aborting');
+        print(' [Splash] Widget not mounted, aborting');
         return;
       }
       
       final token = await TokenStorage.getToken();
-      print('🔑 [Splash] Token: ${token != null ? "Found (${token.substring(0, 20)}...)" : "Not found"}');
+      print(' [Splash] Token: ${token != null ? "Found (${token.substring(0, 20)}...)" : "Not found"}');
       
       if (!mounted) return;
 
       if (token != null && token.isNotEmpty) {
         // User sudah login, check role untuk redirect
-        print('👤 [Splash] Checking user role...');
+        print(' [Splash] Checking user role...');
         final isCollector = await UserStorage.isCollector();
-        print('📋 [Splash] Is collector: $isCollector');
-        
-        if (!mounted) return;
-        
-        // Small delay to ensure context is ready
-        await Future.delayed(const Duration(milliseconds: 100));
+        print(' [Splash] Is collector: $isCollector');
         
         if (!mounted) return;
         
         if (isCollector) {
-          print('🚛 [Splash] Redirecting to collector home...');
-          Navigator.of(context).pushReplacementNamed('/home-kolektor');
+          print(' [Splash] Redirecting to collector home...');
+          _navigateToHome('/home-kolektor');
         } else {
-          print('🏠 [Splash] Redirecting to user home...');
-          Navigator.of(context).pushReplacementNamed('/home');
+          print(' [Splash] Redirecting to user home...');
+          _navigateToHome('/home');
         }
       } else {
-        // Belum login, tampilkan tombol
-        print('🔓 [Splash] No token found, showing login button');
-        if (mounted) {
-          setState(() {
-            _isChecking = false;
-          });
-        }
+        // Belum login, redirect ke login dengan animasi
+        print(' [Splash] No token found, redirecting to login...');
+        _navigateToLogin();
       }
     } catch (e, stackTrace) {
-      print('❌ [Splash] Error during auto-login check: $e');
+      print(' [Splash] Error during auto-login check: $e');
       print('Stack trace: $stackTrace');
       
-      // Jika error, tampilkan tombol login sebagai fallback
+      // Jika error, redirect ke login
       if (mounted) {
-        setState(() {
-          _isChecking = false;
-        });
-        
-        // Optional: Show error snackbar
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Terjadi kesalahan saat memuat aplikasi'),
-            backgroundColor: Colors.red,
-            action: SnackBarAction(
-              label: 'OK',
-              textColor: Colors.white,
-              onPressed: () {},
-            ),
-          ),
-        );
+        _navigateToLogin();
       }
     }
+  }
+
+  /// Navigasi ke login dengan animasi zoom + fade
+  void _navigateToLogin() async {
+    // Stop logo pulse animation
+    _logoController.stop();
+    
+    // Jalankan animasi exit
+    await _exitController.forward();
+    
+    if (!mounted) return;
+    
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return const LoginScreen();
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          // Kombinasi fade + scale + slide untuk login screen
+          final fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+            CurvedAnimation(
+              parent: animation,
+              curve: const Interval(0.0, 0.8, curve: Curves.easeOut),
+            ),
+          );
+          
+          final scaleAnimation = Tween<double>(begin: 0.9, end: 1.0).animate(
+            CurvedAnimation(
+              parent: animation,
+              curve: const Interval(0.0, 0.8, curve: Curves.easeOutCubic),
+            ),
+          );
+          
+          final slideAnimation = Tween<Offset>(
+            begin: const Offset(0, 0.05),
+            end: Offset.zero,
+          ).animate(
+            CurvedAnimation(
+              parent: animation,
+              curve: const Interval(0.0, 0.8, curve: Curves.easeOutCubic),
+            ),
+          );
+          
+          return FadeTransition(
+            opacity: fadeAnimation,
+            child: ScaleTransition(
+              scale: scaleAnimation,
+              child: SlideTransition(
+                position: slideAnimation,
+                child: child,
+              ),
+            ),
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 800),
+        reverseTransitionDuration: const Duration(milliseconds: 400),
+      ),
+    );
+  }
+
+  /// Navigasi ke home dengan animasi
+  void _navigateToHome(String route) async {
+    // Stop logo pulse animation
+    _logoController.stop();
+    
+    // Jalankan animasi exit
+    await _exitController.forward();
+    
+    if (!mounted) return;
+    
+    Navigator.of(context).pushReplacementNamed(route);
   }
 
   @override
   void dispose() {
     _waveController.dispose();
     _logoController.dispose();
+    _exitController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Stack(
-        children: [
-          // ===== Wave Background =====
-          AnimatedBuilder(
-            animation: _waveController,
-            builder: (context, child) {
-              return ClipPath(
-                clipper: WaveClipper1(_waveController.value),
-                child: Container(
-                  height: MediaQuery.of(context).size.height * 0.55,
-                  color: const Color(0xFF2A8D7C),
-                ),
-              );
-            },
-          ),
-          AnimatedBuilder(
-            animation: _waveController,
-            builder: (context, child) {
-              return ClipPath(
-                clipper: WaveClipper2(_waveController.value),
-                child: Container(
-                  height: MediaQuery.of(context).size.height * 0.50,
-                  color: const Color(0xFF36B8A6).withAlpha(179),
-                ),
-              );
-            },
-          ),
-          AnimatedBuilder(
-            animation: _waveController,
-            builder: (context, child) {
-              return ClipPath(
-                clipper: WaveClipper3(_waveController.value),
-                child: Container(
-                  height: MediaQuery.of(context).size.height * 0.45,
-                  color: const Color(0xFF4ECDC4).withAlpha(128),
-                ),
-              );
-            },
-          ),
-
-          // ===== Konten Utama =====
-          Center(
-            child: Column(
-              children: [
-                const Spacer(flex: 2),
-
-                // Logo PNG dengan animasi pulse
-                ScaleTransition(
-                  scale: _scaleAnimation,
-                  child: Container(
-                    width: 90,
-                    height: 90,
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                    ),
-                    child: ClipOval(
-                      child: Image.asset(
-                        'assets/images/sirkular.png',
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-
-                // Judul
-                Text(
-                  "SIRKULAR",
-                  style: GoogleFonts.poppins(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF4CAF50),
-                    letterSpacing: 1.2,
-                  ),
-                ),
-
-                const SizedBox(height: 6),
-
-                // Subjudul
-                Text(
-                  "Waste Management App",
-                  style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    color: Colors.black87,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-
-                const Spacer(flex: 1),
-
-                // Tombol Mulai Sekarang atau Loading
-                if (_isChecking)
-                  const CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      Color.fromARGB(255, 21, 145, 137),
-                    ),
-                  )
-                else
-                  SizedBox(
-                    width: 230,
-                    height: 52,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pushReplacementNamed(context, '/login');
+    return AnimatedBuilder(
+      animation: _exitController,
+      builder: (context, child) {
+        return Scaffold(
+          backgroundColor: Colors.white,
+          body: Stack(
+            children: [
+              // ===== Wave Background dengan fade =====
+              Opacity(
+                opacity: _backgroundFadeAnimation.value,
+                child: Stack(
+                  children: [
+                    AnimatedBuilder(
+                      animation: _waveController,
+                      builder: (context, child) {
+                        return ClipPath(
+                          clipper: WaveClipper1(_waveController.value),
+                          child: Container(
+                            height: MediaQuery.of(context).size.height * 0.55,
+                            color: const Color(0xFF2A8D7C),
+                          ),
+                        );
                       },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color.fromARGB(255, 21, 145, 137),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(26),
-                        ),
-                        elevation: 0,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            "Mulai Sekarang",
-                            style: GoogleFonts.poppins(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            width: 20,
-                            height: 20,
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.arrow_forward,
-                              color: Color.fromARGB(255, 21, 145, 137),
-                              size: 12,
-                            ),
-                          ),
-                        ],
-                      ),
                     ),
-                  ),
-
-                const SizedBox(height: 150),
-              ],
-            ),
-          ),
-
-          // ===== Versi Aplikasi =====
-          Positioned(
-            bottom: 16,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Text(
-                "V. 1.0.0",
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  color: Colors.black87,
+                    AnimatedBuilder(
+                      animation: _waveController,
+                      builder: (context, child) {
+                        return ClipPath(
+                          clipper: WaveClipper2(_waveController.value),
+                          child: Container(
+                            height: MediaQuery.of(context).size.height * 0.50,
+                            color: const Color(0xFF36B8A6).withAlpha(179),
+                          ),
+                        );
+                      },
+                    ),
+                    AnimatedBuilder(
+                      animation: _waveController,
+                      builder: (context, child) {
+                        return ClipPath(
+                          clipper: WaveClipper3(_waveController.value),
+                          child: Container(
+                            height: MediaQuery.of(context).size.height * 0.45,
+                            color: const Color(0xFF4ECDC4).withAlpha(128),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ),
               ),
-            ),
+
+              // ===== Konten Utama dengan animasi exit =====
+              Center(
+                child: Opacity(
+                  opacity: _logoFadeAnimation.value,
+                  child: Transform.scale(
+                    scale: _logoScaleExitAnimation.value * _scaleAnimation.value,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Logo PNG
+                        Container(
+                          width: 90,
+                          height: 90,
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black12,
+                                blurRadius: 20,
+                                offset: Offset(0, 5),
+                              ),
+                            ],
+                          ),
+                          child: ClipOval(
+                            child: Image.asset(
+                              'assets/images/sirkular.png',
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        // Judul
+                        Text(
+                          "SIRKULAR",
+                          style: GoogleFonts.poppins(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF4CAF50),
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+
+                        const SizedBox(height: 6),
+
+                        // Subjudul
+                        Text(
+                          "Waste Management App",
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            color: Colors.black87,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              // ===== Versi Aplikasi =====
+              Positioned(
+                bottom: 16,
+                left: 0,
+                right: 0,
+                child: Opacity(
+                  opacity: _backgroundFadeAnimation.value,
+                  child: Center(
+                    child: Text(
+                      "V. 1.0.0",
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

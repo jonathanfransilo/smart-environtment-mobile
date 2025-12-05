@@ -24,7 +24,7 @@ class AuthService {
         final user = data['data']?['user'] as Map<String, dynamic>?;
 
         if (token != null) {
-          await TokenStorage.saveToken(token);
+          await TokenStorage.saveToken(token); // Otomatis simpan waktu login untuk tracking expired
           await UserStorage.saveToken(token); // Simpan juga ke UserStorage
         }
 

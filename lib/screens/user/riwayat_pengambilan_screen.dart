@@ -719,7 +719,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                           borderRadius: BorderRadius.circular(12),
                           child: Image.network(
                             photoUrl,
-                            fit: BoxFit.cover,
+                            fit: BoxFit.contain,
                             errorBuilder: (context, error, stackTrace) {
                               return Center(
                                 child: Icon(
@@ -1686,7 +1686,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                                     children: [
                                       Image.network(
                                         imageUrl,
-                                        fit: BoxFit.cover,
+                                        fit: BoxFit.contain,
                                         errorBuilder: (context, error, stackTrace) {
                                           print('❌ [DetailDialog] Error loading image from: $imageUrl');
                                           print('❌ [DetailDialog] Error: $error');

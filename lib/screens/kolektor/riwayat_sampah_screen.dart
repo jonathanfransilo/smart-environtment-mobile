@@ -384,7 +384,7 @@ class RiwayatSampahScreen extends StatelessWidget {
   String _getPickupTypeLabel() {
     // Check if it's a complaint
     if (pickupData.containsKey('type') && pickupData['type'] != null) {
-      return 'Pelaporan';
+      return 'Tugas Pengaduan';
     }
     
     // Check if it's off-schedule (request)

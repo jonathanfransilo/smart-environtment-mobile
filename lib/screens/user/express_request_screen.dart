@@ -40,10 +40,29 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
   OffSchedulePickup? _activeRequest;
   bool _isLoadingActiveRequest = false;
 
+  // Arguments dari home screen
+  String? _initialServiceAccountId;
+  String? _initialServiceAccountName;
+
   @override
   void initState() {
     super.initState();
-    _loadServiceAccounts();
+    // Arguments akan diambil di didChangeDependencies
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Ambil arguments dari route hanya sekali
+    if (_initialServiceAccountId == null) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is Map<String, dynamic>) {
+        _initialServiceAccountId = args['serviceAccountId']?.toString();
+        _initialServiceAccountName = args['serviceAccountName']?.toString();
+        print('[EXPRESS] Received initial account: $_initialServiceAccountName (ID: $_initialServiceAccountId)');
+      }
+      _loadServiceAccounts();
+    }
   }
   
   // Load active request for selected service account
@@ -253,9 +272,18 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
       if (!mounted) return;
       setState(() {
         _serviceAccounts = accounts;
-        // Pilih akun pertama secara default
+        // Pilih akun berdasarkan initial ID dari home, atau default ke pertama
         if (accounts.isNotEmpty) {
-          _selectedAccount = accounts.first;
+          if (_initialServiceAccountId != null) {
+            // Cari akun yang sesuai dengan ID dari home
+            _selectedAccount = accounts.firstWhere(
+              (acc) => acc.id == _initialServiceAccountId,
+              orElse: () => accounts.first,
+            );
+            print('[EXPRESS] Auto-selected account: ${_selectedAccount?.name} (ID: ${_selectedAccount?.id})');
+          } else {
+            _selectedAccount = accounts.first;
+          }
         }
         _isLoadingAccounts = false;
       });

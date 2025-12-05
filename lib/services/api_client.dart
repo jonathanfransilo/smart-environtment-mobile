@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 import '../config/api_config.dart';
+import '../main.dart' show navigatorKey;
 import 'token_storage.dart';
+import 'user_storage.dart';
 
 class ApiClient {
   ApiClient._internal() {
@@ -17,13 +19,41 @@ class ApiClient {
 
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
-        final token = await TokenStorage.getToken();
-        if (token != null && token.isNotEmpty) {
-          options.headers['Authorization'] = 'Bearer $token';
+        // Skip token check untuk endpoint yang tidak memerlukan auth
+        final isAuthEndpoint = options.path.contains('/login') || 
+                               options.path.contains('/register') ||
+                               options.path.contains('/forgot-password') ||
+                               options.path.contains('/reset-password');
+        
+        if (!isAuthEndpoint) {
+          // Cek apakah ada token dulu
+          final token = await TokenStorage.getTokenWithoutExpiryCheck();
+          
+          if (token != null && token.isNotEmpty) {
+            // Ada token, cek apakah expired
+            if (await TokenStorage.isTokenExpired()) {
+              print('[API] Token expired, redirecting to splash...');
+              await _handleTokenExpired();
+              return handler.reject(
+                DioException(
+                  requestOptions: options,
+                  error: 'Token expired',
+                  type: DioExceptionType.cancel,
+                ),
+              );
+            }
+            options.headers['Authorization'] = 'Bearer $token';
+          }
         }
+        
         handler.next(options);
       },
-      onError: (error, handler) {
+      onError: (error, handler) async {
+        // Handle 401 Unauthorized - token invalid/expired dari server
+        if (error.response?.statusCode == 401) {
+          print('[API] Received 401 Unauthorized, token invalid');
+          await _handleTokenExpired();
+        }
         handler.next(error);
       },
     ));
@@ -33,4 +63,31 @@ class ApiClient {
   late final Dio _dio;
 
   Dio get dio => _dio;
+
+  /// Handle token expired - clear data dan redirect ke splash
+  static Future<void> _handleTokenExpired() async {
+    try {
+      // Clear token dan user data
+      await TokenStorage.clearToken();
+      await UserStorage.clearUser();
+      
+      // Redirect ke splash screen dengan parameter sessionExpired
+      final navigator = navigatorKey.currentState;
+      if (navigator != null) {
+        // Clear semua route dan ke splash dengan sessionExpired = true
+        navigator.pushNamedAndRemoveUntil(
+          '/', 
+          (route) => false,
+          arguments: {'sessionExpired': true},
+        );
+      }
+    } catch (e) {
+      print('[API] Error handling token expired: $e');
+    }
+  }
+
+  /// Public method untuk force logout (bisa dipanggil dari mana saja)
+  static Future<void> forceLogout({String? message}) async {
+    await _handleTokenExpired();
+  }
 }

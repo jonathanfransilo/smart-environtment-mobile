@@ -32,11 +32,9 @@ class _ArtikelDetailScreenState extends State<ArtikelDetailScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.article != null) {
-      _article = widget.article;
-    } else {
-      _loadArticleDetail();
-    }
+    // Always fetch detail from API to get full content
+    // The article passed from list might only have summary, not full content
+    _loadArticleDetail();
   }
 
   Future<void> _loadArticleDetail() async {
@@ -46,13 +44,31 @@ class _ArtikelDetailScreenState extends State<ArtikelDetailScreen> {
     });
 
     try {
-      final identifier = widget.articleId ?? widget.articleSlug;
-      final article = await _artikelService.getArticleDetail(identifier!);
+      // Use article ID if available, otherwise use provided identifiers
+      final identifier = widget.article?.id ?? widget.articleId ?? widget.articleSlug;
+      
+      if (identifier == null) {
+        throw Exception('Tidak ada identifier artikel');
+      }
+      
+      print('[ARTICLE] Fetching detail for article: $identifier');
+      
+      final article = await _artikelService.getArticleDetail(identifier);
+      
+      print('[ARTICLE] ====== API Response ======');
+      print('[ARTICLE] Title: ${article.title}');
+      print('[ARTICLE] Content length: ${article.content.length} chars');
+      print('[ARTICLE] Excerpt length: ${article.excerpt?.length ?? 0} chars');
+      print('[ARTICLE] Content preview: ${article.content.substring(0, article.content.length > 200 ? 200 : article.content.length)}...');
+      print('[ARTICLE] Full content: ${article.content}');
+      print('[ARTICLE] ============================');
+      
       setState(() {
         _article = article;
         _isLoading = false;
       });
     } catch (e) {
+      print('[ARTICLE] Error loading detail: $e');
       setState(() {
         _isLoading = false;
         _errorMessage = e.toString().replaceAll('Exception: ', '');
@@ -230,44 +246,91 @@ class _ArtikelDetailScreenState extends State<ArtikelDetailScreen> {
 
           const SizedBox(height: 16),
 
-          // Excerpt (if available) - render HTML safely so tags like <p>/<span> are displayed correctly
-          // Only show excerpt if it's different from the main content to avoid duplication
-          if (_article!.excerpt != null &&
-              _article!.excerpt!.isNotEmpty &&
-              _article!.excerpt != _article!.content)
+          // Ringkasan/Summary Section - Always show if available
+          if (_article!.excerpt != null && _article!.excerpt!.isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey[300]!),
-                ),
-                // Use Html widget to render any inline HTML in the excerpt instead of showing raw tags
-                child: Html(
-                  data: _article!.excerpt!,
-                  style: {
-                    "body": Style(
-                      fontSize: FontSize(14),
-                      fontStyle: FontStyle.italic,
-                      color: Colors.grey[700],
-                      fontFamily: GoogleFonts.poppins().fontFamily,
-                      lineHeight: const LineHeight(1.5),
-                      margin: Margins.zero,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Label "Ringkasan"
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.summarize_outlined,
+                        size: 18,
+                        color: Colors.grey[700],
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Ringkasan',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // Summary Box
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.grey[300]!),
                     ),
-                    // Keep paragraphs compact inside the excerpt box
-                    "p": Style(margin: Margins.only(bottom: 8)),
-                    // Ensure spans inherit the body style
-                    "span": Style(),
-                  },
-                ),
+                    child: Html(
+                      data: _article!.excerpt!,
+                      style: {
+                        "body": Style(
+                          fontSize: FontSize(14),
+                          fontStyle: FontStyle.italic,
+                          color: Colors.grey[700],
+                          fontFamily: GoogleFonts.poppins().fontFamily,
+                          lineHeight: const LineHeight(1.5),
+                          margin: Margins.zero,
+                          padding: HtmlPaddings.zero,
+                        ),
+                        "p": Style(margin: Margins.only(bottom: 8)),
+                        "span": Style(),
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          const SizedBox(height: 20),
+
+          // Divider between summary and full content
+          if (_article!.excerpt != null && _article!.excerpt!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Expanded(child: Divider(color: Colors.grey[300])),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Text(
+                      'Isi Lengkap',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.grey[500],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  Expanded(child: Divider(color: Colors.grey[300])),
+                ],
               ),
             ),
 
           const SizedBox(height: 16),
 
-          // Isi Artikel (HTML Content)
+          // Isi Artikel Lengkap (Full HTML Content)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Html(

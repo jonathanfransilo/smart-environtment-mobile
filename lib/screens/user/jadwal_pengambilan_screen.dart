@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
+import '../../services/resident_pickup_service.dart';
 
 class JadwalPengambilanScreen extends StatefulWidget {
   final int? serviceAccountId;
@@ -16,10 +17,13 @@ class JadwalPengambilanScreen extends StatefulWidget {
 }
 
 class _JadwalPengambilanScreenState extends State<JadwalPengambilanScreen> {
+  final ResidentPickupService _pickupService = ResidentPickupService();
+  
   DateTime _selectedMonth = DateTime.now();
   DateTime? _selectedDate;
   List<Map<String, dynamic>> _schedules = [];
   bool _isLoading = true;
+  String? _errorMessage;
   
   // Highlighted dates (dates with schedules)
   Set<int> _scheduleDates = {};
@@ -31,46 +35,96 @@ class _JadwalPengambilanScreenState extends State<JadwalPengambilanScreen> {
   }
 
   Future<void> _loadSchedules() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
-    // Simulate loading delay
-    await Future.delayed(const Duration(milliseconds: 500));
+    try {
+      // Panggil API untuk mendapatkan jadwal pickup yang akan datang
+      final (success, message, pickups) = await _pickupService.getUpcomingPickups(
+        serviceAccountId: widget.serviceAccountId?.toString(),
+      );
 
-    // DUMMY DATA - Generate jadwal untuk bulan ini
-    final now = DateTime.now();
-    final currentMonth = DateTime(now.year, now.month);
-    final nextMonth = DateTime(now.year, now.month + 1);
-    final daysInMonth = nextMonth.difference(currentMonth).inDays;
-    
-    final Set<int> dates = {};
-    final List<Map<String, dynamic>> allSchedules = [];
-    
-    // Generate dummy schedules untuk setiap hari Senin dan Kamis di bulan ini
-    for (int day = 1; day <= daysInMonth; day++) {
-      final date = DateTime(_selectedMonth.year, _selectedMonth.month, day);
-      
-      // Hanya Senin (1) dan Kamis (4)
-      if (date.weekday == 1 || date.weekday == 4) {
-        dates.add(day);
-        
-        final dayName = _getDayName(date.weekday);
-        final time = date.weekday == 1 ? '08:00' : '14:00'; // Senin pagi, Kamis siang
-        
-        allSchedules.add({
-          'date': date,
-          'day': dayName,
-          'time': time,
-          'status': 'scheduled',
+      if (!mounted) return;
+
+      if (success && pickups != null) {
+        final Set<int> dates = {};
+        final List<Map<String, dynamic>> allSchedules = [];
+
+        for (var pickup in pickups) {
+          // Parse pickup_date dari API (format: Y-m-d)
+          final pickupDateStr = pickup['pickup_date']?.toString();
+          if (pickupDateStr == null) continue;
+
+          final date = DateTime.tryParse(pickupDateStr);
+          if (date == null) continue;
+
+          // Hanya tampilkan jadwal untuk bulan yang dipilih
+          if (date.month == _selectedMonth.month && date.year == _selectedMonth.year) {
+            dates.add(date.day);
+
+            // Ambil informasi waktu dari schedule_info
+            final scheduleInfo = pickup['schedule_info'] as Map<String, dynamic>?;
+            String time = '08:00'; // default
+            if (scheduleInfo != null) {
+              final timeStart = scheduleInfo['time_start']?.toString();
+              if (timeStart != null && timeStart.isNotEmpty) {
+                // Format time dari HH:MM:SS ke HH:MM
+                time = timeStart.length >= 5 ? timeStart.substring(0, 5) : timeStart;
+              }
+            }
+
+            // Ambil nama hari dari API atau generate
+            final dayName = pickup['day_name']?.toString() ?? _getDayName(date.weekday);
+
+            allSchedules.add({
+              'id': pickup['id'],
+              'date': date,
+              'day': dayName,
+              'time': time,
+              'status': pickup['status'] ?? 'scheduled',
+              'confirmation_status': pickup['confirmation_status'],
+              'collector_info': pickup['collector_info'],
+              'can_confirm': pickup['can_confirm'] ?? false,
+              'resident_note': pickup['resident_note'],
+              'raw': pickup, // simpan data mentah untuk keperluan lain
+            });
+          }
+        }
+
+        // Sort schedules by date
+        allSchedules.sort((a, b) {
+          final dateA = a['date'] as DateTime;
+          final dateB = b['date'] as DateTime;
+          return dateA.compareTo(dateB);
         });
+
+        setState(() {
+          _scheduleDates = dates;
+          _schedules = allSchedules;
+          _isLoading = false;
+        });
+
+        print('[JADWAL] Loaded ${allSchedules.length} schedules for ${_selectedMonth.month}/${_selectedMonth.year}');
+      } else {
+        setState(() {
+          _schedules = [];
+          _scheduleDates = {};
+          _isLoading = false;
+          _errorMessage = message;
+        });
+        print('[JADWAL] Error: $message');
       }
-    }
-    
-    if (mounted) {
+    } catch (e) {
+      if (!mounted) return;
       setState(() {
-        _scheduleDates = dates;
-        _schedules = allSchedules;
+        _schedules = [];
+        _scheduleDates = {};
         _isLoading = false;
+        _errorMessage = 'Gagal memuat jadwal: $e';
       });
+      print('[JADWAL] Exception: $e');
     }
   }
 
@@ -345,6 +399,46 @@ class _JadwalPengambilanScreenState extends State<JadwalPengambilanScreen> {
   }
 
   Widget _buildScheduleList(Color primaryColor) {
+    // Tampilkan error jika ada
+    if (_errorMessage != null && _schedules.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 64, color: Colors.orange[300]),
+            const SizedBox(height: 16),
+            Text(
+              'Gagal memuat jadwal',
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _errorMessage!,
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                color: Colors.grey[400],
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _loadSchedules,
+              icon: const Icon(Icons.refresh, size: 18),
+              label: Text('Coba Lagi', style: GoogleFonts.poppins()),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     final filteredSchedules = _getFilteredSchedules();
 
     if (filteredSchedules.isEmpty) {
@@ -366,11 +460,18 @@ class _JadwalPengambilanScreenState extends State<JadwalPengambilanScreen> {
             Text(
               _selectedDate != null
                   ? 'Pilih tanggal lain yang ditandai'
-                  : 'Belum ada jadwal untuk bulan ini',
+                  : 'Belum ada jadwal pengambilan untuk bulan ini',
               style: GoogleFonts.poppins(
                 fontSize: 12,
                 color: Colors.grey[400],
               ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            TextButton.icon(
+              onPressed: _loadSchedules,
+              icon: Icon(Icons.refresh, size: 18, color: primaryColor),
+              label: Text('Muat Ulang', style: GoogleFonts.poppins(color: primaryColor)),
             ),
           ],
         ),
@@ -385,6 +486,19 @@ class _JadwalPengambilanScreenState extends State<JadwalPengambilanScreen> {
         final date = schedule['date'] as DateTime;
         final day = schedule['day'] as String;
         final time = schedule['time'] as String;
+        final status = schedule['status'] as String? ?? 'scheduled';
+        final confirmationStatus = schedule['confirmation_status'] as String?;
+        final collectorInfo = schedule['collector_info'] as Map<String, dynamic>?;
+
+        // Determine color based on status
+        Color statusColor = primaryColor;
+        if (status == 'in_progress') {
+          statusColor = Colors.blue;
+        } else if (status == 'completed') {
+          statusColor = Colors.green;
+        } else if (status == 'cancelled') {
+          statusColor = Colors.red;
+        }
 
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
@@ -392,54 +506,144 @@ class _JadwalPengambilanScreenState extends State<JadwalPengambilanScreen> {
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: Colors.grey[200]!),
-          ),
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            leading: Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: primaryColor,
-                borderRadius: BorderRadius.circular(12),
+            boxShadow: const [
+              BoxShadow(
+                color: Color.fromRGBO(0, 0, 0, 0.03),
+                blurRadius: 8,
+                offset: Offset(0, 2),
               ),
-              child: Center(
-                child: Text(
-                  '${date.day.toString().padLeft(2, '0')}',
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                // Date Box
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: statusColor,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Center(
+                    child: Text(
+                      date.day.toString().padLeft(2, '0'),
+                      style: GoogleFonts.poppins(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
-            title: Text(
-              day,
-              style: GoogleFonts.poppins(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-              ),
-            ),
-            subtitle: Text(
-              time,
-              style: GoogleFonts.poppins(
-                fontSize: 13,
-                color: Colors.grey[600],
-              ),
-            ),
-            trailing: Container(
-              width: 4,
-              height: 40,
-              decoration: BoxDecoration(
-                color: primaryColor,
-                borderRadius: BorderRadius.circular(2),
-              ),
+                const SizedBox(width: 12),
+                // Info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        day,
+                        style: GoogleFonts.poppins(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Icon(Icons.access_time, size: 14, color: Colors.grey[500]),
+                          const SizedBox(width: 4),
+                          Text(
+                            time,
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          if (collectorInfo != null) ...[
+                            const SizedBox(width: 12),
+                            Icon(Icons.person_outline, size: 14, color: Colors.grey[500]),
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                collectorInfo['name']?.toString() ?? '-',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  color: Colors.grey[600],
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      if (confirmationStatus != null && confirmationStatus != 'pending') ...[
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: _getConfirmationColor(confirmationStatus).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            _getConfirmationText(confirmationStatus),
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: _getConfirmationColor(confirmationStatus),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                // Status indicator
+                Container(
+                  width: 4,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: statusColor,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ],
             ),
           ),
         );
       },
     );
+  }
+
+  Color _getConfirmationColor(String status) {
+    switch (status) {
+      case 'confirmed':
+        return Colors.green;
+      case 'no_waste':
+        return Colors.orange;
+      case 'skipped':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _getConfirmationText(String status) {
+    switch (status) {
+      case 'confirmed':
+        return 'Dikonfirmasi';
+      case 'no_waste':
+        return 'Tidak Ada Sampah';
+      case 'skipped':
+        return 'Dilewati';
+      case 'pending':
+        return 'Menunggu';
+      default:
+        return status;
+    }
   }
 
   Widget _buildShimmer() {

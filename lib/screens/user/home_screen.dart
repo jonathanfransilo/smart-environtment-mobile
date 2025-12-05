@@ -1402,7 +1402,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         crossAxisCount: 4,
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
-                        mainAxisSpacing: 20,
+                        mainAxisSpacing: 38,
                         crossAxisSpacing: 16,
                         childAspectRatio: 0.85,
                         children: [
@@ -1625,7 +1625,16 @@ class _HomeScreenState extends State<HomeScreen> {
                             "assets/images/pelanggaran.png",
                             "Pelaporan",
                             onTap: () {
-                              Navigator.pushNamed(context, '/pelaporan');
+                              // Pass service account yang dipilih ke pelaporan
+                              final currentAccount = _selectedAkun ?? (_akunList.isNotEmpty ? _akunList.first : null);
+                              Navigator.pushNamed(
+                                context,
+                                '/pelaporan',
+                                arguments: currentAccount != null ? {
+                                  'serviceAccountId': currentAccount['id_akun']?.toString() ?? currentAccount['id']?.toString(),
+                                  'serviceAccountName': currentAccount['nama']?.toString(),
+                                } : null,
+                              );
                             },
                           ),
                         ],

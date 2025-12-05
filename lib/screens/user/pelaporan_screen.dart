@@ -690,7 +690,7 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
                       borderRadius: BorderRadius.circular(9),
                       child: buildPlatformImage(
                         _selectedImages[index],
-                        fit: BoxFit.cover,
+                        fit: BoxFit.contain,
                         width: 280,
                         height: 200,
                       ),
@@ -2324,7 +2324,7 @@ class _DetailLaporanTerkirimScreenState extends State<DetailLaporanTerkirimScree
           borderRadius: BorderRadius.circular(12),
           child: buildPlatformImage(
             widget.laporan.imageFile!,
-            fit: BoxFit.cover,
+            fit: BoxFit.contain,
             height: 250,
             width: double.infinity,
           ),
@@ -3086,7 +3086,14 @@ class _DetailLaporanTerkirimScreenState extends State<DetailLaporanTerkirimScree
 // ====================================================================
 
 class PelaporanScreen extends StatefulWidget {
-  const PelaporanScreen({super.key});
+  final String? initialServiceAccountId;
+  final String? initialServiceAccountName;
+
+  const PelaporanScreen({
+    super.key,
+    this.initialServiceAccountId,
+    this.initialServiceAccountName,
+  });
 
   @override
   State<PelaporanScreen> createState() => _PelaporanScreenState();
@@ -3103,12 +3110,34 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
   // Cache untuk service account names (serviceAccountId -> name)
   final Map<String, String> _serviceAccountNames = {};
 
+  // Initial service account dari home screen
+  String? _initialServiceAccountId;
+  String? _initialServiceAccountName;
+
   static const Color primaryColor = Color.fromARGB(255, 21, 145, 137);
 
   @override
   void initState() {
     super.initState();
     _loadSavedReports();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Ambil arguments dari route jika ada (prioritas), atau dari widget
+    if (_initialServiceAccountId == null) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is Map<String, dynamic>) {
+        _initialServiceAccountId = args['serviceAccountId']?.toString();
+        _initialServiceAccountName = args['serviceAccountName']?.toString();
+        print('[PELAPORAN] Received from route: $_initialServiceAccountName (ID: $_initialServiceAccountId)');
+      } else if (widget.initialServiceAccountId != null) {
+        _initialServiceAccountId = widget.initialServiceAccountId;
+        _initialServiceAccountName = widget.initialServiceAccountName;
+        print('[PELAPORAN] Received from widget: $_initialServiceAccountName (ID: $_initialServiceAccountId)');
+      }
+    }
   }
 
   /// 🔹 Load laporan dari API
@@ -3315,6 +3344,8 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
             builder: (ctx) => BuatLaporanScreen(
               imageFile: _selectedImageFile, // bisa null
               isAsset: _isDummyImage,
+              initialServiceAccountId: _initialServiceAccountId,
+              initialServiceAccountName: _initialServiceAccountName,
             ),
           ),
         )
@@ -3346,7 +3377,7 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
         _selectedImageFile!,
         width: 280,
         height: 280,
-        fit: BoxFit.cover,
+        fit: BoxFit.contain,
       );
     } else {
       // 2. Tampilkan loading indicator saat memuat data
@@ -3561,7 +3592,7 @@ class _ReportCard extends StatelessWidget {
                       child: report.photoUrl != null
                           ? Image.network(
                               report.photoUrl!,
-                              fit: BoxFit.cover,
+                              fit: BoxFit.contain,
                               width: 90,
                               height: 90,
                               errorBuilder: (context, error, stackTrace) {
@@ -3609,7 +3640,7 @@ class _ReportCard extends StatelessWidget {
                           : report.imageFile != null
                           ? buildPlatformImage(
                               report.imageFile!,
-                              fit: BoxFit.cover,
+                              fit: BoxFit.contain,
                               width: 90,
                               height: 90,
                             )
@@ -3901,7 +3932,7 @@ class _InstagramStylePhotoGalleryState
                 itemBuilder: (context, index) {
                   return buildPlatformImage(
                     widget.imageFiles[index],
-                    fit: BoxFit.cover,
+                    fit: BoxFit.contain,
                     width: double.infinity,
                     height: 300,
                   );
@@ -4094,7 +4125,7 @@ class _InstagramStylePhotoGalleryNetworkState
                 itemBuilder: (context, index) {
                   return Image.network(
                     widget.photoUrls[index],
-                    fit: BoxFit.cover,
+                    fit: BoxFit.contain,
                     width: double.infinity,
                     height: 300,
                     loadingBuilder: (context, child, loadingProgress) {
