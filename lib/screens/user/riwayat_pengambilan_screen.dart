@@ -26,7 +26,8 @@ class RiwayatPengambilanScreen extends StatefulWidget {
 
 class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
   final ResidentPickupService _pickupService = ResidentPickupService();
-  final OffSchedulePickupService _offScheduleService = OffSchedulePickupService();
+  final OffSchedulePickupService _offScheduleService =
+      OffSchedulePickupService();
   bool _isLoading = true;
   List<Map<String, dynamic>> _pickupHistory = [];
   String? _errorMessage;
@@ -60,9 +61,8 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
       }
 
       // 1. Load regular scheduled pickups
-      final (success, message, regularPickups) = await _pickupService.getPickupHistory(
-        serviceAccountId: widget.serviceAccountId,
-      );
+      final (success, message, regularPickups) = await _pickupService
+          .getPickupHistory(serviceAccountId: widget.serviceAccountId);
 
       if (!mounted) {
         print('[WARN] [RiwayatPengambilan] Widget unmounted during API call');
@@ -80,65 +80,84 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
           // Tidak filter by status - ambil semua
           perPage: 100,
         );
-        
-        print('[STATS] [RiwayatPengambilan] Raw off-schedule list from API: ${offScheduleList.length} items');
+
+        print(
+          '[STATS] [RiwayatPengambilan] Raw off-schedule list from API: ${offScheduleList.length} items',
+        );
         for (var p in offScheduleList) {
-          print('   - ID: ${p.id}, Status: ${p.status}, ServiceAccountId: ${p.serviceAccountId}');
+          print(
+            '   - ID: ${p.id}, Status: ${p.status}, ServiceAccountId: ${p.serviceAccountId}',
+          );
         }
-        
+
         // Filter berdasarkan service account ID
         final serviceAccountIdInt = int.tryParse(widget.serviceAccountId);
-        print('[SEARCH] [RiwayatPengambilan] Filtering for serviceAccountId: $serviceAccountIdInt');
-        
+        print(
+          '[SEARCH] [RiwayatPengambilan] Filtering for serviceAccountId: $serviceAccountIdInt',
+        );
+
         if (serviceAccountIdInt != null) {
           offSchedulePickups = offScheduleList
               .where((p) {
                 // Filter by service account
                 final matches = p.serviceAccountId == serviceAccountIdInt;
-                print('   Pickup #${p.id}: serviceAccountId=${p.serviceAccountId}, matches=$matches, status=${p.status}');
+                print(
+                  '   Pickup #${p.id}: serviceAccountId=${p.serviceAccountId}, matches=$matches, status=${p.status}',
+                );
                 return matches;
               })
               .map((p) {
                 // Konversi OffSchedulePickup ke Map dengan flag is_off_schedule
                 final json = p.toJson();
                 json['is_off_schedule'] = true; // Tandai sebagai off-schedule
-                json['pickup_type'] = 'request'; // Pastikan pickup_type adalah request
-                print('[OK] [RiwayatPengambilan] Added off-schedule pickup #${p.id} to list');
+                json['pickup_type'] =
+                    'request'; // Pastikan pickup_type adalah request
+                print(
+                  '[OK] [RiwayatPengambilan] Added off-schedule pickup #${p.id} to list',
+                );
                 return json;
               })
               .toList();
         }
-        
-        print('[STATS] [RiwayatPengambilan] Filtered off-schedule pickups: ${offSchedulePickups.length} items');
+
+        print(
+          '[STATS] [RiwayatPengambilan] Filtered off-schedule pickups: ${offSchedulePickups.length} items',
+        );
       } catch (e, stackTrace) {
-        print('[WARN] [RiwayatPengambilan] Error loading off-schedule pickups: $e');
+        print(
+          '[WARN] [RiwayatPengambilan] Error loading off-schedule pickups: $e',
+        );
         print('   Stack: $stackTrace');
         // Continue dengan regular pickups saja jika off-schedule gagal
       }
 
       // 3. Gabungkan kedua list
       List<Map<String, dynamic>> allPickups = [];
-      
+
       // Set untuk tracking ID off-schedule yang sudah diambil
       Set<int> offScheduleIds = offSchedulePickups
           .map((p) => p['id'] as int?)
           .whereType<int>()
           .toSet();
-      
+
       print('[SEARCH] [RiwayatPengambilan] Off-schedule IDs: $offScheduleIds');
-      
+
       if (success && regularPickups != null) {
         // Proses regular pickups - cek apakah sebenarnya off-schedule
         for (var pickup in regularPickups) {
           final pickupId = pickup['id'];
-          final pickupIdInt = pickupId is int ? pickupId : int.tryParse(pickupId?.toString() ?? '');
-          
+          final pickupIdInt = pickupId is int
+              ? pickupId
+              : int.tryParse(pickupId?.toString() ?? '');
+
           // ⭐ PENTING: Cek apakah pickup ini ada di daftar off-schedule berdasarkan ID
-          final bool isInOffScheduleList = pickupIdInt != null && offScheduleIds.contains(pickupIdInt);
-          
+          final bool isInOffScheduleList =
+              pickupIdInt != null && offScheduleIds.contains(pickupIdInt);
+
           // Cek apakah pickup ini sebenarnya off-schedule berdasarkan berbagai indikator
-          final pickupType = pickup['pickup_type']?.toString().toLowerCase() ?? '';
-          final bool isActuallyOffSchedule = 
+          final pickupType =
+              pickup['pickup_type']?.toString().toLowerCase() ?? '';
+          final bool isActuallyOffSchedule =
               // ⭐ Prioritas 1: Cek apakah ada di daftar off-schedule
               isInOffScheduleList ||
               // Cek dari pickup_type
@@ -150,8 +169,10 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
               pickup['is_off_schedule'] == true ||
               pickup['is_request'] == true ||
               // Cek field yang hanya ada di off-schedule
-              (pickup['bag_count'] != null && (pickup['bag_count'] as num) > 0) ||
-              (pickup['extra_fee'] != null && (pickup['extra_fee'] as num) > 0) ||
+              (pickup['bag_count'] != null &&
+                  (pickup['bag_count'] as num) > 0) ||
+              (pickup['extra_fee'] != null &&
+                  (pickup['extra_fee'] as num) > 0) ||
               pickup['base_amount'] != null ||
               pickup['requested_pickup_date'] != null ||
               pickup['request_status'] != null ||
@@ -160,46 +181,74 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
               pickup['origin']?.toString().toLowerCase() == 'request' ||
               // Cek jika off_schedule_pickup_id ada
               pickup['off_schedule_pickup_id'] != null;
-          
+
           // Skip jika sudah ada di offSchedulePickups (menghindari duplikat)
           if (isInOffScheduleList) {
-            print('[SKIP] [RiwayatPengambilan] Skipping pickup #$pickupId - already in off-schedule list, will use that instead');
+            print(
+              '[SKIP] [RiwayatPengambilan] Skipping pickup #$pickupId - already in off-schedule list, will use that instead',
+            );
             continue;
           }
-          
+
           // Tandai berdasarkan deteksi
           pickup['is_off_schedule'] = isActuallyOffSchedule;
-          pickup['pickup_type'] = isActuallyOffSchedule ? 'request' : (pickup['pickup_type'] ?? 'scheduled');
-          
-          print('[TAG] [RiwayatPengambilan] Pickup #$pickupId - detected as ${isActuallyOffSchedule ? "OFF-SCHEDULE" : "REGULAR"}');
-          print('   pickup_type: $pickupType, bag_count: ${pickup['bag_count']}, extra_fee: ${pickup['extra_fee']}');
-          print('   base_amount: ${pickup['base_amount']}, requested_pickup_date: ${pickup['requested_pickup_date']}');
-          print('   source: ${pickup['source']}, origin: ${pickup['origin']}, off_schedule_pickup_id: ${pickup['off_schedule_pickup_id']}');
-          
+          pickup['pickup_type'] = isActuallyOffSchedule
+              ? 'request'
+              : (pickup['pickup_type'] ?? 'scheduled');
+
+          print(
+            '[TAG] [RiwayatPengambilan] Pickup #$pickupId - detected as ${isActuallyOffSchedule ? "OFF-SCHEDULE" : "REGULAR"}',
+          );
+          print(
+            '   pickup_type: $pickupType, bag_count: ${pickup['bag_count']}, extra_fee: ${pickup['extra_fee']}',
+          );
+          print(
+            '   base_amount: ${pickup['base_amount']}, requested_pickup_date: ${pickup['requested_pickup_date']}',
+          );
+          print(
+            '   source: ${pickup['source']}, origin: ${pickup['origin']}, off_schedule_pickup_id: ${pickup['off_schedule_pickup_id']}',
+          );
+
           allPickups.add(pickup);
         }
-        
+
         // Debug: Print sample data structure
         if (regularPickups.isNotEmpty) {
           print('[SEARCH] [RiwayatPengambilan] Sample regular pickup data:');
           print('   Keys: ${regularPickups[0].keys}');
           print('   ALL DATA: ${regularPickups[0]}');
-          
+
           // ⚠️ PENTING: Cek service_account structure
           final serviceAccount = regularPickups[0]['service_account'];
-          print('[BLDG] [RiwayatPengambilan] SERVICE ACCOUNT DATA: $serviceAccount');
+          print(
+            '[BLDG] [RiwayatPengambilan] SERVICE ACCOUNT DATA: $serviceAccount',
+          );
           if (serviceAccount is Map<String, dynamic>) {
-            print('[BLDG] [RiwayatPengambilan] SERVICE ACCOUNT KEYS: ${serviceAccount.keys.toList()}');
-            print('[BLDG] [RiwayatPengambilan] ADDRESS FIELD: ${serviceAccount['address']}');
-            print('[BLDG] [RiwayatPengambilan] ALAMAT FIELD: ${serviceAccount['alamat']}');
-            print('[BLDG] [RiwayatPengambilan] ALAMAT_LENGKAP FIELD: ${serviceAccount['alamat_lengkap']}');
+            print(
+              '[BLDG] [RiwayatPengambilan] SERVICE ACCOUNT KEYS: ${serviceAccount.keys.toList()}',
+            );
+            print(
+              '[BLDG] [RiwayatPengambilan] ADDRESS FIELD: ${serviceAccount['address']}',
+            );
+            print(
+              '[BLDG] [RiwayatPengambilan] ALAMAT FIELD: ${serviceAccount['alamat']}',
+            );
+            print(
+              '[BLDG] [RiwayatPengambilan] ALAMAT_LENGKAP FIELD: ${serviceAccount['alamat_lengkap']}',
+            );
           }
-          
+
           // ⚠️ PENTING: Cek confirmation_status dari API
           final confirmationStatus = regularPickups[0]['confirmation_status'];
-          print('[WARN] [RiwayatPengambilan] CONFIRMATION STATUS dari API: $confirmationStatus');
-          print('   [NO] Jika status = "confirmed", berarti BACKEND yang salah!');
-          print('   [OK] Seharusnya status = "pending" agar user bisa konfirmasi manual');
+          print(
+            '[WARN] [RiwayatPengambilan] CONFIRMATION STATUS dari API: $confirmationStatus',
+          );
+          print(
+            '   [NO] Jika status = "confirmed", berarti BACKEND yang salah!',
+          );
+          print(
+            '   [OK] Seharusnya status = "pending" agar user bisa konfirmasi manual',
+          );
 
           // Check ALL possible photo fields
           final photoUrl = regularPickups[0]['photo_url'];
@@ -216,13 +265,13 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
           print('   pickup_photo: $pickupPhoto');
           print('   photo_path: $photoPath');
           print('   image_path: $imagePath');
-          
+
           // Check pickup type fields
           final pickupType = regularPickups[0]['pickup_type'];
           final type = regularPickups[0]['type'];
           final isOffSchedule = regularPickups[0]['is_off_schedule'];
           final isRequest = regularPickups[0]['is_request'];
-          
+
           print('[TAG] [RiwayatPengambilan] Pickup type fields:');
           print('   pickup_type: $pickupType');
           print('   type: $type');
@@ -230,18 +279,28 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
           print('   is_request: $isRequest');
         }
       }
-      
+
       // Tambahkan off-schedule pickups
       allPickups.addAll(offSchedulePickups);
-      
+
       // Sort by date (terbaru dulu)
       allPickups.sort((a, b) {
-        final dateA = a['pickup_date'] ?? a['requested_pickup_date'] ?? a['created_at'] ?? '';
-        final dateB = b['pickup_date'] ?? b['requested_pickup_date'] ?? b['created_at'] ?? '';
+        final dateA =
+            a['pickup_date'] ??
+            a['requested_pickup_date'] ??
+            a['created_at'] ??
+            '';
+        final dateB =
+            b['pickup_date'] ??
+            b['requested_pickup_date'] ??
+            b['created_at'] ??
+            '';
         return dateB.toString().compareTo(dateA.toString());
       });
 
-      print('[STATS] [RiwayatPengambilan] Total combined pickups: ${allPickups.length}');
+      print(
+        '[STATS] [RiwayatPengambilan] Total combined pickups: ${allPickups.length}',
+      );
 
       setState(() {
         _pickupHistory = allPickups;
@@ -410,23 +469,27 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
   /// Card untuk setiap pickup - Satu card per pickup (bukan per item)
   Widget _buildPickupCard(Map<String, dynamic> pickup) {
     try {
-      final pickupDate = pickup['pickup_date'] ?? pickup['requested_pickup_date'] as String?;
+      final pickupDate =
+          pickup['pickup_date'] ?? pickup['requested_pickup_date'] as String?;
       final wasteItems = pickup['waste_items'] as List<dynamic>?;
       final serviceAccount = pickup['service_account'] as Map<String, dynamic>?;
       final pickupId = pickup['id']?.toString();
-      final confirmationStatus = pickup['confirmation_status']?.toString() ?? 'pending';
-      
+      final confirmationStatus =
+          pickup['confirmation_status']?.toString() ?? 'pending';
+
       // Deteksi tipe pickup: request (off-schedule) atau terjadwal (regular/scheduled)
       // Data sudah ditandai saat load, jadi cukup cek is_off_schedule
       final bool isOffSchedule = pickup['is_off_schedule'] == true;
-      
+
       // Debug log untuk membantu identifikasi
       print('🏷️ [Card] Pickup #$pickupId - is_off_schedule: $isOffSchedule');
-      
+
       // Label dan warna berdasarkan tipe
       final typeLabel = isOffSchedule ? 'Request' : 'Terjadwal';
       final typeColor = isOffSchedule ? Colors.orange : const Color(0xFF009688);
-      final typeBgColor = isOffSchedule ? Colors.orange.shade50 : const Color(0xFF009688).withOpacity(0.1);
+      final typeBgColor = isOffSchedule
+          ? Colors.orange.shade50
+          : const Color(0xFF009688).withOpacity(0.1);
 
       // Off-schedule pickup mungkin tidak punya waste_items
       if (!isOffSchedule && (wasteItems == null || wasteItems.isEmpty)) {
@@ -436,28 +499,37 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
 
       // ✅ CEK AUTO-KONFIRMASI: Jika sudah lewat 3 hari dan masih pending, auto-konfirmasi
       // Skip auto-konfirmasi untuk off-schedule pickup
-      if (!isOffSchedule && confirmationStatus == 'pending' && pickupDate != null) {
+      if (!isOffSchedule &&
+          confirmationStatus == 'pending' &&
+          pickupDate != null) {
         try {
           final pickupDateTime = DateTime.parse(pickupDate);
           final now = DateTime.now();
           final daysDifference = now.difference(pickupDateTime).inDays;
-          
+
           if (daysDifference >= 3) {
-            print('⏰ [RiwayatPengambilan] Pickup #$pickupId sudah $daysDifference hari - AUTO KONFIRMASI');
-            
+            print(
+              '⏰ [RiwayatPengambilan] Pickup #$pickupId sudah $daysDifference hari - AUTO KONFIRMASI',
+            );
+
             // Trigger auto-konfirmasi di background menggunakan API baru
             Future.microtask(() async {
               try {
-                final (success, message, data) = await _pickupService.confirmWasteDelivery(pickupId!);
+                final (success, message, data) = await _pickupService
+                    .confirmWasteDelivery(pickupId!);
                 if (success) {
-                  print('✅ [RiwayatPengambilan] Auto-konfirmasi berhasil untuk Pickup #$pickupId');
-                  
+                  print(
+                    '✅ [RiwayatPengambilan] Auto-konfirmasi berhasil untuk Pickup #$pickupId',
+                  );
+
                   // Reload history setelah auto-konfirmasi
                   if (mounted) {
                     await _loadHistory();
                   }
                 } else {
-                  print('❌ [RiwayatPengambilan] Gagal auto-konfirmasi: $message');
+                  print(
+                    '❌ [RiwayatPengambilan] Gagal auto-konfirmasi: $message',
+                  );
                 }
               } catch (e) {
                 print('❌ [RiwayatPengambilan] Error auto-konfirmasi: $e');
@@ -471,10 +543,10 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
 
       // Calculate totals for this pickup
       // Untuk off-schedule, waste_items mungkin kosong, gunakan bag_count
-      int totalItems = isOffSchedule 
-          ? (pickup['bag_count'] ?? 1) 
+      int totalItems = isOffSchedule
+          ? (pickup['bag_count'] ?? 1)
           : (wasteItems?.length ?? 0);
-      
+
       // ✅ Gunakan total_amount dari API sebagai sumber kebenaran
       // Ini memastikan harga yang ditampilkan sama dengan yang ada di admin/kolektor
       double totalPrice = 0;
@@ -485,10 +557,14 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
         } else if (apiTotalAmount is String) {
           totalPrice = double.tryParse(apiTotalAmount) ?? 0;
         }
-        print('💰 [RiwayatPengambilan] Using total_amount from API: $totalPrice');
+        print(
+          '💰 [RiwayatPengambilan] Using total_amount from API: $totalPrice',
+        );
       } else if (wasteItems != null && wasteItems.isNotEmpty) {
         // Fallback: hitung dari waste_items jika total_amount tidak tersedia
-        print('⚠️ [RiwayatPengambilan] total_amount not found, calculating from waste_items');
+        print(
+          '⚠️ [RiwayatPengambilan] total_amount not found, calculating from waste_items',
+        );
         for (var item in wasteItems) {
           try {
             final itemPrice = item['total_price'] ?? 0;
@@ -610,11 +686,16 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                       children: [
                         // Badge tipe pickup (Request / Terjadwal)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: typeBgColor,
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: typeColor.withOpacity(0.3)),
+                            border: Border.all(
+                              color: typeColor.withOpacity(0.3),
+                            ),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -707,41 +788,48 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
 
                     // Photo thumbnail jika ada
                     if (hasPhoto) ...[
-                      Container(
-                        width: double.infinity,
-                        height: 180,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[200],
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey[300]!),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.network(
-                            photoUrl,
-                            fit: BoxFit.contain,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Center(
-                                child: Icon(
-                                  Icons.broken_image,
-                                  size: 48,
-                                  color: Colors.grey[400],
-                                ),
-                              );
-                            },
-                            loadingBuilder: (context, child, loadingProgress) {
-                              if (loadingProgress == null) return child;
-                              return Center(
-                                child: CircularProgressIndicator(
-                                  value:
-                                      loadingProgress.expectedTotalBytes != null
-                                      ? loadingProgress.cumulativeBytesLoaded /
-                                            loadingProgress.expectedTotalBytes!
-                                      : null,
-                                  strokeWidth: 2,
-                                ),
-                              );
-                            },
+                      AspectRatio(
+                        aspectRatio: 4 / 3,
+                        child: Container(
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[200],
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey[300]!),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.network(
+                              photoUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Center(
+                                  child: Icon(
+                                    Icons.broken_image,
+                                    size: 48,
+                                    color: Colors.grey[400],
+                                  ),
+                                );
+                              },
+                              loadingBuilder:
+                                  (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return Center(
+                                      child: CircularProgressIndicator(
+                                        value:
+                                            loadingProgress
+                                                    .expectedTotalBytes !=
+                                                null
+                                            ? loadingProgress
+                                                      .cumulativeBytesLoaded /
+                                                  loadingProgress
+                                                      .expectedTotalBytes!
+                                            : null,
+                                        strokeWidth: 2,
+                                      ),
+                                    );
+                                  },
+                            ),
                           ),
                         ),
                       ),
@@ -782,14 +870,16 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                         builder: (context) {
                           int? daysRemaining;
                           bool isAutoConfirming = false;
-                          
+
                           if (pickupDate != null) {
                             try {
                               final pickupDateTime = DateTime.parse(pickupDate);
                               final now = DateTime.now();
-                              final daysPassed = now.difference(pickupDateTime).inDays;
+                              final daysPassed = now
+                                  .difference(pickupDateTime)
+                                  .inDays;
                               daysRemaining = 3 - daysPassed;
-                              
+
                               // Jika sudah >= 3 hari, akan auto-konfirmasi
                               if (daysPassed >= 3) {
                                 isAutoConfirming = true;
@@ -804,14 +894,15 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                           final Color borderColor;
                           final Color textColor;
                           final IconData iconData;
-                          
+
                           if (isAutoConfirming) {
                             // Hijau: Akan auto-konfirmasi (sudah >= 3 hari)
                             backgroundColor = Colors.green.shade50;
                             borderColor = Colors.green.shade200;
                             textColor = Colors.green.shade700;
                             iconData = Icons.timer_outlined;
-                          } else if (daysRemaining != null && daysRemaining == 1) {
+                          } else if (daysRemaining != null &&
+                              daysRemaining == 1) {
                             // Merah: Warning kuat, besok auto-konfirmasi
                             backgroundColor = Colors.red.shade50;
                             borderColor = Colors.red.shade200;
@@ -855,13 +946,16 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                                 if (daysRemaining != null) ...[
                                   const SizedBox(height: 8),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: isAutoConfirming
                                           ? Colors.green.shade100
                                           : daysRemaining == 1
-                                              ? Colors.red.shade100
-                                              : Colors.orange.shade100,
+                                          ? Colors.red.shade100
+                                          : Colors.orange.shade100,
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: Row(
@@ -879,8 +973,8 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                                           isAutoConfirming
                                               ? 'Sedang diproses otomatis...'
                                               : daysRemaining == 1
-                                                  ? 'Auto-konfirmasi besok!'
-                                                  : 'Auto-konfirmasi dalam $daysRemaining hari',
+                                              ? 'Auto-konfirmasi besok!'
+                                              : 'Auto-konfirmasi dalam $daysRemaining hari',
                                           style: GoogleFonts.poppins(
                                             fontSize: 11,
                                             fontWeight: FontWeight.w500,
@@ -900,8 +994,12 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
-                          onPressed: () => _showConfirmationDialog(pickupId!, pickup),
-                          icon: const Icon(Icons.check_circle_outline, size: 20),
+                          onPressed: () =>
+                              _showConfirmationDialog(pickupId!, pickup),
+                          icon: const Icon(
+                            Icons.check_circle_outline,
+                            size: 20,
+                          ),
                           label: Text(
                             'Konfirmasi Pengambilan',
                             style: GoogleFonts.poppins(
@@ -971,10 +1069,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                         decoration: BoxDecoration(
                           color: Colors.grey.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: Colors.grey,
-                            width: 1,
-                          ),
+                          border: Border.all(color: Colors.grey, width: 1),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -1072,41 +1167,42 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
   void _showConfirmationDialog(String pickupId, Map<String, dynamic> pickup) {
     // Ekstrak data untuk pelaporan
     final serviceAccount = pickup['service_account'] as Map<String, dynamic>?;
-    
+
     // Debug: Print struktur data service account
     print('🔍 [DEBUG] Service Account Data: $serviceAccount');
     print('🔍 [DEBUG] Service Account Keys: ${serviceAccount?.keys.toList()}');
     print('🔍 [DEBUG] Widget Account Address: ${widget.accountAddress}');
-    
+
     // Cari address - prioritaskan dari widget.accountAddress (yang dikirim dari home screen)
     String address = widget.accountAddress ?? 'Alamat tidak tersedia';
-    
+
     // Jika tidak ada di widget, coba ambil dari service account API
     if (address == 'Alamat tidak tersedia' && serviceAccount != null) {
       // Coba berbagai kemungkinan field untuk address
-      address = serviceAccount['address']?.toString() ?? 
-               serviceAccount['alamat']?.toString() ?? 
-               serviceAccount['alamat_lengkap']?.toString() ??
-               serviceAccount['full_address']?.toString() ??
-               serviceAccount['location']?.toString() ??
-               widget.accountAddress ??
-               'Alamat tidak tersedia';
+      address =
+          serviceAccount['address']?.toString() ??
+          serviceAccount['alamat']?.toString() ??
+          serviceAccount['alamat_lengkap']?.toString() ??
+          serviceAccount['full_address']?.toString() ??
+          serviceAccount['location']?.toString() ??
+          widget.accountAddress ??
+          'Alamat tidak tersedia';
     }
-    
+
     print('🔍 [DEBUG] Final Address yang digunakan: $address');
-    
-    final serviceAccountId = serviceAccount?['id']?.toString() ?? widget.serviceAccountId;
-    final serviceAccountName = serviceAccount?['account_name']?.toString() ?? 
-                               serviceAccount?['name']?.toString() ?? 
-                               serviceAccount?['nama']?.toString() ??
-                               widget.accountName;
-    
+
+    final serviceAccountId =
+        serviceAccount?['id']?.toString() ?? widget.serviceAccountId;
+    final serviceAccountName =
+        serviceAccount?['account_name']?.toString() ??
+        serviceAccount?['name']?.toString() ??
+        serviceAccount?['nama']?.toString() ??
+        widget.accountName;
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
             Container(
@@ -1139,10 +1235,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
           children: [
             Text(
               'Apakah sampah sudah diambil oleh petugas kolektor?',
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                color: Colors.grey[700],
-              ),
+              style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[700]),
             ),
             const SizedBox(height: 16),
             Container(
@@ -1154,7 +1247,11 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.info_outline, size: 20, color: Colors.blue.shade700),
+                  Icon(
+                    Icons.info_outline,
+                    size: 20,
+                    color: Colors.blue.shade700,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -1185,7 +1282,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
             onPressed: () async {
               // Tutup dialog konfirmasi
               Navigator.pop(ctx);
-              
+
               // Navigate to pelaporan screen
               await Navigator.push(
                 context,
@@ -1202,7 +1299,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
               );
             },
             child: Text(
-              'Tidak Ada Sampah',
+              'Sampah belum diambil',
               style: GoogleFonts.poppins(
                 color: Colors.orange,
                 fontWeight: FontWeight.w600,
@@ -1212,7 +1309,9 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
-              _confirmPickup(pickupId);
+              // ✅ Pass informasi is_off_schedule ke _confirmPickup
+              final isOffSchedule = pickup['is_off_schedule'] == true;
+              _confirmPickup(pickupId, isOffSchedule: isOffSchedule);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF4CAF50),
@@ -1224,9 +1323,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
             ),
             child: Text(
               'Ya, Sudah Diambil',
-              style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w600,
-              ),
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
             ),
           ),
         ],
@@ -1234,9 +1331,17 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
     );
   }
 
-  /// Konfirmasi pickup ke API menggunakan Waste Delivery API baru
-  /// POST /resident/waste-deliveries/{id}/confirm
-  Future<void> _confirmPickup(String pickupId) async {
+  /// Konfirmasi pickup ke API
+  /// - Regular pickup: POST /resident/waste-deliveries/{id}/confirm
+  /// - Off-schedule pickup: PUT /mobile/resident/off-schedule-pickups/{id}/confirm
+  Future<void> _confirmPickup(
+    String pickupId, {
+    bool isOffSchedule = false,
+  }) async {
+    print(
+      '🔄 [Confirm] Starting confirmation for pickup #$pickupId (isOffSchedule: $isOffSchedule)',
+    );
+
     // Show loading
     showDialog(
       context: context,
@@ -1270,8 +1375,43 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
     );
 
     try {
-      // ⭐ Gunakan API baru: POST /resident/waste-deliveries/{id}/confirm
-      final (success, message, data) = await _pickupService.confirmWasteDelivery(pickupId);
+      bool success = false;
+      String message = '';
+      Map<String, dynamic>? data;
+
+      if (isOffSchedule) {
+        // ✅ Gunakan API off-schedule: PUT /mobile/resident/off-schedule-pickups/{id}/confirm
+        print('📡 [Confirm] Using Off-Schedule API for pickup #$pickupId');
+        try {
+          final pickupIdInt = int.tryParse(pickupId);
+          if (pickupIdInt == null) {
+            throw Exception('Invalid pickup ID');
+          }
+
+          final confirmedPickup = await _offScheduleService.confirmPickup(
+            pickupIdInt,
+          );
+          success = true;
+          message = 'Terima kasih! Pengambilan sampah telah dikonfirmasi.';
+          data = {
+            'id': confirmedPickup.id,
+            'status': confirmedPickup.status,
+            'confirmed_at': DateTime.now().toIso8601String(),
+          };
+          print('✅ [Confirm] Off-schedule confirmation successful');
+        } catch (e) {
+          print('❌ [Confirm] Off-schedule confirmation failed: $e');
+          success = false;
+          message = e.toString().replaceAll('Exception: ', '');
+        }
+      } else {
+        // ✅ Gunakan API regular: POST /resident/waste-deliveries/{id}/confirm
+        print('📡 [Confirm] Using Waste Delivery API for pickup #$pickupId');
+        final result = await _pickupService.confirmWasteDelivery(pickupId);
+        success = result.$1;
+        message = result.$2;
+        data = result.$3;
+      }
 
       if (!mounted) return;
 
@@ -1285,7 +1425,9 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
             context: context,
             barrierDismissible: false,
             builder: (ctx) => AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -1330,7 +1472,11 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.receipt_long, size: 16, color: Colors.blue.shade700),
+                          Icon(
+                            Icons.receipt_long,
+                            size: 16,
+                            color: Colors.blue.shade700,
+                          ),
                           const SizedBox(width: 8),
                           Text(
                             'Tagihan akan muncul di Riwayat Pembayaran',
@@ -1379,10 +1525,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
         // Show error
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              message,
-              style: GoogleFonts.poppins(),
-            ),
+            content: Text(message, style: GoogleFonts.poppins()),
             backgroundColor: Colors.red,
           ),
         );
@@ -1396,10 +1539,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
       // Show error
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Terjadi kesalahan: $e',
-            style: GoogleFonts.poppins(),
-          ),
+          content: Text('Terjadi kesalahan: $e', style: GoogleFonts.poppins()),
           backgroundColor: Colors.red,
         ),
       );
@@ -1456,10 +1596,11 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
   /// Get category color based on waste type
   /// Show detail dialog - Design sesuai gambar
   void _showDetailDialog(Map<String, dynamic> pickup) {
-    final pickupDate = pickup['pickup_date'] ?? pickup['requested_pickup_date'] as String?;
+    final pickupDate =
+        pickup['pickup_date'] ?? pickup['requested_pickup_date'] as String?;
     final wasteItems = pickup['waste_items'] as List<dynamic>?;
     final accountId = pickup['id']?.toString() ?? '-';
-    
+
     // Deteksi tipe pickup: data sudah ditandai saat load
     final isOffSchedule = pickup['is_off_schedule'] == true;
     final typeLabel = isOffSchedule ? 'Request' : 'Terjadwal';
@@ -1544,17 +1685,24 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                           ),
                           // Badge tipe pickup
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: typeColor.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: typeColor.withOpacity(0.3)),
+                              border: Border.all(
+                                color: typeColor.withOpacity(0.3),
+                              ),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
-                                  isOffSchedule ? Icons.flash_on : Icons.schedule,
+                                  isOffSchedule
+                                      ? Icons.flash_on
+                                      : Icons.schedule,
                                   size: 12,
                                   color: typeColor,
                                 ),
@@ -1594,195 +1742,210 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                         const SizedBox(height: 8),
                         Builder(
                           builder: (context) {
-                            final imageUrl =
-                                photoUrl!; // Capture non-null value
-                            print('🖼️ [DetailDialog] Loading image from: $imageUrl');
-                            return Container(
-                              width: double.infinity,
-                              height: 200,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[200],
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.grey[300]!),
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: GestureDetector(
-                                  onTap: () {
-                                    // Show fullscreen photo
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => Scaffold(
-                                          backgroundColor: Colors.black,
-                                          appBar: AppBar(
+                            final imageUrl = photoUrl!;
+                            print(
+                              '🖼️ [DetailDialog] Loading image from: $imageUrl',
+                            );
+                            return AspectRatio(
+                              aspectRatio: 4 / 3,
+                              child: Container(
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[200],
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.grey[300]!),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => Scaffold(
                                             backgroundColor: Colors.black,
-                                            foregroundColor: Colors.white,
-                                            title: Text(
-                                              'Foto Bukti Pengambilan',
-                                              style: GoogleFonts.poppins(),
+                                            appBar: AppBar(
+                                              backgroundColor: Colors.black,
+                                              foregroundColor: Colors.white,
+                                              title: Text(
+                                                'Foto Bukti Pengambilan',
+                                                style: GoogleFonts.poppins(),
+                                              ),
                                             ),
-                                          ),
-                                          body: Center(
-                                            child: InteractiveViewer(
-                                              child: Image.network(
-                                                imageUrl,
-                                                fit: BoxFit.contain,
-                                                errorBuilder:
-                                                    (
-                                                      context,
-                                                      error,
-                                                      stackTrace,
-                                                    ) {
-                                                      return Center(
-                                                        child: Column(
-                                                          mainAxisAlignment: MainAxisAlignment.center,
-                                                          children: [
-                                                            const Icon(
-                                                              Icons.broken_image,
-                                                              size: 64,
-                                                              color: Colors.white54,
-                                                            ),
-                                                            const SizedBox(height: 16),
-                                                            Text(
-                                                              'Foto tidak dapat dimuat',
-                                                              style: GoogleFonts.poppins(
-                                                                color: Colors.white70,
-                                                                fontSize: 14,
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      );
-                                                    },
-                                                loadingBuilder: (context, child, loadingProgress) {
-                                                  if (loadingProgress == null) {
-                                                    return child;
-                                                  }
-                                                  return Center(
-                                                    child: CircularProgressIndicator(
-                                                      value:
-                                                          loadingProgress
-                                                                  .expectedTotalBytes !=
-                                                              null
-                                                          ? loadingProgress
-                                                                    .cumulativeBytesLoaded /
-                                                                loadingProgress
-                                                                    .expectedTotalBytes!
-                                                          : null,
-                                                      color: Colors.white,
-                                                    ),
-                                                  );
-                                                },
+                                            body: Center(
+                                              child: InteractiveViewer(
+                                                child: Image.network(
+                                                  imageUrl,
+                                                  fit: BoxFit.contain,
+                                                  errorBuilder: (context, error, stackTrace) {
+                                                    return Center(
+                                                      child: Column(
+                                                        mainAxisAlignment:
+                                                            MainAxisAlignment
+                                                                .center,
+                                                        children: [
+                                                          const Icon(
+                                                            Icons.broken_image,
+                                                            size: 64,
+                                                            color:
+                                                                Colors.white54,
+                                                          ),
+                                                          const SizedBox(
+                                                            height: 16,
+                                                          ),
+                                                          Text(
+                                                            'Foto tidak dapat dimuat',
+                                                            style:
+                                                                GoogleFonts.poppins(
+                                                                  color: Colors
+                                                                      .white70,
+                                                                  fontSize: 14,
+                                                                ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    );
+                                                  },
+                                                  loadingBuilder: (context, child, loadingProgress) {
+                                                    if (loadingProgress == null)
+                                                      return child;
+                                                    return Center(
+                                                      child: CircularProgressIndicator(
+                                                        value:
+                                                            loadingProgress
+                                                                    .expectedTotalBytes !=
+                                                                null
+                                                            ? loadingProgress
+                                                                      .cumulativeBytesLoaded /
+                                                                  loadingProgress
+                                                                      .expectedTotalBytes!
+                                                            : null,
+                                                        color: Colors.white,
+                                                      ),
+                                                    );
+                                                  },
+                                                ),
                                               ),
                                             ),
                                           ),
                                         ),
-                                      ),
-                                    );
-                                  },
-                                  child: Stack(
-                                    fit: StackFit.expand,
-                                    children: [
-                                      Image.network(
-                                        imageUrl,
-                                        fit: BoxFit.contain,
-                                        errorBuilder: (context, error, stackTrace) {
-                                          print('❌ [DetailDialog] Error loading image from: $imageUrl');
-                                          print('❌ [DetailDialog] Error: $error');
-                                          print('❌ [DetailDialog] StackTrace: $stackTrace');
-                                          return Center(
-                                            child: Column(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.center,
-                                              children: [
-                                                Icon(
-                                                  Icons.broken_image,
-                                                  size: 48,
-                                                  color: Colors.grey[400],
-                                                ),
-                                                const SizedBox(height: 8),
-                                                Text(
-                                                  'Foto tidak tersedia',
-                                                  style: GoogleFonts.poppins(
-                                                    fontSize: 12,
-                                                    color: Colors.grey[600],
-                                                    fontWeight: FontWeight.w500,
+                                      );
+                                    },
+                                    child: Stack(
+                                      alignment: Alignment.center,
+                                      children: [
+                                        Image.network(
+                                          imageUrl,
+                                          width: double.infinity,
+                                          height: double.infinity,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) {
+                                            print(
+                                              '❌ [DetailDialog] Error loading image from: $imageUrl',
+                                            );
+                                            print(
+                                              '❌ [DetailDialog] Error: $error',
+                                            );
+                                            print(
+                                              '❌ [DetailDialog] StackTrace: $stackTrace',
+                                            );
+                                            return Center(
+                                              child: Column(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
+                                                children: [
+                                                  Icon(
+                                                    Icons.broken_image,
+                                                    size: 48,
+                                                    color: Colors.grey[400],
                                                   ),
-                                                ),
-                                                const SizedBox(height: 4),
-                                                Padding(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                                                  child: Text(
-                                                    'File mungkin sudah dihapus dari server',
-                                                    textAlign: TextAlign.center,
+                                                  const SizedBox(height: 8),
+                                                  Text(
+                                                    'Foto tidak tersedia',
                                                     style: GoogleFonts.poppins(
-                                                      fontSize: 10,
-                                                      color: Colors.grey[500],
+                                                      fontSize: 12,
+                                                      color: Colors.grey[600],
+                                                      fontWeight:
+                                                          FontWeight.w500,
                                                     ),
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  Padding(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 16,
+                                                        ),
+                                                    child: Text(
+                                                      'File mungkin sudah dihapus dari server',
+                                                      textAlign:
+                                                          TextAlign.center,
+                                                      style:
+                                                          GoogleFonts.poppins(
+                                                            fontSize: 10,
+                                                            color: Colors
+                                                                .grey[500],
+                                                          ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          },
+                                          loadingBuilder: (context, child, loadingProgress) {
+                                            if (loadingProgress == null)
+                                              return child;
+                                            return Center(
+                                              child: CircularProgressIndicator(
+                                                value:
+                                                    loadingProgress
+                                                            .expectedTotalBytes !=
+                                                        null
+                                                    ? loadingProgress
+                                                              .cumulativeBytesLoaded /
+                                                          loadingProgress
+                                                              .expectedTotalBytes!
+                                                    : null,
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                        Positioned(
+                                          bottom: 8,
+                                          right: 8,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 4,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.black.withOpacity(
+                                                0.6,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const Icon(
+                                                  Icons.zoom_in,
+                                                  color: Colors.white,
+                                                  size: 16,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  'Tap untuk perbesar',
+                                                  style: GoogleFonts.poppins(
+                                                    fontSize: 10,
+                                                    color: Colors.white,
                                                   ),
                                                 ),
                                               ],
                                             ),
-                                          );
-                                        },
-                                        loadingBuilder: (context, child, loadingProgress) {
-                                          if (loadingProgress == null) {
-                                            return child;
-                                          }
-                                          return Center(
-                                            child: CircularProgressIndicator(
-                                              value:
-                                                  loadingProgress
-                                                          .expectedTotalBytes !=
-                                                      null
-                                                  ? loadingProgress
-                                                            .cumulativeBytesLoaded /
-                                                        loadingProgress
-                                                            .expectedTotalBytes!
-                                                  : null,
-                                            ),
-                                          );
-                                        },
-                                      ),
-                                      // Overlay untuk indicator bisa di-tap
-                                      Positioned(
-                                        bottom: 8,
-                                        right: 8,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.black.withOpacity(
-                                              0.6,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              const Icon(
-                                                Icons.zoom_in,
-                                                color: Colors.white,
-                                                size: 16,
-                                              ),
-                                              const SizedBox(width: 4),
-                                              Text(
-                                                'Tap untuk perbesar',
-                                                style: GoogleFonts.poppins(
-                                                  fontSize: 10,
-                                                  color: Colors.white,
-                                                ),
-                                              ),
-                                            ],
                                           ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
@@ -1803,7 +1966,11 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                           ),
                           child: Row(
                             children: [
-                              Icon(Icons.info_outline, size: 18, color: Colors.grey[600]),
+                              Icon(
+                                Icons.info_outline,
+                                size: 18,
+                                color: Colors.grey[600],
+                              ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
@@ -1944,7 +2111,8 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                         }),
 
                       // Untuk off-schedule pickup yang tidak punya waste_items
-                      if (isOffSchedule && (wasteItems == null || wasteItems.isEmpty))
+                      if (isOffSchedule &&
+                          (wasteItems == null || wasteItems.isEmpty))
                         Padding(
                           padding: const EdgeInsets.only(bottom: 8),
                           child: Row(
@@ -1989,7 +2157,8 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                             ),
                           ),
                           Text(
-                            isOffSchedule && (wasteItems == null || wasteItems.isEmpty)
+                            isOffSchedule &&
+                                    (wasteItems == null || wasteItems.isEmpty)
                                 ? '${pickup['bag_count'] ?? 1} kantong'
                                 : '${wasteItems?.fold<int>(0, (sum, item) => sum + (item['quantity'] as int? ?? 0)) ?? 0}',
                             style: GoogleFonts.poppins(
@@ -2007,7 +2176,9 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                       Builder(
                         builder: (context) {
                           final pickupId = pickup['id']?.toString();
-                          final confirmationStatus = pickup['confirmation_status']?.toString() ?? 'pending';
+                          final confirmationStatus =
+                              pickup['confirmation_status']?.toString() ??
+                              'pending';
                           final isPending = confirmationStatus == 'pending';
 
                           if (isPending && pickupId != null) {
@@ -2019,11 +2190,16 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                                   Navigator.pop(ctx);
                                   _showConfirmationDialog(pickupId, pickup);
                                 },
-                                icon: const Icon(Icons.check_circle_outline, size: 20),
+                                icon: const Icon(
+                                  Icons.check_circle_outline,
+                                  size: 20,
+                                ),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFF4CAF50),
                                   foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),
@@ -2046,7 +2222,9 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                                 onPressed: () => Navigator.pop(ctx),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFF009688),
-                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),

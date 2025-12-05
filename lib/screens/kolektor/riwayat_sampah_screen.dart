@@ -110,13 +110,17 @@ class RiwayatSampahScreen extends StatelessWidget {
             // Photo Section
             Container(
               margin: EdgeInsets.all(20),
-              height: 200,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                color: Colors.grey[200],
+              child: AspectRatio(
+                aspectRatio: 4 / 3, // Aspect ratio standar foto
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.grey[200],
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: _buildPhotoWidget(photoUrl),
+                ),
               ),
-              clipBehavior: Clip.antiAlias,
-              child: _buildPhotoWidget(photoUrl),
             ),
             
             // Address and ID

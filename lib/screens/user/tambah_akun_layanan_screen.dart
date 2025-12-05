@@ -7,6 +7,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:flutter/services.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../../models/app_settings.dart';
 import '../../models/area_option.dart';
@@ -84,6 +85,9 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
 
   // State untuk validasi nomor telepon
   String? _phoneValidationError;
+
+  // State untuk loading lokasi saat ini
+  bool _isGettingCurrentLocation = false;
 
   @override
   void initState() {
@@ -164,6 +168,77 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// Mendapatkan lokasi saat ini menggunakan GPS
+  Future<void> _getCurrentLocation() async {
+    setState(() {
+      _isGettingCurrentLocation = true;
+    });
+
+    try {
+      // Cek apakah location service aktif
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (!mounted) return;
+        _showSnackBar('Layanan lokasi tidak aktif. Silakan aktifkan GPS.');
+        setState(() {
+          _isGettingCurrentLocation = false;
+        });
+        return;
+      }
+
+      // Cek permission
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          if (!mounted) return;
+          _showSnackBar('Izin lokasi ditolak');
+          setState(() {
+            _isGettingCurrentLocation = false;
+          });
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        if (!mounted) return;
+        _showSnackBar('Izin lokasi ditolak permanen. Silakan aktifkan di pengaturan.');
+        setState(() {
+          _isGettingCurrentLocation = false;
+        });
+        return;
+      }
+
+      // Dapatkan posisi saat ini
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _latitude = position.latitude;
+        _longitude = position.longitude;
+        _isGettingCurrentLocation = false;
+      });
+
+      // Pindahkan peta ke lokasi baru
+      _mapController.move(LatLng(_latitude, _longitude), _currentZoom);
+
+      // Dapatkan alamat dari koordinat
+      await _getAddressFromCoordinates(_latitude, _longitude);
+
+      _showSnackBar('Lokasi berhasil diperbarui');
+    } catch (e) {
+      print('[ERROR] Get current location: $e');
+      if (!mounted) return;
+      setState(() {
+        _isGettingCurrentLocation = false;
+      });
+      _showSnackBar('Gagal mendapatkan lokasi: ${e.toString()}');
+    }
   }
 
   AreaOption? _findOptionByName(List<AreaOption> options, String name) {
@@ -1527,6 +1602,60 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
                 ),
               ),
             ),
+            // ✅ Tombol "Gunakan Lokasi Saat Ini"
+            Positioned(
+              bottom: 10,
+              left: 10,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _isGettingCurrentLocation ? null : _getCurrentLocation,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF009688),
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withAlpha(40),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _isGettingCurrentLocation
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              )
+                            : const Icon(
+                                Icons.my_location,
+                                color: Colors.white,
+                                size: 16,
+                              ),
+                        const SizedBox(width: 6),
+                        Text(
+                          _isGettingCurrentLocation ? 'Mencari...' : 'Lokasi Saya',
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -1573,6 +1702,7 @@ class _FullscreenMapPageState extends State<FullscreenMapPage> {
   late double _latitude;
   late double _longitude;
   late double _currentZoom;
+  bool _isGettingLocation = false;
 
   final double _minZoom = 3.0;
   final double _maxZoom = 19.0;
@@ -1598,6 +1728,85 @@ class _FullscreenMapPageState extends State<FullscreenMapPage> {
       _currentZoom = (_currentZoom - 1).clamp(_minZoom, _maxZoom);
     });
     _mapController.move(LatLng(_latitude, _longitude), _currentZoom);
+  }
+
+  Future<void> _getCurrentLocation() async {
+    setState(() {
+      _isGettingLocation = true;
+    });
+
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Layanan lokasi tidak aktif. Mohon aktifkan GPS.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Izin lokasi ditolak'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Izin lokasi ditolak permanen. Ubah di pengaturan.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      setState(() {
+        _latitude = position.latitude;
+        _longitude = position.longitude;
+        _currentZoom = 17.0;
+      });
+
+      _mapController.move(
+        LatLng(_latitude, _longitude),
+        _currentZoom,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal mendapatkan lokasi: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGettingLocation = false;
+        });
+      }
+    }
   }
 
   @override
@@ -1675,6 +1884,67 @@ class _FullscreenMapPageState extends State<FullscreenMapPage> {
                   child: const Icon(Icons.remove, color: Colors.black),
                 ),
               ],
+            ),
+          ),
+          // Tombol Lokasi Saya
+          Positioned(
+            bottom: 10,
+            left: 10,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: _isGettingLocation ? null : _getCurrentLocation,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _isGettingLocation
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.blue,
+                                  ),
+                                ),
+                              )
+                            : const Icon(
+                                Icons.my_location,
+                                color: Colors.blue,
+                                size: 18,
+                              ),
+                        const SizedBox(width: 6),
+                        const Text(
+                          'Lokasi Saya',
+                          style: TextStyle(
+                            color: Colors.blue,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
         ],

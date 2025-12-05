@@ -690,7 +690,7 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
                       borderRadius: BorderRadius.circular(9),
                       child: buildPlatformImage(
                         _selectedImages[index],
-                        fit: BoxFit.contain,
+                        fit: BoxFit.cover,
                         width: 280,
                         height: 200,
                       ),
@@ -2312,56 +2312,60 @@ class _DetailLaporanTerkirimScreenState extends State<DetailLaporanTerkirimScree
       );
     } else if (widget.laporan.imageFile != null) {
       // File dari local (jarang digunakan untuk detail terkirim)
-      imageWidget = Container(
-        height: 250,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade300, width: 1),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: buildPlatformImage(
-            widget.laporan.imageFile!,
-            fit: BoxFit.contain,
-            height: 250,
-            width: double.infinity,
+      imageWidget = AspectRatio(
+        aspectRatio: 4 / 3,
+        child: Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade300, width: 1),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: buildPlatformImage(
+              widget.laporan.imageFile!,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+            ),
           ),
         ),
       );
     } else {
       // No image available
-      imageWidget = Container(
-        height: 250,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Colors.grey.shade200, Colors.grey.shade400],
+      imageWidget = AspectRatio(
+        aspectRatio: 4 / 3,
+        child: Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Colors.grey.shade200, Colors.grey.shade400],
+            ),
+            borderRadius: BorderRadius.circular(12),
           ),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.image_not_supported,
-                size: 60,
-                color: Colors.grey.shade600,
-              ),
-              SizedBox(height: 12),
-              Text(
-                "Tidak ada gambar",
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.grey.shade700,
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.image_not_supported,
+                  size: 60,
+                  color: Colors.grey.shade600,
                 ),
-              ),
-            ],
+                SizedBox(height: 12),
+                Text(
+                  "Tidak ada gambar",
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -3592,7 +3596,7 @@ class _ReportCard extends StatelessWidget {
                       child: report.photoUrl != null
                           ? Image.network(
                               report.photoUrl!,
-                              fit: BoxFit.contain,
+                              fit: BoxFit.cover,
                               width: 90,
                               height: 90,
                               errorBuilder: (context, error, stackTrace) {
@@ -3640,7 +3644,7 @@ class _ReportCard extends StatelessWidget {
                           : report.imageFile != null
                           ? buildPlatformImage(
                               report.imageFile!,
-                              fit: BoxFit.contain,
+                              fit: BoxFit.cover,
                               width: 90,
                               height: 90,
                             )
@@ -3919,8 +3923,8 @@ class _InstagramStylePhotoGalleryState
         child: Stack(
           children: [
             // PageView untuk foto
-            SizedBox(
-              height: 300,
+            AspectRatio(
+              aspectRatio: 4 / 3, // Aspect ratio standar foto
               child: PageView.builder(
                 controller: _pageController,
                 onPageChanged: (index) {
@@ -3932,9 +3936,9 @@ class _InstagramStylePhotoGalleryState
                 itemBuilder: (context, index) {
                   return buildPlatformImage(
                     widget.imageFiles[index],
-                    fit: BoxFit.contain,
+                    fit: BoxFit.cover,
                     width: double.infinity,
-                    height: 300,
+                    height: double.infinity,
                   );
                 },
               ),
@@ -4112,8 +4116,8 @@ class _InstagramStylePhotoGalleryNetworkState
         child: Stack(
           children: [
             // PageView untuk foto dari network
-            SizedBox(
-              height: 300,
+            AspectRatio(
+              aspectRatio: 4 / 3, // Aspect ratio standar foto
               child: PageView.builder(
                 controller: _pageController,
                 onPageChanged: (index) {
@@ -4125,9 +4129,9 @@ class _InstagramStylePhotoGalleryNetworkState
                 itemBuilder: (context, index) {
                   return Image.network(
                     widget.photoUrls[index],
-                    fit: BoxFit.contain,
+                    fit: BoxFit.cover,
                     width: double.infinity,
-                    height: 300,
+                    height: double.infinity,
                     loadingBuilder: (context, child, loadingProgress) {
                       if (loadingProgress == null) return child;
                       return Container(

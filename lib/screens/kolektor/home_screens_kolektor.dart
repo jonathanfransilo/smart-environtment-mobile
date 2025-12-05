@@ -47,7 +47,8 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
   int _unreadNotifCount = 0;
   
   // ✅ OFF-SCHEDULE PICKUP STATE
-  List<Map<String, dynamic>> offSchedulePickups = [];
+  List<Map<String, dynamic>> offSchedulePickups = []; // Active pickups untuk tugas
+  List<Map<String, dynamic>> allOffSchedulePickups = []; // Semua pickups termasuk completed untuk history
   bool _hasShownWelcomeMessage = false;
   int _selectedIndex = 0;
   int _riwayatTabIndex = 0; // 0 = Pengambilan, 1 = Pengangkutan
@@ -606,13 +607,21 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
   void _addCompletedTasksToHistory() {
     print('[HomeCollector] ===== ADDING COMPLETED TASKS TO HISTORY =====');
     
-    // Tambahkan completed off-schedule pickups
-    final completedOffSchedule = offSchedulePickups.where((pickup) {
+    // ✅ Gunakan allOffSchedulePickups untuk mencari completed pickups
+    // Status completed: 'completed', 'collected', 'pending', 'paid' 
+    // (semua yang bukan 'processing' atau 'cancelled')
+    final completedOffSchedule = allOffSchedulePickups.where((pickup) {
+      final requestStatus = pickup['request_status']?.toString() ?? '';
       final status = pickup['status']?.toString() ?? '';
-      return status == 'completed' || status == 'collected';
+      // Request yang sudah selesai (completed, pending, paid) atau collected
+      return requestStatus == 'completed' || 
+             requestStatus == 'pending' || 
+             requestStatus == 'paid' ||
+             status == 'completed' || 
+             status == 'collected';
     }).toList();
     
-    print('[HomeCollector] Found ${completedOffSchedule.length} completed off-schedule pickups');
+    print('[HomeCollector] Found ${completedOffSchedule.length} completed off-schedule pickups from allOffSchedulePickups (${allOffSchedulePickups.length} total)');
     
     for (var pickup in completedOffSchedule) {
       // Check if already exists in pengambilanList
@@ -703,15 +712,16 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
     try {
       print('📋 [HomeCollector] ===== LOADING OFF-SCHEDULE PICKUPS =====');
       final service = OffSchedulePickupService();
-      final pickups = await service.getCollectorTodayPickups();
       
-      print('📦 [HomeCollector] Received ${pickups.length} off-schedule pickups from API');
+      // ✅ Load SEMUA pickups (termasuk completed untuk history)
+      final allPickups = await service.getCollectorAllPickups();
+      
+      print('📦 [HomeCollector] Received ${allPickups.length} ALL off-schedule pickups from API');
       
       if (!mounted) return;
       
-      // ✅ TRANSFORM SEMUA PICKUPS (termasuk completed untuk riwayat)
-      // Filter untuk UI akan dilakukan di _buildPengambilanList
-      final transformedPickups = pickups.map((pickup) {
+      // ✅ Transform function untuk pickup
+      Map<String, dynamic> transformPickup(pickup) {
         return {
           'id': pickup.id,
           'pickup_type': 'off-schedule', // Marker untuk membedakan
@@ -745,26 +755,39 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
             'longitude': pickup.serviceAccount!.longitude ?? 0.0,
           } : null,
         };
-      }).toList();
+      }
+      
+      // ✅ Transform semua pickups
+      final allTransformed = allPickups.map(transformPickup).toList();
+      
+      // ✅ Filter untuk active pickups (untuk daftar tugas)
+      final activeTransformed = allPickups.where((pickup) {
+        final isProcessing = pickup.requestStatus == 'processing';
+        final notCancelled = pickup.status != 'cancelled';
+        return isProcessing && notCancelled;
+      }).map(transformPickup).toList();
       
       setState(() {
-        offSchedulePickups = transformedPickups;
+        offSchedulePickups = activeTransformed; // Untuk daftar tugas
+        allOffSchedulePickups = allTransformed; // Untuk history (termasuk completed)
       });
       
       // ✅ DEBUG: Log transformed data untuk verifikasi
-      if (transformedPickups.isNotEmpty) {
-        print('📊 [HomeCollector] Sample transformed pickup data:');
-        final sample = transformedPickups.first;
+      print('📊 [HomeCollector] Active pickups: ${activeTransformed.length}');
+      print('📊 [HomeCollector] All pickups (for history): ${allTransformed.length}');
+      
+      if (activeTransformed.isNotEmpty) {
+        final sample = activeTransformed.first;
         final serviceAccount = sample['service_account'] as Map<String, dynamic>?;
         final houseInfo = sample['house_info'] as Map<String, dynamic>?;
-        print('   - ID: ${sample['id']}');
+        print('   - Sample ID: ${sample['id']}');
         print('   - Name: ${sample['service_account_name']}');
         print('   - Phone: ${serviceAccount?['contact_phone']}');
         print('   - Latitude: ${houseInfo?['latitude']}');
         print('   - Longitude: ${houseInfo?['longitude']}');
       }
       
-      print('✅ [HomeCollector] Successfully loaded ${offSchedulePickups.length} off-schedule pickups');
+      print('✅ [HomeCollector] Successfully loaded off-schedule pickups');
       print('═══════════════════════════════════════════════════════');
     } catch (e, stackTrace) {
       print('❌ [HomeCollector] Error loading off-schedule pickups: $e');
@@ -772,6 +795,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
       if (mounted) {
         setState(() {
           offSchedulePickups = [];
+          allOffSchedulePickups = [];
         });
       }
     }
@@ -866,7 +890,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
     // Placeholder widget jika image kosong
     if (imagePath.isEmpty) {
       return Container(
-        height: 180,
+        height: 100,
         width: 100,
         color: Colors.grey[300],
         child: const Icon(
@@ -892,13 +916,13 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
       print('[NET] [HomeKolektor] Loading network image: $finalImagePath');
       return Image.network(
         finalImagePath,
-        height: 180,
-        width: double.infinity,
+        height: 100,
+        width: 100,
         fit: BoxFit.contain,
         errorBuilder: (context, error, stackTrace) {
           print('[ERROR] [HomeKolektor] Image load error: $error');
           return Container(
-            height: 180,
+            height: 100,
             width: 100,
             color: Colors.grey[300],
             child: Column(
@@ -924,7 +948,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
             return child;
           }
           return Container(
-            height: 180,
+            height: 100,
             width: 100,
             color: Colors.grey[200],
             child: Center(
@@ -948,7 +972,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
       // Cek apakah file exists
       if (!file.existsSync()) {
         return Container(
-          height: 180,
+          height: 100,
           width: 100,
           color: Colors.grey[300],
           child: Column(
@@ -975,12 +999,12 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
 
       return Image.file(
         file,
-        height: 180,
-        width: double.infinity,
+        height: 100,
+        width: 100,
         fit: BoxFit.contain,
         errorBuilder: (context, error, stackTrace) {
           return Container(
-            height: 180,
+            height: 100,
             width: 100,
             color: Colors.grey[300],
             child: const Icon(Icons.broken_image, color: Colors.grey, size: 40),
@@ -992,12 +1016,12 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
     // Asset path (fallback - untuk backward compatibility)
     return Image.asset(
       finalImagePath,
-      height: 180,
-      width: double.infinity,
+      height: 100,
+      width: 100,
       fit: BoxFit.contain,
       errorBuilder: (context, error, stackTrace) {
         return Container(
-          height: 180,
+          height: 100,
           width: 100,
           color: Colors.grey[300],
           child: Column(
@@ -1591,7 +1615,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
               const SizedBox(height: 12),
 
               SizedBox(
-                height: 180,
+                height: 220,
                 child: _isLoadingHistory
                     ? const Center(child: CircularProgressIndicator())
                     : pengambilanList.isEmpty

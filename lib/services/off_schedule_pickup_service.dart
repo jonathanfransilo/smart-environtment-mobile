@@ -291,7 +291,8 @@ class OffSchedulePickupService {
     }
   }
 
-  /// Confirm completed pickup
+  /// Confirm completed pickup by resident
+  /// PUT /mobile/resident/off-schedule-pickups/{id}/confirm
   Future<OffSchedulePickup> confirmPickup(int id) async {
     try {
       final token = await TokenStorage.getToken();
@@ -300,6 +301,8 @@ class OffSchedulePickupService {
       }
 
       final url = Uri.parse('$baseUrl/mobile/resident/off-schedule-pickups/$id/confirm');
+      
+      print('[NET] [OffSchedulePickupService] PUT $url');
       
       final response = await http.put(
         url,
@@ -310,14 +313,29 @@ class OffSchedulePickupService {
         },
       );
 
+      print('[NET] [OffSchedulePickupService] Confirm response: ${response.statusCode}');
+      print('[DATA] [OffSchedulePickupService] Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return OffSchedulePickup.fromJson(data['data']);
+        if (data['success'] == true && data['data'] != null) {
+          print('[OK] [OffSchedulePickupService] Pickup #$id confirmed successfully');
+          return OffSchedulePickup.fromJson(data['data']);
+        } else {
+          final msg = data['message']?.toString() ?? 'Gagal mengkonfirmasi pengambilan';
+          throw Exception(msg);
+        }
+      } else if (response.statusCode == 400) {
+        final data = jsonDecode(response.body);
+        final msg = data['message']?.toString() ?? 'Pengambilan tidak dapat dikonfirmasi';
+        throw Exception(msg);
+      } else if (response.statusCode == 404) {
+        throw Exception('Pengambilan tidak ditemukan');
       } else {
-        throw Exception('Failed to confirm pickup: ${response.statusCode}');
+        throw Exception('Gagal mengkonfirmasi: ${response.statusCode}');
       }
     } catch (e) {
+      print('[ERROR] [OffSchedulePickupService] Confirm pickup failed: $e');
       rethrow;
     }
   }
@@ -471,6 +489,62 @@ class OffSchedulePickupService {
     } catch (e) {
       print('[CRASH] [OffSchedulePickupService] Error: $e');
       return (false, 'Terjadi kesalahan: $e');
+    }
+  }
+
+  /// ✅ Get ALL off-schedule pickups for collector (including completed for history)
+  /// Returns all pickups without filtering by status - used for history display
+  Future<List<OffSchedulePickup>> getCollectorAllPickups() async {
+    try {
+      final token = await TokenStorage.getToken();
+      if (token == null) {
+        throw Exception('No authentication token found');
+      }
+      
+      // ✅ ENDPOINT sesuai dokumentasi API (tanpa trailing slash)
+      final url = Uri.parse('$baseUrl/mobile/collector/off-schedule-pickups');
+      
+      print('[NET] [OffSchedulePickupService] getAllPickups API URL: $url');
+      
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('[NET] [OffSchedulePickupService] getAllPickups Response status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        
+        // Sesuai dokumentasi API: {"success": true, "data": [...]}
+        if (data['success'] == true && data['data'] is List) {
+          final List<dynamic> pickupsJson = data['data'];
+          print('[STATS] [OffSchedulePickupService] Total pickups (all): ${pickupsJson.length}');
+          
+          // Parse semua pickups dari API TANPA FILTER
+          final allPickups = pickupsJson
+              .map((json) => OffSchedulePickup.fromJson(json))
+              .toList();
+          
+          print('[OK] [OffSchedulePickupService] Successfully loaded ${allPickups.length} all pickups');
+          return allPickups;
+        } else {
+          print('[WARN] [OffSchedulePickupService] Unexpected response format');
+          return [];
+        }
+      } else {
+        print('[ERROR] [OffSchedulePickupService] Failed: ${response.statusCode}');
+        return [];
+      }
+    } catch (e, stackTrace) {
+      print('[CRASH] [OffSchedulePickupService] Error: $e');
+      print('   Stack trace:');
+      print(stackTrace);
+      return [];
     }
   }
 }

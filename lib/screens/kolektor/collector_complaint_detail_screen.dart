@@ -568,7 +568,7 @@ class _CollectorComplaintDetailScreenState
                                     photoUrl,
                                     width: 120,
                                     height: 120,
-                                    fit: BoxFit.contain,
+                                    fit: BoxFit.cover,
                                     loadingBuilder: (context, child, loadingProgress) {
                                       if (loadingProgress == null) return child;
                                       return Container(
@@ -654,40 +654,43 @@ class _CollectorComplaintDetailScreenState
                       ),
                       const SizedBox(height: 16),
                       if (_selectedImage != null) ...[
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Stack(
-                            children: [
-                              kIsWeb
-                                  ? Image.network(
-                                      _selectedImage!.path,
-                                      width: double.infinity,
-                                      height: 200,
-                                      fit: BoxFit.contain,
-                                    )
-                                  : Image.file(
-                                      File(_selectedImage!.path),
-                                      width: double.infinity,
-                                      height: 200,
-                                      fit: BoxFit.contain,
+                        AspectRatio(
+                          aspectRatio: 4 / 3,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Stack(
+                              children: [
+                                kIsWeb
+                                    ? Image.network(
+                                        _selectedImage!.path,
+                                        width: double.infinity,
+                                        height: double.infinity,
+                                        fit: BoxFit.cover,
+                                      )
+                                    : Image.file(
+                                        File(_selectedImage!.path),
+                                        width: double.infinity,
+                                        height: double.infinity,
+                                        fit: BoxFit.cover,
+                                      ),
+                                Positioned(
+                                  top: 8,
+                                  right: 8,
+                                  child: IconButton(
+                                    onPressed: () {
+                                      setState(() {
+                                        _selectedImage = null;
+                                      });
+                                    },
+                                    icon: const Icon(Icons.close),
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: Colors.black54,
+                                      foregroundColor: Colors.white,
                                     ),
-                              Positioned(
-                                top: 8,
-                                right: 8,
-                                child: IconButton(
-                                  onPressed: () {
-                                    setState(() {
-                                      _selectedImage = null;
-                                    });
-                                  },
-                                  icon: const Icon(Icons.close),
-                                  style: IconButton.styleFrom(
-                                    backgroundColor: Colors.black54,
-                                    foregroundColor: Colors.white,
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                         const SizedBox(height: 16),
