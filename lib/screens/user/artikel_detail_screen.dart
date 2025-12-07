@@ -80,8 +80,16 @@ class _ArtikelDetailScreenState extends State<ArtikelDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Detail Artikel", style: GoogleFonts.poppins()),
-        backgroundColor: const Color.fromARGB(255, 21, 145, 137),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
+        elevation: 0,
+        title: Text(
+          "Detail Artikel",
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
       ),
       body: _buildBody(),
     );

@@ -328,8 +328,16 @@ class _NotificationScreenState extends State<NotificationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text("Notifikasi"),
+        elevation: 0,
+        title: Text(
+          "Notifikasi",
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
+        ),
         backgroundColor: const Color.fromARGB(255, 21, 145, 137),
         foregroundColor: Colors.white,
         actions: [
@@ -353,6 +361,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
                           21,
                           145,
                           137,
+                        ),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                     );
@@ -417,6 +429,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
                             21,
                             145,
                             137,
+                          ),
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
                       );
@@ -511,7 +527,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
               ),
             )
           : ListView.builder(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.symmetric(vertical: 4),
               itemCount: _notifications.length,
               itemBuilder: (context, index) {
                 final notif = _notifications[index];
@@ -548,170 +564,225 @@ class _NotificationScreenState extends State<NotificationScreen> {
                     break;
                   case 'service_account_created':
                     iconData = Icons.account_circle;
-                    iconColor = const Color.fromARGB(255, 21, 145, 137); // Teal
+                    iconColor = const Color.fromARGB(255, 21, 145, 137);
                     break;
                   default:
                     iconData = Icons.notifications;
                     iconColor = const Color.fromARGB(255, 21, 145, 137);
                 }
 
-                return Card(
-                  margin: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 1),
+                  decoration: BoxDecoration(
+                    color: isRead ? Colors.white : Colors.grey.shade50,
+                    border: Border(
+                      bottom: BorderSide(
+                        color: Colors.grey.shade200,
+                        width: 1,
+                      ),
+                    ),
                   ),
-                  elevation: isRead ? 0 : 2,
-                  color: isRead ? Colors.grey.shade50 : Colors.white,
-                  child: ListTile(
-                    leading: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: isRead
-                            ? Colors.grey.shade300
-                            : iconColor.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
+                  child: InkWell(
+                    onTap: () async {
+                      if (!isRead) {
+                        await _markAsRead(notif['id']);
+                      }
+                      _showNotificationDetail(notif);
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
                       ),
-                      child: Icon(
-                        iconData,
-                        color: isRead ? Colors.grey : iconColor,
-                        size: 24,
-                      ),
-                    ),
-                    title: title.isNotEmpty
-                        ? Text(
-                            title,
-                            style: GoogleFonts.poppins(
-                              fontWeight: isRead
-                                  ? FontWeight.w500
-                                  : FontWeight.w600,
-                              fontSize: 14,
-                              color: isRead ? Colors.black54 : Colors.black87,
-                            ),
-                          )
-                        : null,
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (title.isNotEmpty) const SizedBox(height: 4),
-                        Text(
-                          message,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.poppins(
-                            fontWeight: title.isEmpty && !isRead
-                                ? FontWeight.w600
-                                : FontWeight.normal,
-                            fontSize: title.isEmpty ? 14 : 13,
-                            color: isRead ? Colors.black54 : Colors.black87,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _formatTime(notif['time'] ?? ''),
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                      ],
-                    ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (!isRead)
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Icon Avatar - YouTube Style
                           Container(
-                            width: 8,
-                            height: 8,
-                            margin: const EdgeInsets.only(right: 8),
+                            width: 56,
+                            height: 56,
                             decoration: BoxDecoration(
-                              color: iconColor,
+                              color: iconColor.withValues(alpha: 0.15),
                               shape: BoxShape.circle,
                             ),
+                            child: Icon(
+                              iconData,
+                              color: iconColor,
+                              size: 28,
+                            ),
                           ),
-                        // Tombol hapus
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline, size: 20),
-                          color: Colors.grey.shade400,
-                          onPressed: () async {
-                            final confirm = await showDialog<bool>(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
+                          const SizedBox(width: 12),
+                          // Content
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Title dan Dot indicator
+                                Row(
+                                  children: [
+                                    if (title.isNotEmpty) ...[
+                                      Expanded(
+                                        child: Text(
+                                          title,
+                                          style: GoogleFonts.poppins(
+                                            fontWeight: isRead
+                                                ? FontWeight.w500
+                                                : FontWeight.w600,
+                                            fontSize: 14,
+                                            color: Colors.black87,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                    ],
+                                    if (!isRead)
+                                      Container(
+                                        width: 8,
+                                        height: 8,
+                                        decoration: BoxDecoration(
+                                          color: iconColor,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                  ],
                                 ),
-                                title: Text(
-                                  'Hapus Notifikasi',
+                                const SizedBox(height: 4),
+                                // Message
+                                Text(
+                                  message,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                   style: GoogleFonts.poppins(
-                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                    color: Colors.black87,
+                                    height: 1.4,
                                   ),
                                 ),
-                                content: Text(
-                                  'Apakah Anda yakin ingin menghapus notifikasi ini?',
-                                  style: GoogleFonts.poppins(),
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.pop(context, false),
-                                    child: Text(
-                                      'Batal',
-                                      style: GoogleFonts.poppins(
-                                        color: Colors.grey,
-                                      ),
-                                    ),
+                                const SizedBox(height: 6),
+                                // Time
+                                Text(
+                                  _formatTime(notif['time'] ?? ''),
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade600,
                                   ),
-                                  ElevatedButton(
-                                    onPressed: () =>
-                                        Navigator.pop(context, true),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.red,
-                                      foregroundColor: Colors.white,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          // Menu button
+                          PopupMenuButton<String>(
+                            padding: EdgeInsets.zero,
+                            icon: Icon(
+                              Icons.more_vert,
+                              color: Colors.grey.shade600,
+                              size: 20,
+                            ),
+                            onSelected: (value) async {
+                              if (value == 'delete') {
+                                final confirm = await showDialog<bool>(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
                                     ),
-                                    child: Text(
-                                      'Hapus',
+                                    title: Text(
+                                      'Hapus Notifikasi',
                                       style: GoogleFonts.poppins(
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            );
-
-                            if (confirm == true) {
-                              await _deleteNotification(notif['id']);
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
                                     content: Text(
-                                      'Notifikasi berhasil dihapus',
+                                      'Apakah Anda yakin ingin menghapus notifikasi ini?',
                                       style: GoogleFonts.poppins(),
                                     ),
-                                    backgroundColor: const Color.fromARGB(
-                                      255,
-                                      21,
-                                      145,
-                                      137,
-                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(context, false),
+                                        child: Text(
+                                          'Batal',
+                                          style: GoogleFonts.poppins(
+                                            color: Colors.grey,
+                                          ),
+                                        ),
+                                      ),
+                                      ElevatedButton(
+                                        onPressed: () =>
+                                            Navigator.pop(context, true),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.red,
+                                          foregroundColor: Colors.white,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                          ),
+                                        ),
+                                        child: Text(
+                                          'Hapus',
+                                          style: GoogleFonts.poppins(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 );
+
+                                if (confirm == true) {
+                                  await _deleteNotification(notif['id']);
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Notifikasi berhasil dihapus',
+                                          style: GoogleFonts.poppins(),
+                                        ),
+                                        backgroundColor: const Color.fromARGB(
+                                          255,
+                                          21,
+                                          145,
+                                          137,
+                                        ),
+                                        behavior: SnackBarBehavior.floating,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                }
                               }
-                            }
-                          },
-                        ),
-                      ],
+                            },
+                            itemBuilder: (context) => [
+                              PopupMenuItem(
+                                value: 'delete',
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.delete_outline,
+                                      size: 20,
+                                      color: Colors.red,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      'Hapus',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 14,
+                                        color: Colors.red,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                    onTap: () async {
-                      // Tandai sudah dibaca
-                      if (!isRead) {
-                        await _markAsRead(notif['id']);
-                      }
-                      // Tampilkan detail
-                      _showNotificationDetail(notif);
-                    },
                   ),
                 );
               },

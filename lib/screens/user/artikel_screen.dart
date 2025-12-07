@@ -144,12 +144,12 @@ class _ArtikelScreenState extends State<ArtikelScreen> {
           "Artikel",
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: Colors.black87,
           ),
         ),
-        backgroundColor: const Color.fromARGB(255, 21, 145, 137),
-        elevation: 4,
-        iconTheme: const IconThemeData(color: Colors.white),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.black87),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(60),
           child: Container(

@@ -183,10 +183,10 @@ class _JadwalPengambilanScreenState extends State<JadwalPengambilanScreen> {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        backgroundColor: primaryColor,
+        backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back, color: Colors.black87),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
@@ -194,7 +194,7 @@ class _JadwalPengambilanScreenState extends State<JadwalPengambilanScreen> {
           style: GoogleFonts.poppins(
             fontSize: 18,
             fontWeight: FontWeight.w600,
-            color: Colors.white,
+            color: Colors.black87,
           ),
         ),
       ),

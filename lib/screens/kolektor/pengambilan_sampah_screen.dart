@@ -1,9 +1,9 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:geolocator/geolocator.dart';
 import 'ambil_foto_screen.dart';
 import '../../services/pickup_service.dart';
 
@@ -45,9 +45,14 @@ class _PengambilanSampahScreenState extends State<PengambilanSampahScreen>
   final MapController _mapController = MapController();
   late AnimationController _animController;
   late Animation<double> _markerScale;
-  double _sheetExtent = 0.4;
-  bool _isFullScreen = false;
   bool _isConfirmed = false; // Status konfirmasi pengambilan
+
+  // Current location tracking
+  Position? _currentPosition;
+  bool _isLoadingLocation = true;
+
+  // Colors
+  static const Color primaryColor = Color(0xFF009688);
 
   Future<void> _openGoogleMaps(double lat, double lng) async {
     // Format URL dengan query parameter yang lebih jelas untuk navigasi
@@ -84,10 +89,177 @@ class _PengambilanSampahScreenState extends State<PengambilanSampahScreen>
     );
   }
 
-  void _toggleFullScreen() {
-    setState(() {
-      _isFullScreen = !_isFullScreen;
-    });
+  Future<void> _getCurrentLocation() async {
+    try {
+      setState(() => _isLoadingLocation = true);
+
+      // Check permission
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          setState(() => _isLoadingLocation = false);
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        setState(() => _isLoadingLocation = false);
+        return;
+      }
+
+      // Get current position
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      );
+
+      setState(() {
+        _currentPosition = position;
+        _isLoadingLocation = false;
+      });
+
+      // Fit bounds to show both markers
+      _fitBounds();
+    } catch (e) {
+      print('[ERROR] Error getting location: $e');
+      setState(() => _isLoadingLocation = false);
+    }
+  }
+
+  void _fitBounds() {
+    if (_currentPosition == null) return;
+
+    try {
+      final pickupLat = widget.latitude;
+      final pickupLng = widget.longitude;
+
+      final bounds = LatLngBounds(
+        LatLng(
+          _currentPosition!.latitude < pickupLat
+              ? _currentPosition!.latitude
+              : pickupLat,
+          _currentPosition!.longitude < pickupLng
+              ? _currentPosition!.longitude
+              : pickupLng,
+        ),
+        LatLng(
+          _currentPosition!.latitude > pickupLat
+              ? _currentPosition!.latitude
+              : pickupLat,
+          _currentPosition!.longitude > pickupLng
+              ? _currentPosition!.longitude
+              : pickupLng,
+        ),
+      );
+
+      // Add some padding
+      _mapController.fitCamera(
+        CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(80)),
+      );
+    } catch (e) {
+      print('Error fitting bounds: $e');
+    }
+  }
+
+  double _calculateDistance() {
+    if (_currentPosition == null) return 0;
+
+    return Geolocator.distanceBetween(
+      _currentPosition!.latitude,
+      _currentPosition!.longitude,
+      widget.latitude,
+      widget.longitude,
+    );
+  }
+
+  String _formatDistance(double meters) {
+    if (meters < 1000) {
+      return '${meters.toStringAsFixed(0)} m';
+    } else {
+      return '${(meters / 1000).toStringAsFixed(1)} km';
+    }
+  }
+
+  List<Marker> _buildMarkers() {
+    final markers = <Marker>[];
+
+    // Pickup location marker (Green)
+    markers.add(
+      Marker(
+        point: LatLng(widget.latitude, widget.longitude),
+        width: 50,
+        height: 50,
+        child: ScaleTransition(
+          scale: _markerScale,
+          child: Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.green,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.3),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const Icon(Icons.location_on, color: Colors.white, size: 20),
+          ),
+        ),
+      ),
+    );
+
+    // Current location marker (Blue)
+    if (_currentPosition != null) {
+      markers.add(
+        Marker(
+          point: LatLng(
+            _currentPosition!.latitude,
+            _currentPosition!.longitude,
+          ),
+          width: 50,
+          height: 50,
+          child: Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.blue,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.3),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const Icon(Icons.person_pin, color: Colors.white, size: 20),
+          ),
+        ),
+      );
+    }
+
+    return markers;
+  }
+
+  List<Polyline> _buildPolylines() {
+    if (_currentPosition == null) return [];
+
+    return [
+      Polyline(
+        points: [
+          LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+          LatLng(widget.latitude, widget.longitude),
+        ],
+        color: primaryColor,
+        strokeWidth: 4,
+        pattern: const StrokePattern.dotted(),
+      ),
+    ];
   }
 
   Future<void> _confirmPickup() async {
@@ -269,22 +441,6 @@ class _PengambilanSampahScreenState extends State<PengambilanSampahScreen>
     ];
   }
 
-  // Method untuk membuat TileLayer yang lebih reliable dengan fallback providers
-  TileLayer _buildTileLayer() {
-    // Gunakan Cartodb Positron yang lebih reliable dan tidak memblokir akses
-    return TileLayer(
-      urlTemplate:
-          'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-      subdomains: const ['a', 'b', 'c', 'd'],
-      userAgentPackageName: 'com.citiasia.smartenvironment/1.0',
-      additionalOptions: const {
-        'attribution': '© OpenStreetMap contributors, © CartoDB',
-      },
-      maxZoom: 19,
-      minZoom: 1,
-    );
-  }
-
   void _showFullScreenMap(LatLng location) {
     showDialog(
       context: context,
@@ -302,21 +458,14 @@ class _PengambilanSampahScreenState extends State<PengambilanSampahScreen>
                   ),
                 ),
                 children: [
-                  _buildTileLayer(),
-                  MarkerLayer(
-                    markers: [
-                      Marker(
-                        point: location,
-                        width: 70,
-                        height: 70,
-                        child: const Icon(
-                          Icons.location_on,
-                          size: 45,
-                          color: Colors.greenAccent,
-                        ),
-                      ),
-                    ],
+                  TileLayer(
+                    urlTemplate:
+                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.sirkular.app',
+                    maxZoom: 19,
                   ),
+                  PolylineLayer(polylines: _buildPolylines()),
+                  MarkerLayer(markers: _buildMarkers()),
                 ],
               ),
               Positioned(
@@ -327,6 +476,31 @@ class _PengambilanSampahScreenState extends State<PengambilanSampahScreen>
                   child: IconButton(
                     icon: const Icon(Icons.close, color: Colors.white),
                     onPressed: () => Navigator.pop(context),
+                  ),
+                ),
+              ),
+              // Legend in fullscreen
+              Positioned(
+                left: 16,
+                top: 80,
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildLegendItem(
+                          color: Colors.green,
+                          label: 'Lokasi Pengambilan',
+                        ),
+                        const SizedBox(height: 8),
+                        _buildLegendItem(
+                          color: Colors.blue,
+                          label: 'Lokasi Anda',
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -354,6 +528,9 @@ class _PengambilanSampahScreenState extends State<PengambilanSampahScreen>
     if (widget.status == 'on_progress') {
       _isConfirmed = true;
     }
+
+    // Get current location
+    _getCurrentLocation();
   }
 
   @override
@@ -364,340 +541,358 @@ class _PengambilanSampahScreenState extends State<PengambilanSampahScreen>
 
   @override
   Widget build(BuildContext context) {
-    final Color primaryColor = const Color(0xFF009688);
     final LatLng pickupLocation = LatLng(widget.latitude, widget.longitude);
-    final double screenHeight = MediaQuery.of(context).size.height;
 
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: _isFullScreen
-          ? null
-          : AppBar(
-              backgroundColor: Colors.white,
-              elevation: 0,
-              centerTitle: true,
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.black87),
-                onPressed: () => Navigator.pop(context),
-              ),
-              title: Text(
-                'Pengambilan Sampah',
-                style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
-              ),
+      appBar: AppBar(
+        backgroundColor: primaryColor,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
+        title: Text(
+          'Pengambilan Sampah',
+          style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
+        ),
+        actions: [
+          if (_currentPosition != null)
+            IconButton(
+              icon: const Icon(Icons.my_location),
+              onPressed: () {
+                _mapController.move(
+                  LatLng(
+                    _currentPosition!.latitude,
+                    _currentPosition!.longitude,
+                  ),
+                  15,
+                );
+              },
+              tooltip: 'Lokasi Saya',
             ),
-      body: Stack(
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _getCurrentLocation,
+            tooltip: 'Refresh Lokasi',
+          ),
+        ],
+      ),
+      body: Column(
         children: [
-          // Map dengan animasi fullscreen
-          GestureDetector(
-            onTap: () => _showFullScreenMap(pickupLocation),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              height: _isFullScreen ? screenHeight : screenHeight * 0.6,
-              decoration: const BoxDecoration(
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 8,
-                    offset: Offset(0, 4),
+          // Map - Full expanded
+          Expanded(
+            child: Stack(
+              children: [
+                // OpenStreetMap
+                FlutterMap(
+                  mapController: _mapController,
+                  options: MapOptions(
+                    initialCenter: pickupLocation,
+                    initialZoom: 15,
+                    minZoom: 3,
+                    maxZoom: 18,
+                    onMapReady: () {
+                      if (_currentPosition != null) {
+                        Future.delayed(
+                          const Duration(milliseconds: 500),
+                          _fitBounds,
+                        );
+                      }
+                    },
                   ),
-                ],
-              ),
-              child: FlutterMap(
-                mapController: _mapController,
-                options: MapOptions(
-                  initialCenter: pickupLocation,
-                  initialZoom: 15.5,
-                  interactionOptions: const InteractionOptions(
-                    flags: InteractiveFlag.all,
-                  ),
+                  children: [
+                    // OpenStreetMap Tile Layer
+                    TileLayer(
+                      urlTemplate:
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.sirkular.app',
+                      maxZoom: 19,
+                    ),
+                    // Polyline Layer (route)
+                    PolylineLayer(polylines: _buildPolylines()),
+                    // Markers Layer
+                    MarkerLayer(markers: _buildMarkers()),
+                  ],
                 ),
-                children: [
-                  _buildTileLayer(),
-                  MarkerLayer(
-                    markers: [
-                      Marker(
-                        point: pickupLocation,
-                        width: 60,
-                        height: 60,
-                        child: ScaleTransition(
-                          scale: _markerScale,
-                          child: const Icon(
-                            Icons.location_on,
-                            size: 40,
-                            color: Colors.green,
+
+                // Loading overlay
+                if (_isLoadingLocation)
+                  Container(
+                    color: Colors.black26,
+                    child: Center(
+                      child: Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const CircularProgressIndicator(
+                                color: primaryColor,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Mendapatkan lokasi...',
+                                style: GoogleFonts.poppins(fontSize: 14),
+                              ),
+                            ],
                           ),
                         ),
                       ),
+                    ),
+                  ),
+
+                // Zoom controls
+                Positioned(
+                  right: 16,
+                  bottom: 16,
+                  child: Column(
+                    children: [
+                      FloatingActionButton.small(
+                        heroTag: 'zoom_in',
+                        backgroundColor: Colors.white,
+                        onPressed: _zoomIn,
+                        child: const Icon(Icons.add, color: Colors.black87),
+                      ),
+                      const SizedBox(height: 8),
+                      FloatingActionButton.small(
+                        heroTag: 'zoom_out',
+                        backgroundColor: Colors.white,
+                        onPressed: _zoomOut,
+                        child: const Icon(Icons.remove, color: Colors.black87),
+                      ),
+                      const SizedBox(height: 8),
+                      FloatingActionButton.small(
+                        heroTag: 'fullscreen',
+                        backgroundColor: Colors.white,
+                        onPressed: () => _showFullScreenMap(pickupLocation),
+                        child: const Icon(
+                          Icons.fullscreen,
+                          color: Colors.black87,
+                        ),
+                      ),
                     ],
+                  ),
+                ),
+
+                // Legend
+                Positioned(
+                  left: 16,
+                  top: 16,
+                  child: Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildLegendItem(
+                            color: Colors.green,
+                            label: 'Lokasi Pengambilan',
+                          ),
+                          const SizedBox(height: 8),
+                          _buildLegendItem(
+                            color: Colors.blue,
+                            label: 'Lokasi Anda',
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Attribution
+                Positioned(
+                  left: 8,
+                  bottom: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.8),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      '© OpenStreetMap',
+                      style: GoogleFonts.poppins(
+                        fontSize: 10,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Bottom panel
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, -2),
+                ),
+              ],
+            ),
+            child: SafeArea(
+              top: false,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // User Info
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // User name
+                        Text(
+                          widget.userName,
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        // Address
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.location_on,
+                              size: 14,
+                              color: Colors.grey[600],
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                widget.address,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        // ID Pengambilan
+                        Row(
+                          children: [
+                            Icon(Icons.tag, size: 14, color: Colors.grey[600]),
+                            const SizedBox(width: 4),
+                            Text(
+                              'ID Pengambilan: ${widget.idPengambilan}',
+                              style: GoogleFonts.poppins(
+                                fontSize: 11,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        // Contact buttons
+                        if (_isConfirmed &&
+                            widget.userPhone.isNotEmpty &&
+                            widget.userPhone != '-' &&
+                            widget.userPhone != 'Tidak ada nomor' &&
+                            widget.userPhone != 'Nomor tidak tersedia')
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: _buildContactButtons(),
+                          ),
+                        // Distance badge (below contact buttons, aligned right)
+                        if (_isConfirmed &&
+                            widget.userPhone.isNotEmpty &&
+                            widget.userPhone != '-' &&
+                            widget.userPhone != 'Tidak ada nomor' &&
+                            widget.userPhone != 'Nomor tidak tersedia' &&
+                            _currentPosition != null)
+                          const SizedBox(height: 12),
+                        if (_currentPosition != null)
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: primaryColor.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.straighten,
+                                      size: 16,
+                                      color: primaryColor,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Jarak: ${_formatDistance(_calculateDistance())}',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: primaryColor,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ),
+
+                  // Divider
+                  const Divider(height: 1),
+
+                  // Action buttons
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        // Google Maps button
+                        _lihatLokasiButton(primaryColor),
+                        const SizedBox(height: 12),
+                        // Main action button
+                        _isConfirmed
+                            ? _ambilFotoButton(primaryColor)
+                            : _ambilButton(primaryColor),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
           ),
-
-          // Tombol kontrol map (zoom & fullscreen)
-          if (!_isFullScreen)
-            Positioned(
-              bottom: screenHeight * 0.45,
-              right: 16,
-              child: Column(
-                children: [
-                  FloatingActionButton(
-                    heroTag: "zoomIn",
-                    onPressed: _zoomIn,
-                    mini: true,
-                    backgroundColor: primaryColor,
-                    child: const Icon(Icons.add, color: Colors.white),
-                  ),
-                  const SizedBox(height: 8),
-                  FloatingActionButton(
-                    heroTag: "zoomOut",
-                    onPressed: _zoomOut,
-                    mini: true,
-                    backgroundColor: primaryColor,
-                    child: const Icon(Icons.remove, color: Colors.white),
-                  ),
-                  const SizedBox(height: 8),
-                  FloatingActionButton(
-                    heroTag: "fullscreen",
-                    onPressed: _toggleFullScreen,
-                    mini: true,
-                    backgroundColor: Colors.blueGrey,
-                    child: Icon(
-                      _isFullScreen ? Icons.fullscreen_exit : Icons.fullscreen,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-          // Efek blur saat sheet naik
-          if (_sheetExtent > 0.45 && !_isFullScreen)
-            Positioned.fill(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(
-                  sigmaX: (_sheetExtent - 0.45) * 40,
-                  sigmaY: (_sheetExtent - 0.45) * 40,
-                ),
-                child: Container(color: Colors.black.withOpacity(0)),
-              ),
-            ),
-
-          // Bottom Sheet
-          if (!_isFullScreen)
-            NotificationListener<DraggableScrollableNotification>(
-              onNotification: (notification) {
-                setState(() => _sheetExtent = notification.extent);
-                return true;
-              },
-              child: DraggableScrollableSheet(
-                initialChildSize: 0.42,
-                minChildSize: 0.35,
-                maxChildSize: 0.85,
-                builder: (context, scrollController) {
-                  return Container(
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(24),
-                        topRight: Radius.circular(24),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black26,
-                          blurRadius: 8,
-                          offset: Offset(0, -2),
-                        ),
-                      ],
-                    ),
-                    child: SingleChildScrollView(
-                      controller: scrollController,
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Center(
-                            child: Container(
-                              width: 40,
-                              height: 4,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[300],
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          _sectionTitle("Pengguna"),
-                          const SizedBox(height: 12),
-                          _userInfo(),
-                          const SizedBox(height: 16),
-                          _locationInfo(primaryColor),
-                          const SizedBox(height: 20),
-                          _lihatLokasiButton(primaryColor),
-                          const SizedBox(height: 12),
-                          // Tampilkan tombol berdasarkan status konfirmasi
-                          _isConfirmed
-                              ? _ambilFotoButton(primaryColor)
-                              : _ambilButton(primaryColor),
-                          const SizedBox(height: 20),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-
-          // Tombol exit fullscreen
-          if (_isFullScreen)
-            Positioned(
-              top: 40,
-              left: 16,
-              child: CircleAvatar(
-                backgroundColor: Colors.white,
-                child: IconButton(
-                  icon: const Icon(Icons.close, color: Colors.black87),
-                  onPressed: _toggleFullScreen,
-                ),
-              ),
-            ),
         ],
       ),
     );
   }
 
-  // Widget Reusable
-
-  Widget _sectionTitle(String text) => Text(
-    text,
-    style: GoogleFonts.poppins(
-      fontSize: 16,
-      fontWeight: FontWeight.w600,
-      color: Colors.black87,
-    ),
-  );
-
-  Widget _userInfo() => Row(
-    children: [
-      const CircleAvatar(
-        radius: 24,
-        backgroundColor: Color(0xFFE0E0E0),
-        child: Icon(Icons.person, color: Colors.black54, size: 28),
-      ),
-      const SizedBox(width: 12),
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              widget.userName,
-              style: GoogleFonts.poppins(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-              ),
-            ),
-            Text(
-              widget.userPhone.isNotEmpty && 
-              widget.userPhone != '-' && 
-              widget.userPhone != 'Tidak ada nomor' &&
-              widget.userPhone != 'Nomor tidak tersedia'
-                  ? widget.userPhone
-                  : 'Tidak ada nomor',
-              style: GoogleFonts.poppins(
-                fontSize: 13,
-                color: widget.userPhone.isNotEmpty && 
-                    widget.userPhone != '-' &&
-                    widget.userPhone != 'Tidak ada nomor' &&
-                    widget.userPhone != 'Nomor tidak tersedia'
-                    ? Colors.grey[600]
-                    : Colors.grey[400],
-                fontStyle:
-                    widget.userPhone.isNotEmpty && 
-                    widget.userPhone != '-' &&
-                    widget.userPhone != 'Tidak ada nomor' &&
-                    widget.userPhone != 'Nomor tidak tersedia'
-                    ? FontStyle.normal
-                    : FontStyle.italic,
-              ),
-            ),
-          ],
-        ),
-      ),
-      // Tampilkan tombol chat dan telepon hanya setelah konfirmasi dan jika ada nomor telepon
-      if (_isConfirmed &&
-          widget.userPhone.isNotEmpty &&
-          widget.userPhone != '-' &&
-          widget.userPhone != 'Tidak ada nomor' &&
-          widget.userPhone != 'Nomor tidak tersedia')
-        ..._buildContactButtons(),
-    ],
-  );
-
-  Widget _locationInfo(Color primaryColor) => Container(
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: Colors.grey[50],
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: Colors.grey[200]!),
-    ),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildLegendItem({required Color color, required String label}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(Icons.location_on_outlined, color: primaryColor, size: 22),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Lokasi Pengambilan',
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                widget.address,
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Text(
-                    'ID Pengambilan: ',
-                    style: GoogleFonts.poppins(
-                      fontSize: 11,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                  Text(
-                    widget.idPengambilan,
-                    style: GoogleFonts.poppins(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey[800],
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
+        const SizedBox(width: 8),
+        Text(label, style: GoogleFonts.poppins(fontSize: 11)),
       ],
-    ),
-  );
+    );
+  }
 
   Widget _lihatLokasiButton(Color primaryColor) => SizedBox(
     width: double.infinity,

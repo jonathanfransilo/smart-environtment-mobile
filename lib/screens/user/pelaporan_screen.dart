@@ -1784,9 +1784,12 @@ class DetailLaporanScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
+        elevation: 0,
         title: Text(
           "Pelaporan",
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: Colors.black87),
         ),
       ),
       body: SingleChildScrollView(
@@ -2374,25 +2377,18 @@ class _DetailLaporanTerkirimScreenState extends State<DetailLaporanTerkirimScree
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
+        elevation: 0,
         title: Text(
           "Detail Laporan",
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.w600,
-            color: Colors.white,
+            color: Colors.black87,
           ),
         ),
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [primaryColor, primaryColor.withOpacity(0.8)],
-            ),
-          ),
-        ),
-        elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back, color: Colors.black87),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -3433,9 +3429,12 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
+        elevation: 0,
         title: Text(
           "Pelaporan",
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: Colors.black87),
         ),
       ),
       // Selalu tampilkan list laporan atau empty state (tidak ada preview gambar)

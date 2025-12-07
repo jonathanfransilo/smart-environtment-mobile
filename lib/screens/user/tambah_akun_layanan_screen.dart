@@ -241,6 +241,193 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
     }
   }
 
+  /// Auto-fill area dari placemark (untuk mobile)
+  Future<void> _autoFillAreaFromPlacemark({
+    String? subLocality,
+    String? locality,
+    String? subAdminArea,
+  }) async {
+    debugPrint('[AUTO-FILL] subLocality: $subLocality, locality: $locality, subAdminArea: $subAdminArea');
+    debugPrint('[AUTO-FILL] Kecamatan options count: ${_kecamatanOptions.length}');
+    
+    // Daftar kemungkinan nama kecamatan untuk dicoba
+    final kecamatanCandidates = <String>[
+      if (subAdminArea != null && subAdminArea.isNotEmpty) subAdminArea,
+      if (locality != null && locality.isNotEmpty) locality,
+      if (subLocality != null && subLocality.isNotEmpty) subLocality,
+    ];
+    
+    AreaOption? foundKecamatan;
+    
+    // Coba setiap kandidat sampai ditemukan
+    for (final candidate in kecamatanCandidates) {
+      foundKecamatan = _findOptionByNameFuzzy(_kecamatanOptions, candidate);
+      if (foundKecamatan != null) {
+        debugPrint('[AUTO-FILL] Kecamatan ditemukan dari candidate "$candidate": ${foundKecamatan.name}');
+        break;
+      }
+    }
+    
+    if (foundKecamatan != null) {
+      setState(() {
+        _selectedKecamatanOption = foundKecamatan;
+        _kecamatanController.text = foundKecamatan!.name;
+      });
+      
+      // Load kelurahan options
+      await _loadKelurahanOptions(foundKecamatan);
+      
+      // Tunggu sebentar agar kelurahan options terload
+      await Future.delayed(const Duration(milliseconds: 100));
+      
+      debugPrint('[AUTO-FILL] Kelurahan options count: ${_kelurahanOptions.length}');
+      
+      // Daftar kemungkinan nama kelurahan untuk dicoba
+      final kelurahanCandidates = <String>[
+        if (subLocality != null && subLocality.isNotEmpty) subLocality,
+        if (locality != null && locality.isNotEmpty) locality,
+      ];
+      
+      AreaOption? foundKelurahan;
+      
+      // Coba setiap kandidat sampai ditemukan
+      for (final candidate in kelurahanCandidates) {
+        foundKelurahan = _findOptionByNameFuzzy(_kelurahanOptions, candidate);
+        if (foundKelurahan != null) {
+          debugPrint('[AUTO-FILL] Kelurahan ditemukan dari candidate "$candidate": ${foundKelurahan.name}');
+          break;
+        }
+      }
+      
+      if (foundKelurahan != null) {
+        setState(() {
+          _selectedKelurahanOption = foundKelurahan;
+          _kelurahanController.text = foundKelurahan!.name;
+        });
+      } else {
+        debugPrint('[AUTO-FILL] Kelurahan tidak ditemukan dari candidates: $kelurahanCandidates');
+        // Jika hanya ada satu kelurahan, pilih otomatis
+        if (_kelurahanOptions.length == 1) {
+          setState(() {
+            _selectedKelurahanOption = _kelurahanOptions.first;
+            _kelurahanController.text = _kelurahanOptions.first.name;
+          });
+          debugPrint('[AUTO-FILL] Auto-selected single kelurahan: ${_kelurahanOptions.first.name}');
+        }
+      }
+    } else {
+      debugPrint('[AUTO-FILL] Kecamatan tidak ditemukan dari candidates: $kecamatanCandidates');
+      
+      // Debug: tampilkan semua opsi kecamatan yang tersedia
+      if (_kecamatanOptions.isNotEmpty) {
+        debugPrint('[AUTO-FILL] Available kecamatan options:');
+        for (final opt in _kecamatanOptions.take(10)) {
+          debugPrint('  - ${opt.name}');
+        }
+      }
+    }
+    
+    // Set default RW jika kosong
+    if (_rwController.text.isEmpty) {
+      setState(() {
+        _rwController.text = 'RW 001';
+      });
+    }
+  }
+
+  /// Auto-fill area dari Nominatim address details (untuk web)
+  Future<void> _autoFillAreaFromAddress(Map<String, dynamic> addressDetails) async {
+    debugPrint('[AUTO-FILL WEB] addressDetails: $addressDetails');
+    
+    // Nominatim address fields yang mungkin berisi kecamatan/kelurahan:
+    // - village, hamlet = desa/kelurahan kecil
+    // - suburb = kelurahan di kota
+    // - city_district = kecamatan
+    // - county = kabupaten/wilayah
+    // - municipality = kotamadya
+    
+    String? village = addressDetails['village']?.toString() ?? 
+                      addressDetails['suburb']?.toString() ??
+                      addressDetails['hamlet']?.toString() ??
+                      addressDetails['neighbourhood']?.toString();
+                      
+    String? cityDistrict = addressDetails['city_district']?.toString() ??
+                           addressDetails['district']?.toString() ??
+                           addressDetails['subdistrict']?.toString() ??
+                           addressDetails['county']?.toString();
+    
+    debugPrint('[AUTO-FILL WEB] Parsed - village: $village, cityDistrict: $cityDistrict');
+    
+    await _autoFillAreaFromPlacemark(
+      subLocality: village,
+      locality: cityDistrict,
+      subAdminArea: cityDistrict,
+    );
+  }
+
+  /// Fuzzy search untuk mencari option berdasarkan nama (lebih fleksibel)
+  AreaOption? _findOptionByNameFuzzy(List<AreaOption> options, String name) {
+    if (name.isEmpty) return null;
+    
+    // Bersihkan query dari prefix umum
+    String query = name.toLowerCase().trim()
+        .replaceAll(RegExp(r'^kecamatan\s+', caseSensitive: false), '')
+        .replaceAll(RegExp(r'^kelurahan\s+', caseSensitive: false), '')
+        .replaceAll(RegExp(r'^desa\s+', caseSensitive: false), '')
+        .replaceAll(RegExp(r'^kec\.?\s*', caseSensitive: false), '')
+        .replaceAll(RegExp(r'^kel\.?\s*', caseSensitive: false), '')
+        .trim();
+    
+    debugPrint('[FUZZY SEARCH] Query cleaned: "$query" from original: "$name"');
+    debugPrint('[FUZZY SEARCH] Options count: ${options.length}');
+    
+    // Cari exact match dulu
+    for (final option in options) {
+      final optionName = option.name.toLowerCase().trim();
+      if (optionName == query) {
+        debugPrint('[FUZZY SEARCH] Exact match found: ${option.name}');
+        return option;
+      }
+    }
+    
+    // Cari match tanpa spasi
+    final queryNoSpace = query.replaceAll(' ', '');
+    for (final option in options) {
+      final optionNoSpace = option.name.toLowerCase().replaceAll(' ', '');
+      if (optionNoSpace == queryNoSpace) {
+        debugPrint('[FUZZY SEARCH] NoSpace match found: ${option.name}');
+        return option;
+      }
+    }
+    
+    // Cari contains match
+    for (final option in options) {
+      final optionName = option.name.toLowerCase();
+      if (optionName.contains(query) || query.contains(optionName)) {
+        debugPrint('[FUZZY SEARCH] Contains match found: ${option.name}');
+        return option;
+      }
+    }
+    
+    // Cari partial word match (minimal 4 karakter)
+    if (query.length >= 4) {
+      for (final option in options) {
+        final optionName = option.name.toLowerCase();
+        // Cek apakah kata-kata dalam query ada di option name
+        final queryWords = query.split(RegExp(r'\s+'));
+        for (final word in queryWords) {
+          if (word.length >= 4 && optionName.contains(word)) {
+            debugPrint('[FUZZY SEARCH] Partial word match found: ${option.name} (word: $word)');
+            return option;
+          }
+        }
+      }
+    }
+    
+    debugPrint('[FUZZY SEARCH] No match found for: "$query"');
+    return null;
+  }
+
   AreaOption? _findOptionByName(List<AreaOption> options, String name) {
     final query = name.toLowerCase();
     for (final option in options) {
@@ -354,10 +541,17 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
         final data = response.data;
         if (data != null && data['display_name'] != null) {
           final address = data['display_name'] as String;
+          final addressDetails = data['address'] as Map<String, dynamic>?;
+          
           if (mounted) {
             setState(() {
               _detailAlamatController.text = address;
             });
+            
+            // Auto-fill kecamatan dan kelurahan dari addressDetails
+            if (addressDetails != null) {
+              await _autoFillAreaFromAddress(addressDetails);
+            }
           }
           debugPrint('Alamat ditemukan (Web): $address');
         } else {
@@ -370,18 +564,23 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
           final place = placemarks.first;
           final addressParts = <String>[];
           
-          if (place.street != null && place.street!.isNotEmpty) {
-            addressParts.add(place.street!);
+          // Simpan info untuk auto-fill
+          String? subLocality = place.subLocality; // Kelurahan
+          String? locality = place.locality; // Kecamatan
+          String? street = place.street;
+          String? subAdminArea = place.subAdministrativeArea;
+          
+          if (street != null && street.isNotEmpty) {
+            addressParts.add(street);
           }
-          if (place.subLocality != null && place.subLocality!.isNotEmpty) {
-            addressParts.add(place.subLocality!);
+          if (subLocality != null && subLocality.isNotEmpty) {
+            addressParts.add(subLocality);
           }
-          if (place.locality != null && place.locality!.isNotEmpty) {
-            addressParts.add(place.locality!);
+          if (locality != null && locality.isNotEmpty) {
+            addressParts.add(locality);
           }
-          if (place.subAdministrativeArea != null && 
-              place.subAdministrativeArea!.isNotEmpty) {
-            addressParts.add(place.subAdministrativeArea!);
+          if (subAdminArea != null && subAdminArea.isNotEmpty) {
+            addressParts.add(subAdminArea);
           }
           if (place.administrativeArea != null && 
               place.administrativeArea!.isNotEmpty) {
@@ -397,6 +596,13 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
             setState(() {
               _detailAlamatController.text = fullAddress;
             });
+            
+            // Auto-fill kecamatan dan kelurahan
+            await _autoFillAreaFromPlacemark(
+              subLocality: subLocality,
+              locality: locality,
+              subAdminArea: subAdminArea,
+            );
           }
           debugPrint('Alamat ditemukan (Mobile): $fullAddress');
         } else {
@@ -988,11 +1194,11 @@ class _TambahAkunLayananScreenState extends State<TambahAkunLayananScreen> {
           'Tambahkan Akun Layanan',
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.w600,
-            color: Colors.white,
+            color: Colors.black87,
           ),
         ),
-        backgroundColor: const Color(0xFF4CAF50),
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
         elevation: 0,
       ),
       body: _isLoading ? _buildShimmer() : _buildForm(),

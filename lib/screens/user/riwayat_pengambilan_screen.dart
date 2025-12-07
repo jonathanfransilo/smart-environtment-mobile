@@ -344,24 +344,24 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
               style: GoogleFonts.poppins(
                 fontWeight: FontWeight.w600,
                 fontSize: 18,
-                color: Colors.white,
+                color: Colors.black87,
               ),
             ),
             Text(
               widget.accountName,
               style: GoogleFonts.poppins(
                 fontSize: 12,
-                color: Colors.white70,
+                color: Colors.black54,
                 fontWeight: FontWeight.w400,
               ),
             ),
           ],
         ),
-        backgroundColor: const Color.fromARGB(255, 21, 145, 137),
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back, color: Colors.black87),
           onPressed: () {
             print('⬅️ [RiwayatPengambilan] Back button pressed');
             Navigator.of(context).pop();

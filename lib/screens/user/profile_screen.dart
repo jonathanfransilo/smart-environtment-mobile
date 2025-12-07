@@ -242,23 +242,74 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // 🔹 widget menu agar lebih rapi & reusable
-  Widget _menuItem(IconData icon, String title, {VoidCallback? onTap}) {
-    return ListTile(
-      leading: Icon(icon, color: Colors.green),
-      title: Text(title, style: GoogleFonts.poppins(fontSize: 14)),
-      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+  // 🔹 widget menu agar lebih rapi & reusable - Modern Version
+  Widget _modernMenuItem(
+    IconData icon,
+    String title,
+    String subtitle, {
+    VoidCallback? onTap,
+  }) {
+    return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                icon,
+                color: Colors.green,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios,
+              size: 16,
+              color: Colors.grey.shade400,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade100,
+      backgroundColor: Colors.white,
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: Colors.green, // hijau biar match HomeScreen
+        backgroundColor: Colors.green,
         title: Text(
           "Profil Saya",
           style: GoogleFonts.poppins(
@@ -269,167 +320,249 @@ class _ProfileScreenState extends State<ProfileScreen> {
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            // 🔹 Header dengan avatar & nama
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 30),
-              decoration: BoxDecoration(
-                color: Colors.green.shade50,
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(24),
-                  bottomRight: Radius.circular(24),
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              // 🔹 Header dengan avatar & nama - Modern Design
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.only(top: 40, bottom: 30),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.green,
+                      Colors.green.shade300,
+                    ],
+                  ),
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(30),
+                    bottomRight: Radius.circular(30),
+                  ),
                 ),
-              ),
-              child: Column(
-                children: [
-                  // 🔹 Foto profil dengan tombol edit
-                  Stack(
-                    children: [
-                      CircleAvatar(
-                        radius: 50,
-                        backgroundColor: Colors.green.shade200,
-                        backgroundImage: _profileImagePath != null
-                            ? FileImage(File(_profileImagePath!))
-                            : null,
-                        child: _profileImagePath == null
-                            ? const Icon(
-                                Icons.person,
-                                size: 60,
+                child: Column(
+                  children: [
+                    // 🔹 Foto profil dengan tombol edit
+                    Stack(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.2),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: CircleAvatar(
+                            radius: 55,
+                            backgroundColor: Colors.grey.shade300,
+                            backgroundImage: _profileImagePath != null
+                                ? FileImage(File(_profileImagePath!))
+                                : null,
+                            child: _profileImagePath == null
+                                ? Icon(
+                                    Icons.person,
+                                    size: 65,
+                                    color: Colors.grey.shade600,
+                                  )
+                                : null,
+                          ),
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: GestureDetector(
+                            onTap: _showImageSourceDialog,
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
                                 color: Colors.white,
-                              )
-                            : null,
-                      ),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: GestureDetector(
-                          onTap: _showImageSourceDialog,
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.green,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 2),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.2),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 2),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.green,
+                                  width: 3,
                                 ),
-                              ],
-                            ),
-                            child: const Icon(
-                              Icons.camera_alt,
-                              size: 18,
-                              color: Colors.white,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.2),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.camera_alt,
+                                size: 20,
+                                color: Colors.green,
+                              ),
                             ),
                           ),
                         ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      _name,
+                      style: GoogleFonts.poppins(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    _name,
-                    style: GoogleFonts.poppins(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
                     ),
-                  ),
-                  Text(
-                    _email,
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // 🔹 Menu list
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                children: [
-                  _menuItem(
-                    Icons.edit,
-                    "Edit Akun",
-                    onTap: () async {
-                      // Navigate ke halaman edit akun
-                      final result = await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const EditAkunScreen(),
-                        ),
-                      );
-
-                      // Reload profile jika data berhasil diupdate
-                      if (result == true) {
-                        _loadProfile();
-                      }
-                    },
-                  ),
-                  _menuItem(
-                    Icons.lock,
-                    "Password",
-                    onTap: () async {
-                      // Navigate ke halaman ubah password
-                      final result = await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ChangePasswordScreen(),
-                        ),
-                      );
-
-                      // Reload profile jika password berhasil diupdate
-                      if (result == true) {
-                        _loadProfile();
-                      }
-                    },
-                  ),
-
-                  const SizedBox(height: 30),
-
-                  // 🔹 Tombol logout
-                  ElevatedButton.icon(
-                    onPressed: () async {
-                      // Gunakan AuthService untuk logout yang proper
-                      final auth = AuthService();
-                      await auth.logout();
-
-                      if (context.mounted) {
-                        Navigator.pushNamedAndRemoveUntil(
-                          context,
-                          "/login",
-                          (route) => false,
-                        );
-                      }
-                    },
-                    icon: const Icon(Icons.logout, color: Colors.white),
-                    label: Text(
-                      "Keluar",
-                      style: GoogleFonts.poppins(color: Colors.white),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                    const SizedBox(height: 4),
+                    Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 14,
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        _email,
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 24),
+
+              // 🔹 Menu list dengan Card Modern
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  children: [
+                    // Card untuk menu items
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withOpacity(0.1),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                        border: Border.all(
+                          color: Colors.grey.shade200,
+                          width: 1,
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          _modernMenuItem(
+                            Icons.edit_outlined,
+                            "Edit Akun",
+                            "Ubah informasi profil Anda",
+                            onTap: () async {
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const EditAkunScreen(),
+                                ),
+                              );
+                              if (result == true) {
+                                _loadProfile();
+                              }
+                            },
+                          ),
+                          Divider(
+                            height: 1,
+                            color: Colors.grey.shade200,
+                            indent: 60,
+                          ),
+                          _modernMenuItem(
+                            Icons.lock_outline,
+                            "Password",
+                            "Ubah kata sandi akun",
+                            onTap: () async {
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const ChangePasswordScreen(),
+                                ),
+                              );
+                              if (result == true) {
+                                _loadProfile();
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 30),
+
+                    // 🔹 Tombol logout modern
+                    Container(
+                      width: double.infinity,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.red.shade400,
+                            Colors.red.shade600,
+                          ],
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.red.withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          final auth = AuthService();
+                          await auth.logout();
+
+                          if (context.mounted) {
+                            Navigator.pushNamedAndRemoveUntil(
+                              context,
+                              "/login",
+                              (route) => false,
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.logout, color: Colors.white),
+                        label: Text(
+                          "Keluar",
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
