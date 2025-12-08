@@ -62,4 +62,11 @@ class ApiConfig {
   static const String articles = '/mobile/resident/articles';
   static const String articleDetail = '/mobile/resident/articles'; // /{id}
   static const String articlesFeatured = '/mobile/resident/articles/featured';
+
+  // Notification endpoints
+  static const String notifications = '/mobile/notifications';
+  static const String notificationsUnread = '/mobile/notifications/unread';
+  static const String notificationsUnreadCount = '/mobile/notifications/unread-count';
+  static const String notificationsReadAll = '/mobile/notifications/read-all';
+  static const String notificationsClearAll = '/mobile/notifications/clear-all';
 }

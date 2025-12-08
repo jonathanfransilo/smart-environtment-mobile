@@ -16,6 +16,7 @@ import 'jadwal_pengambilan_screen.dart';
 import '../../services/invoice_service.dart';
 import '../../services/service_account_service.dart';
 import '../../services/notification_helper.dart';
+import '../../services/notification_api_service.dart';
 import '../../services/user_storage.dart';
 import '../../services/artikel_service.dart';
 import '../../services/payment_service.dart';
@@ -421,13 +422,13 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  /// Load jumlah notifikasi (untuk badge)
+  /// Load jumlah notifikasi (untuk badge) dari API
   Future<void> _loadUnreadNotif() async {
     try {
-      final list = await NotificationService.getNotifications();
+      final count = await NotificationApiService.getUnreadCount();
       if (!mounted) return;
       setState(() {
-        _unreadNotifCount = list.where((n) => n['isRead'] == false).length;
+        _unreadNotifCount = count;
       });
     } catch (e) {
       if (!mounted) return;

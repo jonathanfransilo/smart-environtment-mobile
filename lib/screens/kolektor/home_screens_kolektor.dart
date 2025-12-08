@@ -9,12 +9,12 @@ import '../../services/pickup_service.dart';
 import '../../services/kolektor_notification_service.dart';
 import '../../services/user_storage.dart';
 import '../../services/tps_deposit_service.dart';
+import '../../services/notification_api_service.dart';
 import '../../models/tps.dart';
 import '../../models/tps_deposit.dart';
 import 'profile_screen.dart';
 import 'riwayat_sampah_screen.dart';
 import '../user/notification_screen.dart';
-import '../user/notification_service.dart';
 import '../../services/collector_complaint_service.dart';
 import '../../models/complaint.dart';
 import '../../services/off_schedule_pickup_service.dart';
@@ -219,13 +219,21 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
     }
   }
 
-  /// Load unread notification count untuk badge
+  /// Load unread notification count untuk badge dari API
   Future<void> _loadUnreadNotifCount() async {
-    final count = await NotificationService.getUnreadCount(isKolektor: true);
-    if (mounted) {
-      setState(() {
-        _unreadNotifCount = count;
-      });
+    try {
+      final count = await NotificationApiService.getUnreadCount();
+      if (mounted) {
+        setState(() {
+          _unreadNotifCount = count;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _unreadNotifCount = 0;
+        });
+      }
     }
   }
 
