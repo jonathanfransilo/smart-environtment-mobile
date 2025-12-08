@@ -488,6 +488,20 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
         return;
       }
 
+      // Validasi foto hanya untuk kategori yang membutuhkan foto
+      if (_shouldShowPhotoAndLocation() && _selectedImages.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.red,
+            content: Text(
+              "Mohon tambahkan foto bukti laporan.",
+              style: GoogleFonts.poppins(),
+            ),
+          ),
+        );
+        return;
+      }
+
       // Debug print
       print('[SEARCH] _selectedType: $_selectedType');
       print('[SEARCH] _deskripsiController.text: ${_deskripsiController.text}');
@@ -499,7 +513,10 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
         'deskripsi': _deskripsiController.text.isNotEmpty
             ? _deskripsiController.text
             : 'Tidak ada deskripsi', // API field: description - dengan fallback
-        'lokasi': _lokasiController.text, // API field: location
+        // Lokasi hanya diisi jika kategori membutuhkannya
+        'lokasi': _shouldShowPhotoAndLocation() 
+            ? _lokasiController.text 
+            : '', // API field: location
       };
 
       // Tambahkan service account hanya jika dipilih
@@ -603,6 +620,13 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
   // Helper untuk cek apakah kategori butuh map
   bool _shouldShowMap() {
     return _selectedType == 'sampah_menumpuk' || _selectedType == 'lainnya';
+  }
+
+  // Helper untuk cek apakah kategori butuh foto dan lokasi
+  // Hanya tampilkan untuk "sampah_tidak_diangkut" dan "sampah_menumpuk"
+  bool _shouldShowPhotoAndLocation() {
+    return _selectedType == 'sampah_tidak_diangkut' || 
+           _selectedType == 'sampah_menumpuk';
   }
 
   @override
@@ -801,110 +825,112 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Area Foto dengan Tombol Ubah Foto
-              Container(
-                width: double.infinity,
-                height: 200, // Fixed height untuk menjaga konsistensi
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Stack(
-                    fit: StackFit.expand, // Memastikan stack mengisi container
-                    children: [
-                      // Pastikan image mengisi seluruh area
-                      SizedBox(
-                        width: double.infinity,
-                        height: 200,
-                        child: imageWidget,
-                      ),
-                      // Tombol Ubah Foto dengan posisi absolut
-                      Positioned(
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
-                        child: InkWell(
-                          onTap: _showPickerOptions,
-                          child: Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            decoration: const BoxDecoration(
-                              color: Color(
-                                0xFF3D3D3D,
-                              ), // Warna dark gray solid seperti di Figma
-                              borderRadius: BorderRadius.only(
-                                bottomLeft: Radius.circular(8),
-                                bottomRight: Radius.circular(8),
-                              ),
-                            ),
-                            child: Text(
-                              "UBAH FOTO",
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.poppins(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ),
-                        ),
+              // Area Foto dengan Tombol Ubah Foto - HANYA untuk Sampah Tidak Diangkut & Sampah Menumpuk
+              if (_shouldShowPhotoAndLocation()) ...[
+                Container(
+                  width: double.infinity,
+                  height: 200, // Fixed height untuk menjaga konsistensi
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
                       ),
                     ],
                   ),
-                ),
-              ),
-
-              // Info jumlah foto jika ada multiple images
-              if (_selectedImages.length > 1)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12, bottom: 0),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: primaryColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: primaryColor.withOpacity(0.3),
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Stack(
+                      fit: StackFit.expand, // Memastikan stack mengisi container
                       children: [
-                        Icon(
-                          Icons.photo_library,
-                          size: 18,
-                          color: primaryColor,
+                        // Pastikan image mengisi seluruh area
+                        SizedBox(
+                          width: double.infinity,
+                          height: 200,
+                          child: imageWidget,
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '${_selectedImages.length} foto siap diupload',
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            color: primaryColor,
-                            fontWeight: FontWeight.w600,
+                        // Tombol Ubah Foto dengan posisi absolut
+                        Positioned(
+                          bottom: 0,
+                          left: 0,
+                          right: 0,
+                          child: InkWell(
+                            onTap: _showPickerOptions,
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              decoration: const BoxDecoration(
+                                color: Color(
+                                  0xFF3D3D3D,
+                                ), // Warna dark gray solid seperti di Figma
+                                borderRadius: BorderRadius.only(
+                                  bottomLeft: Radius.circular(8),
+                                  bottomRight: Radius.circular(8),
+                                ),
+                              ),
+                              child: Text(
+                                "UBAH FOTO",
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.poppins(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                        const Spacer(),
-                        Icon(Icons.check_circle, size: 18, color: primaryColor),
                       ],
                     ),
                   ),
                 ),
 
-              const SizedBox(height: 24),
+                // Info jumlah foto jika ada multiple images
+                if (_selectedImages.length > 1)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12, bottom: 0),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: primaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: primaryColor.withOpacity(0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.photo_library,
+                            size: 18,
+                            color: primaryColor,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${_selectedImages.length} foto siap diupload',
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              color: primaryColor,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const Spacer(),
+                          Icon(Icons.check_circle, size: 18, color: primaryColor),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                const SizedBox(height: 24),
+              ],
 
               // --- FORM FIELDS YANG DIPERLUKAN API ---
 
@@ -1166,57 +1192,60 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
                 const SizedBox(height: 16),
               ],
 
-              // Field Lokasi
-              // Tampilkan info jika lokasi sudah dipilih otomatis
-              if (widget.initialLocation != null && widget.initialLocation!.isNotEmpty) ...[
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  margin: const EdgeInsets.only(bottom: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.blue.shade200),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline, size: 18, color: Colors.blue.shade700),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Lokasi sudah terisi otomatis dari data service account',
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            color: Colors.blue.shade700,
+              // Field Lokasi - HANYA untuk Sampah Tidak Diangkut & Sampah Menumpuk
+              if (_shouldShowPhotoAndLocation()) ...[
+                // Tampilkan info jika lokasi sudah dipilih otomatis
+                if (widget.initialLocation != null && widget.initialLocation!.isNotEmpty) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(bottom: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline, size: 18, color: Colors.blue.shade700),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Lokasi sudah terisi otomatis dari data service account',
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: Colors.blue.shade700,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
+                ],
+                TextFormField(
+                  controller: _lokasiController,
+                  decoration: InputDecoration(
+                    labelText: "Lokasi",
+                    hintText: "Masukkan alamat lokasi kejadian",
+                    prefixIcon: const Icon(Icons.location_on),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    helperText: widget.initialLocation != null
+                        ? "Anda dapat mengubah lokasi jika diperlukan"
+                        : "Contoh: Jl. Sudirman No. 123, Jakarta",
+                    helperMaxLines: 2,
+                  ),
+                  maxLength: 255,
+                  validator: (value) {
+                    // Validasi hanya jika field ini ditampilkan
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Lokasi wajib diisi.';
+                    }
+                    return null;
+                  },
                 ),
+                const SizedBox(height: 16),
               ],
-              TextFormField(
-                controller: _lokasiController,
-                decoration: InputDecoration(
-                  labelText: "Lokasi",
-                  hintText: "Masukkan alamat lokasi kejadian",
-                  prefixIcon: const Icon(Icons.location_on),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  helperText: widget.initialLocation != null
-                      ? "Anda dapat mengubah lokasi jika diperlukan"
-                      : "Contoh: Jl. Sudirman No. 123, Jakarta",
-                  helperMaxLines: 2,
-                ),
-                maxLength: 255,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Lokasi wajib diisi.';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
 
               // Service Account Dropdown (Opsional)
               // Tampilkan info jika service account sudah dipilih otomatis
