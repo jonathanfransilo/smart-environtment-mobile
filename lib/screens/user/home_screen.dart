@@ -20,6 +20,8 @@ import '../../services/notification_api_service.dart';
 import '../../services/user_storage.dart';
 import '../../services/artikel_service.dart';
 import '../../services/payment_service.dart';
+import '../../services/resident_pickup_service.dart';
+import '../../services/waste_delivery_service.dart';
 import '../../models/service_account.dart';
 import '../../models/artikel_model.dart';
 import 'layanan_sampah_screen.dart';
@@ -192,19 +194,160 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// Load unpaid invoices from API
+  /// Filter invoice: hanya tampilkan jika pickup terkait sudah dikonfirmasi
   Future<void> _loadUnpaidInvoices() async {
     if (!mounted) return;
     setState(() => _isLoadingInvoices = true);
 
     try {
+      // 1. Load unpaid invoices
       final data = await _invoiceService.getUnpaidInvoices();
       var invoices = List<Map<String, dynamic>>.from(
         data['unpaid_invoices'] ?? [],
       );
 
       print('[LIST] [HomeScreen] Loaded ${invoices.length} total unpaid invoices from API');
+      
+      // DEBUG: Print struktur invoice lengkap untuk analisis
+      for (int i = 0; i < invoices.length; i++) {
+        final invoice = invoices[i];
+        print('[DEBUG] [HomeScreen] === INVOICE #${i + 1} STRUCTURE ===');
+        print('   ALL KEYS: ${invoice.keys.toList()}');
+        print('   id: ${invoice['id']}');
+        print('   service_account: ${invoice['service_account']}');
+        print('   pickup_id: ${invoice['pickup_id']}');
+        print('   period: ${invoice['period']}');
+        print('   items: ${invoice['items']}');
+      }
 
-      // Debug: Print struktur invoice untuk melihat field apa saja yang ada
+      // 2. Kumpulkan service_account yang masih punya pickup pending confirmation
+      // Jika ada pickup pending, invoice untuk account tersebut tidak ditampilkan
+      Set<String> serviceAccountsWithPendingConfirmation = {};
+      
+      print('[DEBUG] [HomeScreen] _akunList count: ${_akunList.length}');
+      for (var akun in _akunList) {
+        print('[DEBUG] [HomeScreen] Akun: id=${akun['id']}, name=${akun['name']}');
+      }
+      
+      try {
+        // ✅ GUNAKAN WasteDeliveryService untuk data yang lebih akurat
+        final wasteDeliveryService = WasteDeliveryService();
+        
+        // Load deliveries dengan status 'collected' (sudah diambil tapi mungkin belum dikonfirmasi)
+        final (successCollected, _, collectedDeliveries, _) = await wasteDeliveryService.getDeliveries(
+          status: 'collected',
+          perPage: 100,
+        );
+        
+        print('[DEBUG] [HomeScreen] Collected deliveries: ${collectedDeliveries?.length ?? 0}');
+        
+        if (successCollected && collectedDeliveries != null) {
+          for (var delivery in collectedDeliveries) {
+            print('[DEBUG] Delivery #${delivery.id}:');
+            print('   status: ${delivery.status}');
+            print('   confirmation_status: ${delivery.confirmationStatus}');
+            print('   service_account_id: ${delivery.serviceAccount.id}');
+            print('   canConfirm: ${delivery.canConfirm}');
+            
+            // ✅ Delivery yang masih bisa dikonfirmasi = belum dikonfirmasi user
+            if (delivery.canConfirm || delivery.confirmationStatus == 'pending') {
+              final accountId = delivery.serviceAccount.id.toString();
+              print('[PENDING] ⚠️ Account $accountId punya delivery #${delivery.id} yang belum dikonfirmasi');
+              serviceAccountsWithPendingConfirmation.add(accountId);
+            }
+          }
+        }
+        
+        // Juga cek dengan ResidentPickupService untuk backup
+        final residentPickupService = ResidentPickupService();
+        
+        for (var akun in _akunList) {
+          final accountId = akun['id']?.toString();
+          if (accountId == null) continue;
+          
+          // Skip jika sudah ada di pending list
+          if (serviceAccountsWithPendingConfirmation.contains(accountId)) continue;
+          
+          print('[CHECK] [HomeScreen] Checking pickups for account ID: $accountId');
+          
+          // Load pickup history
+          final (successHistory, _, historyData) = await residentPickupService.getPickupHistory(
+            serviceAccountId: accountId,
+          );
+          
+          // Load upcoming pickups
+          final (successUpcoming, _, upcomingData) = await residentPickupService.getUpcomingPickups(
+            serviceAccountId: accountId,
+          );
+          
+          // Gabungkan semua pickup
+          List<Map<String, dynamic>> allPickupsForAccount = [];
+          if (successHistory && historyData != null) {
+            allPickupsForAccount.addAll(historyData);
+          }
+          if (successUpcoming && upcomingData != null) {
+            allPickupsForAccount.addAll(upcomingData);
+          }
+          
+          print('[DEBUG] [HomeScreen] Account $accountId has ${allPickupsForAccount.length} total pickups');
+          
+          // Cek apakah ada pickup dengan confirmation_status = 'pending'
+          for (var pickup in allPickupsForAccount) {
+            final confirmationStatus = pickup['confirmation_status']?.toString().toLowerCase() ?? 'pending';
+            final status = pickup['status']?.toString().toLowerCase() ?? '';
+            
+            print('[DEBUG] Pickup #${pickup['id']}: status=$status, confirmation_status=$confirmationStatus');
+            
+            // ✅ FILTER: Pickup sudah selesai tapi belum dikonfirmasi user
+            final isPickupDone = status == 'collected' || 
+                                 status == 'completed' || 
+                                 status == 'done' ||
+                                 status == 'delivered';
+            final needsConfirmation = confirmationStatus == 'pending' || 
+                                       confirmationStatus.isEmpty ||
+                                       confirmationStatus == 'null';
+            
+            if (isPickupDone && needsConfirmation) {
+              print('[PENDING] ⚠️ Account $accountId punya pickup #${pickup['id']} yang belum dikonfirmasi');
+              serviceAccountsWithPendingConfirmation.add(accountId);
+              break;
+            }
+          }
+        }
+        
+        print('[LIST] [HomeScreen] Service accounts with pending confirmation: $serviceAccountsWithPendingConfirmation');
+        
+      } catch (e, stackTrace) {
+        print('[WARN] [HomeScreen] Error checking pickup confirmation: $e');
+        print('   Stack: $stackTrace');
+        // Continue without filtering - show all invoices if we can't check
+      }
+
+      // 3. Filter invoices: sembunyikan invoice yang service_account-nya masih pending confirmation
+      if (serviceAccountsWithPendingConfirmation.isNotEmpty) {
+        final beforeCount = invoices.length;
+        invoices = invoices.where((invoice) {
+          final serviceAccount = invoice['service_account'];
+          if (serviceAccount == null) {
+            // Invoice tanpa service_account, tetap tampilkan
+            return true;
+          }
+          
+          final invoiceAccountId = serviceAccount['id']?.toString();
+          final isPending = serviceAccountsWithPendingConfirmation.contains(invoiceAccountId);
+          
+          if (isPending) {
+            print('[HIDE] Invoice #${invoice['id']} disembunyikan - pickup belum dikonfirmasi (SA ID: $invoiceAccountId)');
+          }
+          
+          // Return true jika TIDAK pending (tampilkan invoice)
+          return !isPending;
+        }).toList();
+        
+        print('[LIST] [HomeScreen] Setelah filter pending confirmation: ${invoices.length} invoice (dari $beforeCount)');
+      }
+
+      // Debug: Print struktur invoice
       for (int i = 0; i < invoices.length; i++) {
         final invoice = invoices[i];
         print('[SEARCH] [HomeScreen] Invoice #${i + 1}:');
@@ -212,10 +355,9 @@ class _HomeScreenState extends State<HomeScreen> {
         print('   - invoice_number: ${invoice['invoice_number']}');
         print('   - status: ${invoice['status']}');
         print('   - total_amount: ${invoice['total_amount']}');
-        print('   - Keys: ${invoice.keys.toList()}');
       }
       
-      print('[LIST] [HomeScreen] Menampilkan ${invoices.length} invoice (tanpa filter tambahan)');
+      print('[LIST] [HomeScreen] Menampilkan ${invoices.length} invoice setelah semua filter');
 
       // Filter by selected account if one is selected AND there are multiple accounts
       if (_selectedAkun != null && _akunList.length > 1) {

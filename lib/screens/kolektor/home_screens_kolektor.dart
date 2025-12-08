@@ -617,19 +617,28 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
     
     // ✅ Gunakan allOffSchedulePickups untuk mencari completed pickups
     // Status completed: 'completed', 'collected', 'pending', 'paid' 
-    // (semua yang bukan 'processing' atau 'cancelled')
+    // Pickup yang sudah selesai: punya photo_url (berarti sudah difoto dan disubmit)
     final completedOffSchedule = allOffSchedulePickups.where((pickup) {
       final requestStatus = pickup['request_status']?.toString() ?? '';
       final status = pickup['status']?.toString() ?? '';
-      // Request yang sudah selesai (completed, pending, paid) atau collected
-      return requestStatus == 'completed' || 
-             requestStatus == 'pending' || 
-             requestStatus == 'paid' ||
-             status == 'completed' || 
-             status == 'collected';
+      final photoUrl = pickup['photo_url']?.toString() ?? '';
+      
+      // ✅ Pickup dianggap selesai jika:
+      // 1. request_status = completed/paid, ATAU
+      // 2. status = completed/collected, ATAU
+      // 3. Ada photo_url (berarti sudah difoto dan disubmit oleh kolektor)
+      final hasPhoto = photoUrl.isNotEmpty && photoUrl != 'null';
+      final isCompleted = requestStatus == 'completed' || 
+                          requestStatus == 'paid' ||
+                          status == 'completed' || 
+                          status == 'collected';
+      
+      return isCompleted || hasPhoto;
     }).toList();
     
     print('[HomeCollector] Found ${completedOffSchedule.length} completed off-schedule pickups from allOffSchedulePickups (${allOffSchedulePickups.length} total)');
+    
+    bool hasChanges = false;
     
     for (var pickup in completedOffSchedule) {
       // Check if already exists in pengambilanList
@@ -640,6 +649,68 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
       
       if (!exists) {
         print('Adding off-schedule #$pickupId to history');
+        
+        // ✅ Get waste_items from pickup and transform to history format
+        final wasteItems = pickup['waste_items'] as List<dynamic>? ?? [];
+        print('  Raw waste_items count: ${wasteItems.length}');
+        
+        if (wasteItems.isNotEmpty) {
+          print('  Sample waste_item: ${wasteItems.first}');
+        }
+        
+        final transformedItems = wasteItems.map((item) {
+          final wasteItem = item as Map<String, dynamic>;
+          
+          // Debug: print all keys in waste item
+          print('   Waste item keys: ${wasteItem.keys.toList()}');
+          
+          // ✅ Use correct field names from API response:
+          // waste_name: "Sampah Organik", pocket_size_name: "Besar"
+          final wasteName = wasteItem['waste_name']?.toString() ?? 
+                           wasteItem['waste_category']?.toString() ?? 
+                           'Lainnya';
+          final pocketSizeName = wasteItem['pocket_size_name']?.toString() ?? 
+                                wasteItem['size']?.toString() ?? '';
+          
+          // Extract category (e.g., "Organik" from "Sampah Organik")
+          String category = wasteName;
+          if (wasteName.toLowerCase().startsWith('sampah ')) {
+            category = wasteName.substring(7); // Remove "Sampah " prefix
+          }
+          
+          // ✅ Convert Indonesian naming to English to match regular pickup format
+          // "Organik" -> "organic", "Anorganik" -> "inorganic"
+          final categoryLower = category.toLowerCase();
+          if (categoryLower == 'organik') {
+            category = 'organic';
+          } else if (categoryLower == 'anorganik') {
+            category = 'inorganic';
+          } else {
+            category = categoryLower; // Keep other categories lowercase
+          }
+          
+          final quantity = wasteItem['quantity'] as int? ?? 0;
+          final unitPrice = wasteItem['unit_price'] as int? ?? 0;
+          final totalPrice = wasteItem['total_price'] as int? ?? (quantity * unitPrice);
+          
+          // Build name: "organic Besar", "organic Sedang", etc. (to match regular pickup)
+          final name = pocketSizeName.isNotEmpty 
+              ? '$category $pocketSizeName' 
+              : category;
+          
+          print('   ✅ Transformed: category=$category, pocketSize=$pocketSizeName, name=$name, qty=$quantity');
+          
+          return {
+            'category': category,
+            'name': name,
+            'quantity': quantity,
+            'price': unitPrice,
+            'totalPrice': totalPrice,
+          };
+        }).toList();
+        
+        print('   ✅ Transformed ${transformedItems.length} waste items for history');
+        
         // Transform off-schedule pickup to history format
         pengambilanList.insert(0, {
           'id': pickup['id'],
@@ -650,9 +721,10 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
           'totalPrice': pickup['total_amount'] ?? 0,
           'date': pickup['requested_pickup_date'] ?? pickup['requested_date'] ?? '',
           'image': pickup['photo_url'] ?? pickup['photo'] ?? 'assets/images/dummy.jpg',
-          'items': [], // Will be populated if available
+          'items': transformedItems, // ✅ Use actual waste items from API
           'status': pickup['status'],
         });
+        hasChanges = true;
       }
     }
     
@@ -703,6 +775,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
           'items': [],
           'status': complaint.status,
         });
+        hasChanges = true;
         print('     ✅ Successfully added to pengambilanList');
       } else {
         print('  ⏭️ Complaint #${complaint.id} already in history, skipping');
@@ -711,6 +784,13 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
     
     print('✅ [HomeCollector] History now has ${pengambilanList.length} items');
     print('═══════════════════════════════════════════════════════');
+    
+    // ✅ Update UI jika ada perubahan
+    if (hasChanges && mounted) {
+      setState(() {
+        // pengambilanList sudah diupdate di atas
+      });
+    }
   }
 
   /// ✅ METHOD BARU: Load Off-Schedule Pickups untuk kolektor
@@ -730,6 +810,9 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
       
       // ✅ Transform function untuk pickup
       Map<String, dynamic> transformPickup(pickup) {
+        // DEBUG: Log request_status untuk verifikasi
+        print('🔄 [Transform] Pickup #${pickup.id}: request_status=${pickup.requestStatus}, status=${pickup.status}');
+        
         return {
           'id': pickup.id,
           'pickup_type': 'off-schedule', // Marker untuk membedakan
@@ -743,6 +826,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
           'total_amount': pickup.totalAmount,
           'resident_note': pickup.residentNote ?? pickup.note ?? '',
           'photo_url': pickup.photoUrl,
+          'waste_items': pickup.wasteItems ?? [], // ✅ Include waste items from API
           // ✅ TAMBAHAN: Data untuk navigasi ke detail screen
           'service_account': pickup.serviceAccount != null ? {
             'id': pickup.serviceAccount!.id,
@@ -1568,7 +1652,9 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
                     ],
                   ),
                 )
-              else if (todayPickups.isEmpty && assignedComplaints.isEmpty)
+              // ✅ FIX: Juga periksa offSchedulePickups dan allOffSchedulePickups
+              // Card tugas Request ada di allOffSchedulePickups yang akan difilter di _buildPengambilanList
+              else if (todayPickups.isEmpty && assignedComplaints.isEmpty && allOffSchedulePickups.isEmpty)
                 Padding(
                   padding: const EdgeInsets.all(32.0),
                   child: Center(
@@ -1664,13 +1750,32 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
 
   /// ✅ METHOD: Build list pengambilan sampah (reguler + off-schedule)
   Widget _buildPengambilanList(Color primaryColor) {
-    // ✅ Filter off-schedule pickups: hanya yang aktif (tidak cancelled/completed/rejected)
-    final activeOffSchedule = offSchedulePickups.where((pickup) {
+    // ✅ Filter off-schedule pickups dari allOffSchedulePickups:
+    // - Yang sedang diproses (processing)
+    // - ATAU yang sudah selesai (punya photo_url) agar tetap tampil seperti card Yoga yang selesai
+    // - KECUALI yang cancelled atau rejected
+    final activeOffSchedule = allOffSchedulePickups.where((pickup) {
       final status = pickup['status']?.toString() ?? '';
       final requestStatus = pickup['request_status']?.toString() ?? '';
-      return requestStatus == 'processing' && 
-             status != 'cancelled' && 
-             status != 'completed';
+      final photoUrl = pickup['photo_url']?.toString() ?? '';
+      final hasPhoto = photoUrl.isNotEmpty && photoUrl != 'null';
+      
+      // Skip yang cancelled atau rejected
+      if (status == 'cancelled' || requestStatus == 'rejected') {
+        return false;
+      }
+      
+      // Tampilkan yang masih processing
+      if (requestStatus == 'processing') {
+        return true;
+      }
+      
+      // ✅ Tampilkan yang sudah selesai (punya foto atau status completed)
+      if (hasPhoto || requestStatus == 'completed' || requestStatus == 'paid') {
+        return true;
+      }
+      
+      return false;
     }).toList();
     
     // Gabungkan regular pickups dan active off-schedule pickups
@@ -1680,10 +1785,14 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
     allPickups.sort((a, b) {
       final statusA = a['status']?.toString() ?? '';
       final statusB = b['status']?.toString() ?? '';
+      final photoUrlA = a['photo_url']?.toString() ?? '';
+      final photoUrlB = b['photo_url']?.toString() ?? '';
+      final hasPhotoA = photoUrlA.isNotEmpty && photoUrlA != 'null';
+      final hasPhotoB = photoUrlB.isNotEmpty && photoUrlB != 'null';
       
-      // Status selesai (completed, collected, resolved) ke bawah
-      final isCompletedA = statusA == 'completed' || statusA == 'collected' || statusA == 'resolved';
-      final isCompletedB = statusB == 'completed' || statusB == 'collected' || statusB == 'resolved';
+      // Status selesai: status collected/completed/resolved ATAU punya foto
+      final isCompletedA = statusA == 'completed' || statusA == 'collected' || statusA == 'resolved' || hasPhotoA;
+      final isCompletedB = statusB == 'completed' || statusB == 'collected' || statusB == 'resolved' || hasPhotoB;
       
       if (isCompletedA && !isCompletedB) return 1; // A ke bawah
       if (!isCompletedA && isCompletedB) return -1; // B ke bawah
@@ -1728,7 +1837,22 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
           final displayName = pickup['service_account_name']?.toString() ?? 'N/A';
           final address = pickup['address']?.toString() ?? 'N/A';
           final pickupId = '${pickup['id']}'; // Simple ID number
-          final status = pickup['status']?.toString() ?? 'pending';
+          final requestStatus = pickup['request_status']?.toString() ?? 'pending';
+          final photoUrl = pickup['photo_url']?.toString() ?? '';
+          final hasPhoto = photoUrl.isNotEmpty && photoUrl != 'null';
+          
+          // ✅ FIX: Tentukan status berdasarkan:
+          // 1. Jika ada photo_url = sudah selesai (kolektor sudah foto dan submit)
+          // 2. Jika request_status = completed = sudah selesai
+          // 3. Jika request_status = processing = masih dalam proses
+          String status;
+          if (hasPhoto || requestStatus == 'completed' || requestStatus == 'paid') {
+            status = 'collected'; // Gunakan 'collected' agar tombol Ambil disabled
+          } else if (requestStatus == 'processing') {
+            status = 'pending'; // Masih dalam proses, tombol aktif
+          } else {
+            status = requestStatus;
+          }
           
           return _taskCard(
             displayName,
@@ -2608,10 +2732,12 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
                           ),
                         ).then((_) async {
                           // Refresh data setelah kembali dari foto screen
-                          // ✅ FIX: Load off-schedule dulu agar _addCompletedTasksToHistory bekerja dengan benar
+                          // ✅ FIX: Load off-schedule dulu, kemudian update history
                           await _loadOffSchedulePickups();
-                          _loadTodayPickups();
-                          _loadPengambilanData();
+                          await _loadTodayPickups();
+                          await _loadPengambilanDataOnly();
+                          // ✅ PENTING: Panggil _addCompletedTasksToHistory setelah semua data dimuat
+                          _addCompletedTasksToHistory();
                         });
                         return;
                       }
@@ -2720,10 +2846,12 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
                         ),
                       ).then((_) async {
                         // Refresh list setelah kembali
-                        // ✅ FIX: Load off-schedule dulu agar _addCompletedTasksToHistory bekerja dengan benar
+                        // ✅ FIX: Load off-schedule dulu, kemudian update history
                         await _loadOffSchedulePickups();
-                        _loadTodayPickups();
-                        _loadPengambilanData();
+                        await _loadTodayPickups();
+                        await _loadPengambilanDataOnly();
+                        // ✅ PENTING: Panggil _addCompletedTasksToHistory setelah semua data dimuat
+                        _addCompletedTasksToHistory();
                       });
                     },
               style: ElevatedButton.styleFrom(
@@ -3191,6 +3319,14 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
     // ✅ Untuk off-schedule, gunakan request_status sebagai prioritas
     if (isOffSchedule) {
       final requestStatus = pickupData?['request_status']?.toString() ?? status;
+      final photoUrl = pickupData?['photo_url']?.toString() ?? '';
+      final hasPhoto = photoUrl.isNotEmpty && photoUrl != 'null';
+      
+      // ✅ PERBAIKAN: Jika sudah ada foto, berarti sudah selesai
+      // Ini mengatasi kasus di mana request_status masih 'pending' tapi kolektor sudah submit foto
+      if (hasPhoto) {
+        return {'label': 'Selesai', 'color': Colors.green[600]};
+      }
       
       switch (requestStatus) {
         case 'sent':

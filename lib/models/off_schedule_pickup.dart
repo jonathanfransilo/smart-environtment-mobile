@@ -24,6 +24,8 @@ class OffSchedulePickup {
   final DateTime? processedAt;
   final DateTime? completedAt;
   final DateTime? assignedAt;
+  // Waste items details
+  final List<Map<String, dynamic>>? wasteItems;
 
   OffSchedulePickup({
     required this.id,
@@ -50,6 +52,7 @@ class OffSchedulePickup {
     this.processedAt,
     this.completedAt,
     this.assignedAt,
+    this.wasteItems,
   }) : _serviceAccountIdDirect = serviceAccountIdDirect;
 
   // Convenience getters for backward compatibility
@@ -109,6 +112,9 @@ class OffSchedulePickup {
       assignedAt: json['assigned_at'] != null
           ? DateTime.parse(json['assigned_at'])
           : null,
+      wasteItems: json['waste_items'] != null
+          ? List<Map<String, dynamic>>.from(json['waste_items'])
+          : null,
     );
   }
 
@@ -138,6 +144,7 @@ class OffSchedulePickup {
       'processed_at': processedAt?.toIso8601String(),
       'completed_at': completedAt?.toIso8601String(),
       'assigned_at': assignedAt?.toIso8601String(),
+      'waste_items': wasteItems,
     };
   }
 

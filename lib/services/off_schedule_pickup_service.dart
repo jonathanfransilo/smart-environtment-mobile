@@ -525,6 +525,27 @@ class OffSchedulePickupService {
           final List<dynamic> pickupsJson = data['data'];
           print('[STATS] [OffSchedulePickupService] Total pickups (all): ${pickupsJson.length}');
           
+          // DEBUG: Log sample pickup data to see waste_items structure
+          if (pickupsJson.isNotEmpty) {
+            final samplePickup = pickupsJson.first as Map<String, dynamic>;
+            print('[DEBUG] Sample pickup keys: ${samplePickup.keys.toList()}');
+            if (samplePickup['waste_items'] != null) {
+              print('[DEBUG] waste_items found: ${samplePickup['waste_items']}');
+            } else {
+              print('[DEBUG] waste_items is NULL in API response');
+            }
+            // Check if there's delivery or items under different key
+            if (samplePickup['delivery'] != null) {
+              print('[DEBUG] delivery found: ${samplePickup['delivery']}');
+            }
+            if (samplePickup['items'] != null) {
+              print('[DEBUG] items found: ${samplePickup['items']}');
+            }
+            if (samplePickup['invoice'] != null) {
+              print('[DEBUG] invoice found: ${samplePickup['invoice']}');
+            }
+          }
+          
           // Parse semua pickups dari API TANPA FILTER
           final allPickups = pickupsJson
               .map((json) => OffSchedulePickup.fromJson(json))
