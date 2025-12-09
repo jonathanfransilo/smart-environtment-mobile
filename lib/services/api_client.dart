@@ -5,6 +5,9 @@ import 'token_storage.dart';
 import 'user_storage.dart';
 
 class ApiClient {
+  // ✅ Flag untuk mencegah multiple token expired handling
+  static bool _isHandlingTokenExpired = false;
+
   ApiClient._internal() {
     _dio = Dio(
       BaseOptions(
@@ -65,7 +68,16 @@ class ApiClient {
   Dio get dio => _dio;
 
   /// Handle token expired - clear data dan redirect ke splash
+  /// ✅ Menggunakan flag untuk mencegah multiple handling
   static Future<void> _handleTokenExpired() async {
+    // Cegah multiple handling
+    if (_isHandlingTokenExpired) {
+      print('[API] Already handling token expired, skipping...');
+      return;
+    }
+    
+    _isHandlingTokenExpired = true;
+    
     try {
       // Clear token dan user data
       await TokenStorage.clearToken();
@@ -83,6 +95,11 @@ class ApiClient {
       }
     } catch (e) {
       print('[API] Error handling token expired: $e');
+    } finally {
+      // Reset flag setelah beberapa waktu untuk allow future logouts
+      Future.delayed(const Duration(seconds: 5), () {
+        _isHandlingTokenExpired = false;
+      });
     }
   }
 

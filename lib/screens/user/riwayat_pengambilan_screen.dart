@@ -1294,6 +1294,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                     initialLocation: address,
                     initialServiceAccountId: serviceAccountId,
                     initialServiceAccountName: serviceAccountName,
+                    fromRiwayatPengambilan: true, // ✅ Aktifkan kategori "Sampah Tidak Diangkut"
                   ),
                 ),
               );

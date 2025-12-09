@@ -61,6 +61,7 @@ class Laporan {
   final List<String> resolutionPhotoUrls; // ✅ Multiple foto resolution dari collector
   final bool isAsset;
   final DateTime createdAt;
+  final DateTime updatedAt; // ✅ NEW: Waktu update terakhir dari API
   final String status; // Status dari database: 'open', 'in_progress', 'pending_confirmation', 'resolved', 'rejected'
   final String? type; // ✅ NEW: Tipe asli dari API (sampah_tidak_diangkut, dll)
   final String? rejectionReason; // ✅ NEW: Alasan penolakan
@@ -83,8 +84,10 @@ class Laporan {
     this.type, // ✅ NEW
     this.rejectionReason, // ✅ NEW
     DateTime? createdAt, // ✅ FIXED: Accept createdAt from API
+    DateTime? updatedAt, // ✅ NEW: Accept updatedAt from API
   }) : id = id ?? DateTime.now().microsecondsSinceEpoch.toString(),
-       createdAt = createdAt ?? DateTime.now();
+       createdAt = createdAt ?? DateTime.now(),
+       updatedAt = updatedAt ?? createdAt ?? DateTime.now();
 
   // Get status display text in Indonesian
   String get statusText {
@@ -141,6 +144,7 @@ class Laporan {
       'type': type,
       'rejectionReason': rejectionReason,
       'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
     };
   }
 
@@ -164,6 +168,8 @@ class Laporan {
       status: json['status'] as String? ?? 'open',
       type: json['type'] as String?,
       rejectionReason: json['rejectionReason'] as String?,
+      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : null,
+      updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : null,
     );
   }
 }
@@ -179,6 +185,7 @@ class BuatLaporanScreen extends StatefulWidget {
   final String? initialLocation;
   final String? initialServiceAccountId;
   final String? initialServiceAccountName;
+  final bool fromRiwayatPengambilan; // ✅ NEW: Flag untuk menandai dari riwayat pengambilan
 
   const BuatLaporanScreen({
     super.key,
@@ -188,6 +195,7 @@ class BuatLaporanScreen extends StatefulWidget {
     this.initialLocation,
     this.initialServiceAccountId,
     this.initialServiceAccountName,
+    this.fromRiwayatPengambilan = false, // ✅ Default false (dari menu pelaporan biasa)
   });
 
   @override
@@ -199,15 +207,30 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
   final TextEditingController _deskripsiController = TextEditingController();
   final TextEditingController _lokasiController = TextEditingController();
 
-  // Pilihan Kategori sesuai API Documentation
-  static const List<Map<String, String>> _types = [
-    {'value': 'sampah_tidak_diangkut', 'label': 'Sampah Tidak Diangkut'},
-    {'value': 'sampah_menumpuk', 'label': 'Sampah Menumpuk'},
-    {'value': 'jadwal_tidak_sesuai', 'label': 'Jadwal Tidak Sesuai'},
-    {'value': 'pelayanan_buruk', 'label': 'Pelayanan Buruk'},
-    {'value': 'petugas_tidak_datang', 'label': 'Petugas Tidak Datang'},
-    {'value': 'lainnya', 'label': 'Lainnya'},
-  ];
+  // ✅ Pilihan Kategori - dinamis berdasarkan sumber navigasi
+  // "Sampah Tidak Diangkut" hanya muncul jika dari riwayat pengambilan
+  List<Map<String, String>> get _types {
+    if (widget.fromRiwayatPengambilan) {
+      // Dari riwayat pengambilan (konfirmasi sampah belum diambil) - semua kategori
+      return const [
+        {'value': 'sampah_tidak_diangkut', 'label': 'Sampah Tidak Diangkut'},
+        {'value': 'sampah_menumpuk', 'label': 'Sampah Menumpuk'},
+        {'value': 'jadwal_tidak_sesuai', 'label': 'Jadwal Tidak Sesuai'},
+        {'value': 'pelayanan_buruk', 'label': 'Pelayanan Buruk'},
+        {'value': 'petugas_tidak_datang', 'label': 'Petugas Tidak Datang'},
+        {'value': 'lainnya', 'label': 'Lainnya'},
+      ];
+    } else {
+      // Dari menu pelaporan biasa - TANPA "Sampah Tidak Diangkut"
+      return const [
+        {'value': 'sampah_menumpuk', 'label': 'Sampah Menumpuk'},
+        {'value': 'jadwal_tidak_sesuai', 'label': 'Jadwal Tidak Sesuai'},
+        {'value': 'pelayanan_buruk', 'label': 'Pelayanan Buruk'},
+        {'value': 'petugas_tidak_datang', 'label': 'Petugas Tidak Datang'},
+        {'value': 'lainnya', 'label': 'Lainnya'},
+      ];
+    }
+  }
 
   // State untuk menyimpan tipe yang dipilih
   String? _selectedType;
@@ -1999,9 +2022,6 @@ class _DetailLaporanTerkirimScreenState extends State<DetailLaporanTerkirimScree
         ? primaryColor
         : (isPendingConfirmation ? Colors.orange : Colors.grey.shade300);
 
-    // Format tanggal dan waktu (gunakan data dari laporan jika ada)
-    final now = DateTime.now();
-    
     // Format manual untuk menghindari locale issue
     String formatDate(DateTime date) {
       final months = [
@@ -2015,25 +2035,29 @@ class _DetailLaporanTerkirimScreenState extends State<DetailLaporanTerkirimScree
       return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
     }
     
+    // ✅ Waktu dibuat (status Menunggu)
     final createdDate = formatDate(widget.laporan.createdAt);
     final createdTime = formatTime(widget.laporan.createdAt);
     
-    // Simulasi waktu untuk status lainnya (bisa diganti dengan data real dari API)
-    final processDateTime = widget.laporan.createdAt.add(const Duration(hours: 2));
-    final processDate = hasPassedInProgress 
-        ? formatDate(processDateTime)
-        : formatDate(now);
-    final processTime = hasPassedInProgress
-        ? formatTime(processDateTime)
-        : formatTime(now);
+    // ✅ FIXED: Gunakan updatedAt dari API untuk waktu perubahan status
+    // Jika status sudah berubah dari 'open', gunakan updatedAt sebagai estimasi waktu proses
+    final lastUpdateTime = widget.laporan.updatedAt;
     
-    final completedDateTime = widget.laporan.createdAt.add(const Duration(hours: 4));
+    // Untuk status "Diproses" - gunakan waktu update jika sudah melewati tahap ini
+    final processDate = hasPassedInProgress 
+        ? formatDate(lastUpdateTime)
+        : '-';
+    final processTime = hasPassedInProgress
+        ? formatTime(lastUpdateTime)
+        : '';
+    
+    // Untuk status "Selesai/Ditolak" - gunakan waktu update terakhir
     final completedDate = hasPassedResolved || isPendingConfirmation
-        ? formatDate(completedDateTime)
-        : formatDate(now);
+        ? formatDate(lastUpdateTime)
+        : '-';
     final completedTime = hasPassedResolved || isPendingConfirmation
-        ? formatTime(completedDateTime)
-        : formatTime(now);
+        ? formatTime(lastUpdateTime)
+        : '';
 
     return Column(
       children: [
@@ -2550,6 +2574,14 @@ class _DetailLaporanTerkirimScreenState extends State<DetailLaporanTerkirimScree
                         ),
                       ),
                     ],
+                    
+                    // ✅ Alasan Penolakan (di dalam container status, di bawah timeline)
+                    if (widget.laporan.status.toLowerCase() == 'rejected' && 
+                        widget.laporan.rejectionReason != null && 
+                        widget.laporan.rejectionReason!.isNotEmpty) ...[
+                      const SizedBox(height: 24),
+                      _buildInlineRejectionReason(),
+                    ],
                   ],
                 ),
               ),
@@ -2904,6 +2936,164 @@ class _DetailLaporanTerkirimScreenState extends State<DetailLaporanTerkirimScree
     );
   }
 
+  // ✅ NEW: Build Inline Rejection Reason (di dalam container status)
+  Widget _buildInlineRejectionReason() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.red.shade50,
+            Colors.red.shade100.withOpacity(0.5),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.red.shade300,
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header dengan icon dan title
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.red.shade400, Colors.red.shade600],
+                  ),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.red.shade200.withOpacity(0.5),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.cancel_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Laporan Ditolak",
+                      style: GoogleFonts.poppins(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.red.shade800,
+                      ),
+                    ),
+                    Text(
+                      "Admin memberikan alasan berikut",
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w400,
+                        color: Colors.red.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // Alasan penolakan dalam container dengan quote style
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border(
+                left: BorderSide(
+                  color: Colors.red.shade400,
+                  width: 4,
+                ),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.red.shade100.withOpacity(0.3),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.format_quote_rounded,
+                  color: Colors.red.shade300,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    widget.laporan.rejectionReason ?? 'Tidak ada alasan yang diberikan',
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.red.shade700,
+                      height: 1.5,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          const SizedBox(height: 14),
+          
+          // Info tambahan dengan icon
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.amber.shade50,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.amber.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.lightbulb_outline_rounded,
+                  size: 18,
+                  color: Colors.amber.shade700,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    "Silakan buat laporan baru dengan informasi yang lebih lengkap",
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.amber.shade800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ✅ NEW: Show Reject Dialog with rejection note
   void _showRejectDialog() {
     _rejectionNoteController.clear();
@@ -3191,13 +3381,34 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
           return _convertComplaintToLaporan(complaint);
         }).toList();
 
+        // ✅ Sort berdasarkan status: Menunggu > Proses > Selesai > Ditolak
+        loadedReports.sort((a, b) {
+          int getStatusOrder(String status) {
+            switch (status.toLowerCase()) {
+              case 'open': return 0;           // Menunggu
+              case 'in_progress': return 1;    // Diproses
+              case 'pending_confirmation': return 2; // Menunggu Konfirmasi
+              case 'resolved': return 3;       // Selesai
+              case 'rejected': return 4;       // Ditolak
+              default: return 5;
+            }
+          }
+          final orderA = getStatusOrder(a.status);
+          final orderB = getStatusOrder(b.status);
+          if (orderA != orderB) {
+            return orderA.compareTo(orderB);
+          }
+          // Jika status sama, urutkan berdasarkan tanggal terbaru
+          return b.createdAt.compareTo(a.createdAt);
+        });
+
         setState(() {
           _submittedReports.clear();
           _submittedReports.addAll(loadedReports);
           _isLoading = false;
         });
 
-        print('[OK] Loaded ${loadedReports.length} reports from API');
+        print('[OK] Loaded ${loadedReports.length} reports from API (sorted by status)');
       } else {
         setState(() {
           _isLoading = false;
@@ -3350,6 +3561,7 @@ class _PelaporanScreenState extends State<PelaporanScreen> {
       type: complaint.type, // ✅ NEW: Simpan tipe asli dari API
       rejectionReason: complaint.rejectionReason, // ✅ NEW: Alasan penolakan
       createdAt: complaint.createdAt, // ✅ FIXED: Use createdAt from API
+      updatedAt: complaint.updatedAt, // ✅ NEW: Use updatedAt from API
     );
 
     print('[LIST] Laporan ID from API: ${laporan.id}');

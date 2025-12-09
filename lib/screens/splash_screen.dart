@@ -79,6 +79,8 @@ class _SplashScreenState extends State<SplashScreen>
       // Tampilkan snackbar sesi berakhir lalu redirect ke login
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
+          // ✅ Clear snackbar sebelumnya untuk mencegah duplikasi
+          ScaffoldMessenger.of(context).clearSnackBars();
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: const Text('Sesi Anda telah berakhir. Silakan login kembali.'),

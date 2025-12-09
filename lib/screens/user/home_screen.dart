@@ -1383,51 +1383,60 @@ class _HomeScreenState extends State<HomeScreen> {
                             child: Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.7),
+                                color: Colors.white,
                                 shape: BoxShape.circle,
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.1),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
+                                    color: Colors.black.withValues(alpha: 0.15),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 3),
                                   ),
                                 ],
                               ),
                               child: Image.asset(
                                 'assets/images/notification.png',
-                                width: 24,
-                                height: 24,
+                                width: 26,
+                                height: 26,
                                 errorBuilder: (context, error, stackTrace) {
+                                  // Fallback: Icon lonceng kuning/amber
                                   return const Icon(
                                     Icons.notifications,
-                                    color: Color.fromRGBO(21, 145, 137, 1),
-                                    size: 24,
+                                    color: Color(0xFFFFB300), // Amber/Yellow color
+                                    size: 26,
                                   );
                                 },
                               ),
                             ),
                           ),
+                          // ✅ Badge notifikasi merah dengan design yang lebih menarik
                           if (_unreadNotifCount > 0)
                             Positioned(
-                              right: -2,
-                              top: -2,
+                              right: -4,
+                              top: -4,
                               child: Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: const BoxDecoration(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
                                   color: Colors.red,
-                                  shape: BoxShape.circle,
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.red.withValues(alpha: 0.4),
+                                      blurRadius: 4,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
                                 ),
                                 constraints: const BoxConstraints(
-                                  minWidth: 18,
-                                  minHeight: 18,
+                                  minWidth: 20,
+                                  minHeight: 20,
                                 ),
                                 child: Text(
-                                  _unreadNotifCount > 9
-                                      ? '9+'
+                                  _unreadNotifCount > 99
+                                      ? '99+'
                                       : '$_unreadNotifCount',
                                   style: const TextStyle(
                                     color: Colors.white,
-                                    fontSize: 10,
+                                    fontSize: 11,
                                     fontWeight: FontWeight.bold,
                                   ),
                                   textAlign: TextAlign.center,

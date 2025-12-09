@@ -162,12 +162,20 @@ class NotificationResponse {
       }
     }
 
+    // ✅ Count unread from parsed notifications if unread_count not provided by API
+    int unreadCount = safeParseInt(json['unread_count'], -1);
+    if (unreadCount < 0) {
+      // API didn't provide unread_count, calculate from notifications
+      unreadCount = notifications.where((n) => !n.isRead).length;
+      print('[NotificationResponse] Calculated unread count from data: $unreadCount');
+    }
+
     return NotificationResponse(
       notifications: notifications,
       currentPage: currentPage,
       lastPage: lastPage,
       total: total,
-      unreadCount: safeParseInt(json['unread_count'], 0),
+      unreadCount: unreadCount,
     );
   }
 }
@@ -238,22 +246,62 @@ class NotificationApiService {
     }
   }
 
-  /// Get unread count
+  /// Get unread count - tries dedicated endpoint first, falls back to counting from notifications
   static Future<int> getUnreadCount() async {
     try {
+      // First try dedicated unread count endpoint
       final response = await _dio.get(ApiConfig.notificationsUnreadCount);
 
       if (response.statusCode == 200) {
-        final count = response.data['count'];
-        // Safe parse to int
-        if (count is int) return count;
-        if (count is String) return int.tryParse(count) ?? 0;
-        return 0;
-      } else {
-        return 0;
+        // Try to get count from various possible response formats
+        final data = response.data;
+        
+        // Format 1: { "count": 5 }
+        if (data is Map && data['count'] != null) {
+          final count = data['count'];
+          if (count is int) return count;
+          if (count is String) return int.tryParse(count) ?? 0;
+        }
+        
+        // Format 2: { "data": { "count": 5 } }
+        if (data is Map && data['data'] is Map && data['data']['count'] != null) {
+          final count = data['data']['count'];
+          if (count is int) return count;
+          if (count is String) return int.tryParse(count) ?? 0;
+        }
+        
+        // Format 3: { "unread_count": 5 }
+        if (data is Map && data['unread_count'] != null) {
+          final count = data['unread_count'];
+          if (count is int) return count;
+          if (count is String) return int.tryParse(count) ?? 0;
+        }
+        
+        // Format 4: Just a number
+        if (data is int) return data;
+        if (data is String) return int.tryParse(data) ?? 0;
       }
+      
+      // If dedicated endpoint fails or returns invalid format, 
+      // fall back to counting from notifications list
+      return await _countUnreadFromNotifications();
     } on DioException catch (e) {
       print('[NotificationApiService] Error getUnreadCount: ${e.message}');
+      // Try fallback method
+      return await _countUnreadFromNotifications();
+    }
+  }
+
+  /// Fallback: Count unread from notifications list
+  static Future<int> _countUnreadFromNotifications() async {
+    try {
+      final response = await getNotifications(page: 1, perPage: 100);
+      // Count notifications where readAt is null (unread)
+      final unreadCount = response.notifications.where((n) => !n.isRead).length;
+      print('[NotificationApiService] Counted $unreadCount unread notifications from list');
+      return unreadCount;
+    } catch (e) {
+      print('[NotificationApiService] Error counting unread: $e');
       return 0;
     }
   }

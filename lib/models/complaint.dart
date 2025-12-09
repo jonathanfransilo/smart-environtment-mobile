@@ -79,16 +79,16 @@ class Complaint {
               .toList()
         : <ComplaintPhoto>[];
 
-    // Parse dates with fallback
+    // Parse dates with fallback and convert to local timezone
     DateTime createdAt;
     DateTime updatedAt;
     try {
-      createdAt = DateTime.parse(json['created_at']);
+      createdAt = DateTime.parse(json['created_at']).toLocal(); // ✅ Convert to local timezone
     } catch (e) {
       createdAt = DateTime.now();
     }
     try {
-      updatedAt = DateTime.parse(json['updated_at'] ?? json['created_at']);
+      updatedAt = DateTime.parse(json['updated_at'] ?? json['created_at']).toLocal(); // ✅ Convert to local timezone
     } catch (e) {
       updatedAt = createdAt;
     }
