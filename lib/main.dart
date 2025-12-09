@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:device_wrapper/device_wrapper.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
@@ -17,6 +19,9 @@ import 'screens/kolektor/home_screens_kolektor.dart';
 /// Global navigator key untuk akses navigation dari mana saja (termasuk ApiClient)
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
+/// Toggle device wrapper - hanya aktif di web
+const bool _enableDeviceWrapper = true;
+
 void main() {
   runApp(const SirkularApp());
 }
@@ -26,10 +31,11 @@ class SirkularApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    // Build MaterialApp
+    final app = MaterialApp(
       title: 'Sirkular',
       debugShowCheckedModeBanner: false,
-      navigatorKey: navigatorKey, // Global navigator key
+      navigatorKey: navigatorKey,
       theme: ThemeData.light().copyWith(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
         useMaterial3: true,
@@ -41,18 +47,11 @@ class SirkularApp extends StatelessWidget {
           PointerDeviceKind.stylus,
         },
       ),
-
-      // 🔹 Route awal
       initialRoute: '/',
-
-      // 🔹 Daftar route
       routes: {
-        // --- ROUTE UMUM ---
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
         '/forgot-password': (context) => const ForgotPasswordScreen(),
-
-        // --- ROUTE USER ---
         '/home': (context) => const HomeScreen(),
         '/layanan-sampah': (context) => const LayananSampahScreen(),
         '/profile': (context) => const ProfileScreen(),
@@ -60,16 +59,9 @@ class SirkularApp extends StatelessWidget {
         '/pelaporan': (context) => const PelaporanScreen(),
         '/riwayat-pembayaran': (context) => const RiwayatPembayaranScreen(),
         '/express-request': (context) => const ExpressRequestScreen(),
-
-        // --- ROUTE KOLEKTOR ---
         '/home-kolektor': (context) => const HomeScreensKolektor(),
-
-        // Note: PengambilanSampahScreen, AmbilFotoScreen, dll sekarang diakses via Navigator.push dengan parameter dinamis
       },
-
-      // Custom route handler for routes with parameters
       onGenerateRoute: (settings) {
-        // Handle splash screen dengan sessionExpired parameter
         if (settings.name == '/') {
           final args = settings.arguments;
           bool sessionExpired = false;
@@ -80,8 +72,6 @@ class SirkularApp extends StatelessWidget {
             builder: (context) => SplashScreen(sessionExpired: sessionExpired),
           );
         }
-        
-        // Handle artikel-detail route with ID parameter
         if (settings.name == '/artikel-detail') {
           final artikelId = settings.arguments as int?;
           if (artikelId != null) {
@@ -92,8 +82,6 @@ class SirkularApp extends StatelessWidget {
         }
         return null;
       },
-
-      // 🔹 Handling kalau route tidak ditemukan
       onUnknownRoute: (settings) {
         return MaterialPageRoute(
           builder: (_) => const Scaffold(
@@ -107,5 +95,17 @@ class SirkularApp extends StatelessWidget {
         );
       },
     );
+
+    // Wrap dengan DeviceWrapper HANYA jika di web dan diaktifkan
+    if (kIsWeb && _enableDeviceWrapper) {
+      return DeviceWrapper(
+        backgroundColor: const Color(0xFF1a1a2e),
+        initialMode: DeviceMode.mobile, // iPhone 16 Pro (393×852)
+        showModeToggle: true, // Toggle untuk switch mobile/tablet/screen-only
+        child: app,
+      );
+    }
+
+    return app;
   }
 }
