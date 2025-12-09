@@ -34,15 +34,43 @@ class _CollectorOffSchedulePickupsScreenState extends State<CollectorOffSchedule
     setState(() => _isLoading = true);
     try {
       final service = CollectorOffSchedulePickupService();
+      
+      // ✅ PERBAIKAN: Filter berdasarkan tanggal hari ini untuk status pending/processing
+      final today = DateTime.now();
+      final todayStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+      
       final pickups = await service.listAssignedPickups(
         status: _selectedStatus.isEmpty ? null : _selectedStatus,
       );
       
       if (!mounted) return;
+      
+      // ✅ Filter pickup berdasarkan tanggal request untuk status yang belum selesai
+      // Pickup hanya muncul saat tanggal request = hari ini
+      final filteredPickups = pickups.where((pickup) {
+        final requestDate = pickup['requested_pickup_date'] as String?;
+        final requestStatus = pickup['request_status'] as String?;
+        
+        // Untuk status completed/rejected, tampilkan semua (tidak filter tanggal)
+        if (requestStatus == 'completed' || requestStatus == 'rejected') {
+          return true;
+        }
+        
+        // Untuk status pending/processing, hanya tampilkan jika tanggal = hari ini
+        if (requestDate != null && requestDate != todayStr) {
+          print('📅 [Filter] Pickup skipped - request date: $requestDate, today: $todayStr');
+          return false;
+        }
+        
+        return true;
+      }).toList();
+      
       setState(() {
-        _pickups = pickups;
+        _pickups = filteredPickups;
         _isLoading = false;
       });
+      
+      print('📊 [OffScheduleScreen] Total: ${pickups.length}, Filtered (today): ${filteredPickups.length}');
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);

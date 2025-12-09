@@ -25,13 +25,28 @@ class TPSDeposit {
   });
 
   factory TPSDeposit.fromJson(Map<String, dynamic> json) {
+    // Parse deposited_at dan konversi ke local time
+    DateTime parsedDepositedAt;
+    if (json['deposited_at'] != null) {
+      final parsed = DateTime.parse(json['deposited_at'].toString());
+      // Konversi ke local time jika dalam UTC
+      parsedDepositedAt = parsed.isUtc ? parsed.toLocal() : parsed;
+    } else {
+      parsedDepositedAt = DateTime.now();
+    }
+    
+    // Parse created_at dan konversi ke local time
+    DateTime? parsedCreatedAt;
+    if (json['created_at'] != null) {
+      final parsed = DateTime.parse(json['created_at'].toString());
+      parsedCreatedAt = parsed.isUtc ? parsed.toLocal() : parsed;
+    }
+    
     return TPSDeposit(
       id: json['id'] as int,
       collectorId: json['collector_id'] as int? ?? 0,
       garbageDumpId: json['garbage_dump_id'] as int? ?? 0,
-      depositedAt: json['deposited_at'] != null 
-          ? DateTime.parse(json['deposited_at'].toString())
-          : DateTime.now(),
+      depositedAt: parsedDepositedAt,
       latitude: json['latitude'] != null 
           ? double.tryParse(json['latitude'].toString()) ?? 0.0
           : 0.0,
@@ -42,9 +57,7 @@ class TPSDeposit {
       garbageDump: json['garbage_dump'] != null 
           ? TPS.fromJson(json['garbage_dump'])
           : null,
-      createdAt: json['created_at'] != null 
-          ? DateTime.parse(json['created_at'].toString())
-          : null,
+      createdAt: parsedCreatedAt,
     );
   }
 

@@ -853,10 +853,24 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
       final allTransformed = allPickups.map(transformPickup).toList();
       
       // ✅ Filter untuk active pickups (untuk daftar tugas)
+      // Hanya tampilkan pickup yang tanggal request-nya adalah HARI INI
+      final today = DateTime.now();
+      final todayStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+      
       final activeTransformed = allPickups.where((pickup) {
         final isProcessing = pickup.requestStatus == 'processing';
         final notCancelled = pickup.status != 'cancelled';
-        return isProcessing && notCancelled;
+        
+        // ✅ PERBAIKAN: Filter berdasarkan tanggal request
+        // Pickup hanya muncul di tugas collector saat tanggal request = hari ini
+        final requestDate = pickup.requestedPickupDate; // Format: YYYY-MM-DD
+        final isToday = requestDate == todayStr;
+        
+        if (isProcessing && notCancelled && !isToday) {
+          print('📅 [Filter] Pickup #${pickup.id} skipped - request date: $requestDate, today: $todayStr');
+        }
+        
+        return isProcessing && notCancelled && isToday;
       }).map(transformPickup).toList();
       
       setState(() {
@@ -865,8 +879,9 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
       });
       
       // ✅ DEBUG: Log transformed data untuk verifikasi
-      print('📊 [HomeCollector] Active pickups: ${activeTransformed.length}');
+      print('📊 [HomeCollector] Active pickups (today only): ${activeTransformed.length}');
       print('📊 [HomeCollector] All pickups (for history): ${allTransformed.length}');
+      print('📅 [HomeCollector] Today: $todayStr');
       
       if (activeTransformed.isNotEmpty) {
         final sample = activeTransformed.first;

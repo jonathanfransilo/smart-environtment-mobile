@@ -602,6 +602,32 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
     }
   }
 
+  // Helper untuk mendapatkan nama service account yang dipilih
+  String _getSelectedServiceAccountName() {
+    if (_selectedServiceAccountId == null) return 'Tidak dipilih';
+    
+    final account = _serviceAccounts.firstWhere(
+      (a) => a.id == _selectedServiceAccountId,
+      orElse: () => ServiceAccount(
+        id: _selectedServiceAccountId!,
+        name: _selectedServiceAccountId!,
+        address: '',
+        latitude: 0,
+        longitude: 0,
+        status: 'active',
+      ),
+    );
+    
+    String name = account.name;
+    if (account.rwName != null && account.rwName!.isNotEmpty) {
+      final rwDisplay = account.rwName!.toUpperCase().startsWith('RW') 
+          ? account.rwName! 
+          : 'RW ${account.rwName}';
+      name = '$name ($rwDisplay)';
+    }
+    return name;
+  }
+
   // Fungsi untuk menampilkan dialog pilihan foto
   void _showPickerOptions() {
     showDialog(
@@ -646,10 +672,11 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
   }
 
   // Helper untuk cek apakah kategori butuh foto dan lokasi
-  // Hanya tampilkan untuk "sampah_tidak_diangkut" dan "sampah_menumpuk"
+  // Tampilkan untuk "sampah_tidak_diangkut", "sampah_menumpuk", dan "lainnya"
   bool _shouldShowPhotoAndLocation() {
     return _selectedType == 'sampah_tidak_diangkut' || 
-           _selectedType == 'sampah_menumpuk';
+           _selectedType == 'sampah_menumpuk' ||
+           _selectedType == 'lainnya';
   }
 
   @override
@@ -1297,8 +1324,48 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
                     ],
                   ),
                 ),
-              ],
-              DropdownButtonFormField<String>(
+                // Tampilkan sebagai read-only field (bukan dropdown) jika sudah dipilih dari menu daftar layanan
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.account_circle, color: primaryColor, size: 24),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Service Account',
+                              style: GoogleFonts.poppins(
+                                fontSize: 11,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _getSelectedServiceAccountName(),
+                              style: GoogleFonts.poppins(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(Icons.lock, color: Colors.grey.shade400, size: 20),
+                    ],
+                  ),
+                ),
+              ] else ...[
+                // Dropdown normal jika tidak ada initial service account
+                DropdownButtonFormField<String>(
                 value: _selectedServiceAccountId,
                 decoration: InputDecoration(
                   labelText: "Service Account (Opsional)",
@@ -1419,6 +1486,7 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
                       ),
                 // Tidak ada validator - field ini opsional
               ),
+              ], // Penutup else untuk dropdown Service Account
               const SizedBox(height: 16),
 
               // Deskripsi
@@ -1790,48 +1858,43 @@ class DetailLaporanScreen extends StatelessWidget {
     );
   }
 
+  // Helper untuk cek apakah kategori butuh foto dan lokasi
+  // Tampilkan untuk "sampah_tidak_diangkut", "sampah_menumpuk", dan "lainnya"
+  bool _shouldShowPhotoAndLocation() {
+    final type = reportData['type'];
+    return type == 'sampah_tidak_diangkut' || 
+           type == 'sampah_menumpuk' || 
+           type == 'lainnya';
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Tentukan widget gambar yang akan ditampilkan
-    Widget imageWidget;
-    if (imageFiles.isNotEmpty) {
-      imageWidget = _InstagramStylePhotoGallery(
-        imageFiles: imageFiles,
-        isAsset: isAsset,
-      );
-    } else if (isAsset) {
-      // Fallback jika ada flag isAsset (tidak digunakan lagi)
-      imageWidget = Container(
-        height: 200,
-        width: double.infinity,
-        color: Colors.grey.shade300,
-        child: const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.image, size: 50, color: Colors.grey),
-              SizedBox(height: 8),
-              Text("Tidak ada gambar"),
-            ],
+    // Tentukan widget gambar yang akan ditampilkan - hanya jika kategori membutuhkan foto
+    Widget? imageWidget;
+    
+    if (_shouldShowPhotoAndLocation()) {
+      if (imageFiles.isNotEmpty) {
+        imageWidget = _InstagramStylePhotoGallery(
+          imageFiles: imageFiles,
+          isAsset: isAsset,
+        );
+      } else {
+        imageWidget = Container(
+          height: 200,
+          width: double.infinity,
+          color: Colors.grey.shade300,
+          child: const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.image, size: 50, color: Colors.grey),
+                SizedBox(height: 8),
+                Text("Tidak ada gambar"),
+              ],
+            ),
           ),
-        ),
-      );
-    } else {
-      imageWidget = Container(
-        height: 200,
-        width: double.infinity,
-        color: Colors.grey.shade300,
-        child: const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.image, size: 50, color: Colors.grey),
-              SizedBox(height: 8),
-              Text("Tidak ada gambar"),
-            ],
-          ),
-        ),
-      );
+        );
+      }
     }
 
     return Scaffold(
@@ -1849,10 +1912,11 @@ class DetailLaporanScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Area Foto (Tanpa tombol ubah)
-            imageWidget,
-
-            const SizedBox(height: 24),
+            // Area Foto - hanya tampilkan jika kategori membutuhkan foto
+            if (imageWidget != null) ...[
+              imageWidget,
+              const SizedBox(height: 24),
+            ],
 
             Text(
               "Detail Laporan",
@@ -1870,10 +1934,12 @@ class DetailLaporanScreen extends StatelessWidget {
                   ? _getTypeLabel(reportData['type']!)
                   : 'Tidak ada kategori',
             ),
-            _buildDetailRow(
-              "Lokasi",
-              reportData['lokasi'] ?? 'Tidak ada lokasi',
-            ),
+            // Lokasi - hanya tampilkan jika kategori membutuhkan lokasi
+            if (_shouldShowPhotoAndLocation())
+              _buildDetailRow(
+                "Lokasi",
+                reportData['lokasi'] ?? 'Tidak ada lokasi',
+              ),
             // Service Account - hanya tampilkan jika ada
             if (reportData['serviceAccount'] != null &&
                 reportData['serviceAccount']!.isNotEmpty)
@@ -1938,6 +2004,15 @@ class _DetailLaporanTerkirimScreenState extends State<DetailLaporanTerkirimScree
   void dispose() {
     _rejectionNoteController.dispose();
     super.dispose();
+  }
+
+  // Helper untuk cek apakah kategori butuh foto dan lokasi
+  // Tampilkan untuk "sampah_tidak_diangkut", "sampah_menumpuk", dan "lainnya"
+  bool _shouldShowPhotoAndLocation() {
+    final type = widget.laporan.type?.toLowerCase();
+    return type == 'sampah_tidak_diangkut' || 
+           type == 'sampah_menumpuk' || 
+           type == 'lainnya';
   }
 
   // Widget untuk menampilkan sepasang Label dan Value dengan Icon
@@ -2502,8 +2577,12 @@ class _DetailLaporanTerkirimScreenState extends State<DetailLaporanTerkirimScree
                     // Subtitle lokasi/kategori dan service account
                     Text(
                       widget.laporan.lokasi.isNotEmpty
-                          ? "${widget.laporan.lokasi} • ${widget.laporan.serviceAccountName ?? 'None'}"
-                          : "${widget.laporan.kategori} • ${widget.laporan.serviceAccountName ?? 'None'}",
+                          ? (widget.laporan.serviceAccountName != null && widget.laporan.serviceAccountName!.isNotEmpty
+                              ? "${widget.laporan.lokasi} • ${widget.laporan.serviceAccountName}"
+                              : widget.laporan.lokasi)
+                          : (widget.laporan.serviceAccountName != null && widget.laporan.serviceAccountName!.isNotEmpty
+                              ? "${widget.laporan.kategori} • ${widget.laporan.serviceAccountName}"
+                              : widget.laporan.kategori),
                       style: GoogleFonts.poppins(
                         fontSize: 14,
                         color: Colors.grey.shade600,
@@ -2626,12 +2705,14 @@ class _DetailLaporanTerkirimScreenState extends State<DetailLaporanTerkirimScree
                     ),
                     const SizedBox(height: 12),
                     
-                    // Area Foto di dalam Deskripsi
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: imageWidget,
-                    ),
-                    const SizedBox(height: 12),
+                    // Area Foto di dalam Deskripsi - hanya untuk kategori yang membutuhkan foto
+                    if (_shouldShowPhotoAndLocation()) ...[  
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: imageWidget,
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                     
                     // Isi Deskripsi
                     Text(

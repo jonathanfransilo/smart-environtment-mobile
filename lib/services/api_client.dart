@@ -53,7 +53,14 @@ class ApiClient {
       },
       onError: (error, handler) async {
         // Handle 401 Unauthorized - token invalid/expired dari server
-        if (error.response?.statusCode == 401) {
+        // ✅ PERBAIKAN: Jangan handle 401 untuk endpoint auth (login, register, dll)
+        // karena 401 di login berarti password salah, bukan token expired
+        final isAuthEndpoint = error.requestOptions.path.contains('/login') || 
+                               error.requestOptions.path.contains('/register') ||
+                               error.requestOptions.path.contains('/forgot-password') ||
+                               error.requestOptions.path.contains('/reset-password');
+        
+        if (error.response?.statusCode == 401 && !isAuthEndpoint) {
           print('[API] Received 401 Unauthorized, token invalid');
           await _handleTokenExpired();
         }

@@ -87,7 +87,7 @@ class OffSchedulePickup {
       extraFee: (json['extra_fee'] ?? 0).toInt(),
       totalAmount: (json['total_amount'] ?? 0).toInt(),
       createdAt: json['created_at'] != null 
-          ? DateTime.parse(json['created_at']) 
+          ? DateTime.parse(json['created_at']).toLocal() // ✅ Convert to local timezone
           : null,
       requestedPickupDate: json['requested_pickup_date'] ?? '',
       requestedPickupTime: json['requested_pickup_time'],
@@ -101,16 +101,16 @@ class OffSchedulePickup {
       note: json['note'],
       collectorNotes: json['collector_notes'],
       collectedAt: json['collected_at'] != null
-          ? DateTime.parse(json['collected_at'])
+          ? DateTime.parse(json['collected_at']).toLocal() // ✅ Convert to local timezone
           : null,
       processedAt: json['processed_at'] != null
-          ? DateTime.parse(json['processed_at'])
+          ? DateTime.parse(json['processed_at']).toLocal() // ✅ Convert to local timezone
           : null,
       completedAt: json['completed_at'] != null
-          ? DateTime.parse(json['completed_at'])
+          ? DateTime.parse(json['completed_at']).toLocal() // ✅ Convert to local timezone
           : null,
       assignedAt: json['assigned_at'] != null
-          ? DateTime.parse(json['assigned_at'])
+          ? DateTime.parse(json['assigned_at']).toLocal() // ✅ Convert to local timezone
           : null,
       wasteItems: json['waste_items'] != null
           ? List<Map<String, dynamic>>.from(json['waste_items'])
