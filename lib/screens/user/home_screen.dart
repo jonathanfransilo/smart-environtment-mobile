@@ -149,6 +149,9 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  // Flag untuk mencegah popup pengingat muncul berulang kali
+  bool _hasShownBillingReminder = false;
+
   Future<void> _initAll() async {
     await _loadUser();
     await _loadAkunLayanan(selectLastIfNotFound: true);
@@ -159,6 +162,427 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Check dan trigger notifikasi otomatis
     await _checkAutomaticNotifications();
+    
+    // Tampilkan popup pengingat tagihan jika ada yang mendekati jatuh tempo
+    await _checkAndShowBillingReminder();
+  }
+
+  /// Check dan tampilkan popup pengingat jika ada tagihan mendekati jatuh tempo
+  Future<void> _checkAndShowBillingReminder() async {
+    if (!mounted || _hasShownBillingReminder) return;
+    
+    try {
+      // Cek apakah sudah pernah ditampilkan hari ini
+      final prefs = await SharedPreferences.getInstance();
+      final lastShownDate = prefs.getString('billing_reminder_last_shown');
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      
+      if (lastShownDate == today) {
+        print('[SKIP] [HomeScreen] Billing reminder sudah ditampilkan hari ini');
+        return;
+      }
+      
+      if (_unpaidInvoices.isEmpty) return;
+      
+      // Cari invoice yang mendekati jatuh tempo (H-3 atau sudah lewat)
+      final now = DateTime.now();
+      List<Map<String, dynamic>> urgentInvoices = [];
+      List<Map<String, dynamic>> dueSoonInvoices = [];
+      bool isEndOfMonth = now.day >= 25; // Akhir bulan (tanggal 25+)
+      
+      for (var invoice in _unpaidInvoices) {
+        final dueDateStr = invoice['due_date']?.toString();
+        if (dueDateStr == null || dueDateStr.isEmpty) continue;
+        
+        DateTime? dueDate;
+        try {
+          dueDate = DateTime.parse(dueDateStr);
+        } catch (e) {
+          // Try alternative format
+          try {
+            dueDate = DateFormat('dd/MM/yyyy').parse(dueDateStr);
+          } catch (e2) {
+            continue;
+          }
+        }
+        
+        final daysUntilDue = dueDate.difference(now).inDays;
+        
+        if (daysUntilDue < 0) {
+          // Sudah lewat jatuh tempo
+          urgentInvoices.add({...invoice, 'days_until_due': daysUntilDue});
+        } else if (daysUntilDue <= 3) {
+          // H-3 atau kurang
+          dueSoonInvoices.add({...invoice, 'days_until_due': daysUntilDue});
+        }
+      }
+      
+      // Tampilkan popup jika ada tagihan urgent atau mendekati jatuh tempo
+      // Atau jika akhir bulan dan ada tagihan belum dibayar
+      if (urgentInvoices.isNotEmpty || dueSoonInvoices.isNotEmpty || 
+          (isEndOfMonth && _unpaidInvoices.isNotEmpty)) {
+        _hasShownBillingReminder = true;
+        await prefs.setString('billing_reminder_last_shown', today);
+        
+        if (!mounted) return;
+        
+        // Delay sedikit agar UI sudah siap
+        await Future.delayed(const Duration(milliseconds: 500));
+        
+        if (!mounted) return;
+        
+        _showBillingReminderDialog(
+          urgentInvoices: urgentInvoices,
+          dueSoonInvoices: dueSoonInvoices,
+          isEndOfMonth: isEndOfMonth,
+        );
+      }
+    } catch (e) {
+      print('[ERROR] [HomeScreen] Error checking billing reminder: $e');
+    }
+  }
+  
+  /// Tampilkan dialog pengingat tagihan
+  void _showBillingReminderDialog({
+    required List<Map<String, dynamic>> urgentInvoices,
+    required List<Map<String, dynamic>> dueSoonInvoices,
+    required bool isEndOfMonth,
+  }) {
+    final hasUrgent = urgentInvoices.isNotEmpty;
+    final hasDueSoon = dueSoonInvoices.isNotEmpty;
+    
+    // Tentukan judul dan warna berdasarkan urgensi
+    String title;
+    Color headerColor;
+    IconData headerIcon;
+    
+    if (hasUrgent) {
+      title = '⚠️ Tagihan Terlambat!';
+      headerColor = Colors.red.shade600;
+      headerIcon = Icons.warning_rounded;
+    } else if (hasDueSoon) {
+      title = '📅 Pengingat Tagihan';
+      headerColor = Colors.orange.shade600;
+      headerIcon = Icons.schedule;
+    } else {
+      title = '💰 Akhir Bulan - Jangan Lupa Bayar!';
+      headerColor = const Color(0xFF159189);
+      headerIcon = Icons.payment;
+    }
+    
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+                decoration: BoxDecoration(
+                  color: headerColor,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(20),
+                    topRight: Radius.circular(20),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Icon(headerIcon, color: Colors.white, size: 48),
+                    const SizedBox(height: 12),
+                    Text(
+                      title,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Content
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Pesan utama
+                    if (hasUrgent) ...[
+                      _buildReminderSection(
+                        icon: Icons.error_outline,
+                        iconColor: Colors.red,
+                        title: 'Tagihan Terlambat',
+                        subtitle: '${urgentInvoices.length} tagihan sudah melewati jatuh tempo',
+                        invoices: urgentInvoices,
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    
+                    if (hasDueSoon) ...[
+                      _buildReminderSection(
+                        icon: Icons.access_time,
+                        iconColor: Colors.orange,
+                        title: 'Segera Jatuh Tempo',
+                        subtitle: '${dueSoonInvoices.length} tagihan dalam 3 hari',
+                        invoices: dueSoonInvoices,
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    
+                    if (!hasUrgent && !hasDueSoon && isEndOfMonth) ...[
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.blue.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, color: Colors.blue.shade700, size: 28),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Akhir Bulan',
+                                    style: GoogleFonts.poppins(
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.blue.shade800,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Anda memiliki ${_unpaidInvoices.length} tagihan belum dibayar senilai ${currencyFormat.format(_totalUnpaidAmount)}',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 12,
+                                      color: Colors.blue.shade700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    
+                    // Total tagihan
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        children: [
+                          Text(
+                            'Total Tagihan',
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            currencyFormat.format(_totalUnpaidAmount),
+                            style: GoogleFonts.poppins(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: headerColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Actions
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          side: BorderSide(color: Colors.grey.shade400),
+                        ),
+                        child: Text(
+                          'Nanti Saja',
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _handlePaymentClick();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: headerColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: Text(
+                          'Bayar Sekarang',
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+  
+  /// Build section untuk reminder dialog
+  Widget _buildReminderSection({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required List<Map<String, dynamic>> invoices,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: iconColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: iconColor.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: iconColor, size: 24),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600,
+                        color: iconColor,
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (invoices.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            ...invoices.take(3).map((invoice) {
+              final amount = invoice['total_amount'] ?? 0;
+              final daysUntilDue = invoice['days_until_due'] as int? ?? 0;
+              final accountName = invoice['service_account']?['name'] ?? 'Tagihan';
+              
+              String dueText;
+              if (daysUntilDue < 0) {
+                dueText = 'Terlambat ${-daysUntilDue} hari';
+              } else if (daysUntilDue == 0) {
+                dueText = 'Jatuh tempo hari ini';
+              } else {
+                dueText = 'Jatuh tempo $daysUntilDue hari lagi';
+              }
+              
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            accountName,
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            dueText,
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              color: iconColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      currencyFormat.format(amount),
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: iconColor,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+            if (invoices.length > 3)
+              Text(
+                '+${invoices.length - 3} tagihan lainnya',
+                style: GoogleFonts.poppins(
+                  fontSize: 11,
+                  color: Colors.grey.shade600,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
   }
 
   /// Check semua notifikasi otomatis (jadwal, tagihan, artikel)
