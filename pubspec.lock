@@ -149,10 +149,10 @@ packages:
     dependency: "direct main"
     description:
       name: device_wrapper
-      sha256: "959bdbb843874ab08eb929b67574ab9a602bcd82d862e3130ecf740bab87c5a1"
+      sha256: "36aa554cb4c4779a97dab26c8ccd8d7b0a93efd61821b177fe823423eb775af1"
       url: "https://pub.dev"
     source: hosted
-    version: "1.0.6"
+    version: "1.1.1"
   dio:
     dependency: "direct main"
     description:

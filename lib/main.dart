@@ -99,9 +99,6 @@ class SirkularApp extends StatelessWidget {
     // Wrap dengan DeviceWrapper HANYA jika di web dan diaktifkan
     if (kIsWeb && _enableDeviceWrapper) {
       return DeviceWrapper(
-        backgroundColor: const Color(0xFF1a1a2e),
-        initialMode: DeviceMode.mobile, // iPhone 16 Pro (393×852)
-        showModeToggle: true, // Toggle untuk switch mobile/tablet/screen-only
         child: app,
       );
     }
