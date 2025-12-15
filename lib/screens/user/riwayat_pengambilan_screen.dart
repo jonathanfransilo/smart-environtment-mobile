@@ -97,14 +97,31 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
         );
 
         if (serviceAccountIdInt != null) {
+          // Status yang menandakan sampah sudah diangkut/selesai:
+          // - 'pending': Kolektor sudah input sampah, menunggu konfirmasi user
+          // - 'completed': Sudah dikonfirmasi selesai
+          // - 'paid': Sudah lunas/dibayar
+          // 
+          // Status yang TIDAK boleh muncul di riwayat (belum diangkut):
+          // - 'sent': Menunggu penugasan kolektor
+          // - 'processing': Kolektor ditugaskan tapi belum mengambil sampah
+          // - 'rejected': Ditolak
+          final completedStatuses = ['pending', 'completed', 'paid'];
+          
           offSchedulePickups = offScheduleList
               .where((p) {
                 // Filter by service account
-                final matches = p.serviceAccountId == serviceAccountIdInt;
+                final matchesAccount = p.serviceAccountId == serviceAccountIdInt;
+                
+                // Filter by status - hanya tampilkan yang sampahnya sudah diangkut
+                final isCollected = completedStatuses.contains(p.requestStatus);
+                
                 print(
-                  '   Pickup #${p.id}: serviceAccountId=${p.serviceAccountId}, matches=$matches, status=${p.status}',
+                  '   Pickup #${p.id}: serviceAccountId=${p.serviceAccountId}, matchesAccount=$matchesAccount, requestStatus=${p.requestStatus}, isCollected=$isCollected',
                 );
-                return matches;
+                
+                // Hanya tampilkan jika service account cocok DAN sampah sudah diangkut
+                return matchesAccount && isCollected;
               })
               .map((p) {
                 // Konversi OffSchedulePickup ke Map dengan flag is_off_schedule
@@ -113,7 +130,7 @@ class _RiwayatPengambilanScreenState extends State<RiwayatPengambilanScreen> {
                 json['pickup_type'] =
                     'request'; // Pastikan pickup_type adalah request
                 print(
-                  '[OK] [RiwayatPengambilan] Added off-schedule pickup #${p.id} to list',
+                  '[OK] [RiwayatPengambilan] Added off-schedule pickup #${p.id} to list (status: ${p.requestStatus})',
                 );
                 return json;
               })

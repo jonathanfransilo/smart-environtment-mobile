@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../services/resident_pickup_service.dart';
+import '../../services/service_account_service.dart';
 
 class JadwalPengambilanScreen extends StatefulWidget {
   final int? serviceAccountId;
+  final String? hariPengangkutan; // Fallback dari service account
 
   const JadwalPengambilanScreen({
     super.key,
     this.serviceAccountId,
+    this.hariPengangkutan,
   });
 
   @override
@@ -18,6 +21,7 @@ class JadwalPengambilanScreen extends StatefulWidget {
 
 class _JadwalPengambilanScreenState extends State<JadwalPengambilanScreen> {
   final ResidentPickupService _pickupService = ResidentPickupService();
+  final ServiceAccountService _serviceAccountService = ServiceAccountService();
   
   DateTime _selectedMonth = DateTime.now();
   DateTime? _selectedDate;
@@ -48,7 +52,7 @@ class _JadwalPengambilanScreenState extends State<JadwalPengambilanScreen> {
 
       if (!mounted) return;
 
-      if (success && pickups != null) {
+      if (success && pickups != null && pickups.isNotEmpty) {
         final Set<int> dates = {};
         final List<Map<String, dynamic>> allSchedules = [];
 
@@ -108,25 +112,162 @@ class _JadwalPengambilanScreenState extends State<JadwalPengambilanScreen> {
 
         print('[JADWAL] Loaded ${allSchedules.length} schedules for ${_selectedMonth.month}/${_selectedMonth.year}');
       } else {
+        // ⭐ API gagal atau kosong - gunakan FALLBACK dari hariPengangkutan
+        print('[JADWAL] API failed or empty, trying fallback with hariPengangkutan...');
+        await _loadSchedulesFromHariPengangkutan();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      print('[JADWAL] Exception: $e, trying fallback...');
+      
+      // ⭐ Exception - gunakan FALLBACK dari hariPengangkutan
+      await _loadSchedulesFromHariPengangkutan();
+    }
+  }
+
+  /// ⭐ FALLBACK: Generate jadwal dari hariPengangkutan service account
+  Future<void> _loadSchedulesFromHariPengangkutan() async {
+    try {
+      // Prioritas 1: Gunakan hariPengangkutan dari widget parameter
+      String? hariPengangkutan = widget.hariPengangkutan;
+      
+      // Prioritas 2: Fetch dari service account API jika tidak ada
+      if ((hariPengangkutan == null || hariPengangkutan.isEmpty) && 
+          widget.serviceAccountId != null) {
+        print('[JADWAL] Fetching hariPengangkutan from service account API...');
+        final account = await _serviceAccountService.getAccountById(
+          widget.serviceAccountId.toString(),
+        );
+        if (account != null) {
+          hariPengangkutan = account.hariPengangkutan;
+          print('[JADWAL] Got hariPengangkutan from API: $hariPengangkutan');
+        }
+      }
+      
+      if (hariPengangkutan == null || hariPengangkutan.isEmpty) {
+        // Tidak ada data jadwal sama sekali
+        if (!mounted) return;
         setState(() {
           _schedules = [];
           _scheduleDates = {};
           _isLoading = false;
-          _errorMessage = message;
+          _errorMessage = 'Jadwal pengangkutan belum diatur';
         });
-        print('[JADWAL] Error: $message');
+        return;
       }
+      
+      // Parse hariPengangkutan untuk generate jadwal
+      // Format yang mungkin: "Senin • 07:00" atau "Senin" atau "Senin, Kamis"
+      final schedulesGenerated = _generateSchedulesFromHariPengangkutan(hariPengangkutan);
+      
+      if (!mounted) return;
+      setState(() {
+        _schedules = schedulesGenerated;
+        _scheduleDates = schedulesGenerated.map((s) => (s['date'] as DateTime).day).toSet();
+        _isLoading = false;
+        _errorMessage = null;
+      });
+      
+      print('[JADWAL] Generated ${schedulesGenerated.length} schedules from hariPengangkutan');
     } catch (e) {
+      print('[JADWAL] Fallback also failed: $e');
       if (!mounted) return;
       setState(() {
         _schedules = [];
         _scheduleDates = {};
         _isLoading = false;
-        _errorMessage = 'Gagal memuat jadwal: $e';
+        _errorMessage = 'Gagal memuat jadwal';
       });
-      print('[JADWAL] Exception: $e');
     }
   }
+  
+  /// Generate jadwal untuk bulan yang dipilih berdasarkan hariPengangkutan
+  List<Map<String, dynamic>> _generateSchedulesFromHariPengangkutan(String hariPengangkutan) {
+    final List<Map<String, dynamic>> schedules = [];
+    
+    // Parse format: "Senin • 07:00" atau "Senin" atau "Senin, Kamis"
+    String time = '07:00'; // default
+    String daysString = hariPengangkutan;
+    
+    // Cek apakah ada waktu (format: "Senin • 07:00")
+    if (hariPengangkutan.contains('•')) {
+      final parts = hariPengangkutan.split('•');
+      daysString = parts[0].trim();
+      if (parts.length > 1) {
+        time = parts[1].trim();
+      }
+    } else if (hariPengangkutan.contains(':')) {
+      // Format mungkin "Senin 07:00"
+      final regex = RegExp(r'(\d{1,2}:\d{2})');
+      final match = regex.firstMatch(hariPengangkutan);
+      if (match != null) {
+        time = match.group(1)!;
+        daysString = hariPengangkutan.replaceAll(match.group(0)!, '').trim();
+      }
+    }
+    
+    // Parse hari-hari
+    final dayMap = {
+      'senin': 1,
+      'selasa': 2,
+      'rabu': 3,
+      'kamis': 4,
+      'jumat': 5,
+      'jum\'at': 5,
+      'sabtu': 6,
+      'minggu': 7,
+    };
+    
+    // Split by comma atau ampersand
+    final dayParts = daysString.split(RegExp(r'[,&]')).map((s) => s.trim().toLowerCase()).toList();
+    
+    // Dapatkan weekday dari nama hari
+    final List<int> weekdays = [];
+    for (final dayPart in dayParts) {
+      for (final entry in dayMap.entries) {
+        if (dayPart.contains(entry.key)) {
+          weekdays.add(entry.value);
+          break;
+        }
+      }
+    }
+    
+    if (weekdays.isEmpty) {
+      print('[JADWAL] No weekdays found in hariPengangkutan: $hariPengangkutan');
+      return [];
+    }
+    
+    // Generate tanggal untuk bulan yang dipilih
+    final lastDay = DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0);
+    
+    for (int day = 1; day <= lastDay.day; day++) {
+      final date = DateTime(_selectedMonth.year, _selectedMonth.month, day);
+      if (weekdays.contains(date.weekday)) {
+        schedules.add({
+          'id': 'generated_${date.toIso8601String()}',
+          'date': date,
+          'day': _getDayName(date.weekday),
+          'time': time,
+          'status': 'scheduled',
+          'confirmation_status': null,
+          'collector_info': null,
+          'can_confirm': false,
+          'resident_note': null,
+          'raw': null,
+        });
+      }
+    }
+    
+    // Sort by date
+    schedules.sort((a, b) {
+      final dateA = a['date'] as DateTime;
+      final dateB = b['date'] as DateTime;
+      return dateA.compareTo(dateB);
+    });
+    
+    return schedules;
+  }
+
 
   String _getDayName(int weekday) {
     const days = [
@@ -374,7 +515,7 @@ class _JadwalPengambilanScreenState extends State<JadwalPengambilanScreen> {
             color: isSelected
                 ? primaryColor
                 : hasSchedule
-                    ? primaryColor.withOpacity(0.1)
+                    ? primaryColor.withValues(alpha: 0.1)
                     : Colors.transparent,
             shape: BoxShape.circle,
             border: isToday && !isSelected

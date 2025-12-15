@@ -2007,6 +2007,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                 currentAccount['id']?.toString() ?? 
                                 '1'
                               ) ?? 1;
+                              
+                              // Ambil hariPengangkutan untuk fallback
+                              final hariPengangkutan = currentAccount['hari_pengangkutan']?.toString();
 
                               // Navigate ke JadwalPengambilanScreen
                               Navigator.push(
@@ -2014,6 +2017,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 MaterialPageRoute(
                                   builder: (context) => JadwalPengambilanScreen(
                                     serviceAccountId: serviceAccountId,
+                                    hariPengangkutan: hariPengangkutan,
                                   ),
                                 ),
                               );
@@ -2999,13 +3003,17 @@ class _HomeScreenState extends State<HomeScreen> {
                                   // Fallback ke 1 jika tidak ada
                                   serviceAccountId ??= 1;
                                   
-                                  print('[SEARCH] Navigating to JadwalPengambilanScreen with ID: $serviceAccountId');
+                                  // Ambil hariPengangkutan untuk fallback
+                                  final hariPengangkutan = _selectedAkun?['hari_pengangkutan']?.toString();
+                                  
+                                  print('[SEARCH] Navigating to JadwalPengambilanScreen with ID: $serviceAccountId, hariPengangkutan: $hariPengangkutan');
                                   
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) => JadwalPengambilanScreen(
                                         serviceAccountId: serviceAccountId,
+                                        hariPengangkutan: hariPengangkutan,
                                       ),
                                     ),
                                   );
