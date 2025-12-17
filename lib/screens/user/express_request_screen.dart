@@ -573,7 +573,7 @@ class _ExpressRequestScreenState extends State<ExpressRequestScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Gagal mengirim request: ${e.toString().replaceAll('Exception: ', '')}',
+            e.toString().replaceAll('Exception: ', ''),
             style: GoogleFonts.poppins(),
           ),
           backgroundColor: Colors.red,

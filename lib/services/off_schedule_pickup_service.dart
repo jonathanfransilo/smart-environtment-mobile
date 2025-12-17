@@ -205,9 +205,23 @@ class OffSchedulePickupService {
         };
       } else if (response.statusCode == 422) {
         final error = jsonDecode(response.body);
-        // Handle both error formats from API
+        // Handle the new error format: {errors: {message: "...", details: {...}}}
         final errors = error['errors'] as Map<String, dynamic>?;
         if (errors != null) {
+          // Check for detailed validation errors first
+          final details = errors['details'] as Map<String, dynamic>?;
+          if (details != null && details.isNotEmpty) {
+            // Get the first validation error message from details
+            final firstField = details.values.first;
+            if (firstField is List && firstField.isNotEmpty) {
+              throw Exception(firstField.first.toString());
+            }
+          }
+          // Fallback to general error message
+          if (errors['message'] != null) {
+            throw Exception(errors['message'].toString());
+          }
+          // Legacy format: errors directly contains field errors
           final firstError = errors.values.first;
           final errorMessage = firstError is List ? firstError.first : firstError.toString();
           throw Exception(errorMessage);

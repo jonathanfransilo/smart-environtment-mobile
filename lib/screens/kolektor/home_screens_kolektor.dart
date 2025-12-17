@@ -615,6 +615,11 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
   void _addCompletedTasksToHistory() {
     print('[HomeCollector] ===== ADDING COMPLETED TASKS TO HISTORY =====');
     
+    // ✅ PERBAIKAN: Hanya tampilkan pickup yang selesai HARI INI
+    final today = DateTime.now();
+    final todayStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    print('[HomeCollector] Today date filter: $todayStr');
+    
     // ✅ Gunakan allOffSchedulePickups untuk mencari completed pickups
     // Status completed: 'completed', 'collected', 'pending', 'paid' 
     // Pickup yang sudah selesai: punya photo_url (berarti sudah difoto dan disubmit)
@@ -622,6 +627,16 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
       final requestStatus = pickup['request_status']?.toString() ?? '';
       final status = pickup['status']?.toString() ?? '';
       final photoUrl = pickup['photo_url']?.toString() ?? '';
+      
+      // ✅ PERBAIKAN: Filter berdasarkan tanggal - hanya hari ini
+      final pickupDate = pickup['requested_pickup_date']?.toString() ?? 
+                         pickup['requested_date']?.toString() ?? '';
+      final isToday = pickupDate == todayStr;
+      
+      if (!isToday) {
+        print('[HomeCollector] Skipping off-schedule #${pickup['id']} - date: $pickupDate (not today)');
+        return false;
+      }
       
       // ✅ Pickup dianggap selesai jika:
       // 1. request_status = completed/paid, ATAU
@@ -728,12 +743,23 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
       }
     }
     
-    // Tambahkan resolved complaints
+    // Tambahkan resolved complaints - HANYA YANG DISELESAIKAN HARI INI
     final resolvedComplaints = allComplaints.where((complaint) {
-      return complaint.status == 'resolved';
+      if (complaint.status != 'resolved') return false;
+      
+      // ✅ PERBAIKAN: Filter complaint berdasarkan tanggal hari ini
+      final complaintDate = complaint.createdAt.toString().split(' ')[0];
+      final isToday = complaintDate == todayStr;
+      
+      if (!isToday) {
+        print('[HomeCollector] Skipping complaint #${complaint.id} - date: $complaintDate (not today)');
+        return false;
+      }
+      
+      return true;
     }).toList();
     
-    print('[HomeCollector] Found ${resolvedComplaints.length} resolved complaints in allComplaints');
+    print('[HomeCollector] Found ${resolvedComplaints.length} resolved complaints TODAY in allComplaints');
     print('[HomeCollector] Total allComplaints: ${allComplaints.length}');
     
     for (var complaint in resolvedComplaints) {
@@ -1727,30 +1753,56 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
                 height: 220,
                 child: _isLoadingHistory
                     ? const Center(child: CircularProgressIndicator())
-                    : pengambilanList.isEmpty
-                    ? Center(
-                        child: Text(
-                          'Belum ada pengambilan sampah',
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      )
-                    : ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: pengambilanList.length,
-                        itemBuilder: (context, index) {
-                          final item = pengambilanList[index];
-                          return _pickupCard(
-                            item["name"]?.toString() ?? "",
-                            item["address"]?.toString() ?? "",
-                            "Rp. ${(item["totalPrice"] as num?)?.toInt() ?? 0}",
-                            item["image"]?.toString() ??
-                                "assets/images/dummy.jpg",
-                            primaryColor,
-                            item, // Pass the full item data
+                    : Builder(
+                        builder: (context) {
+                          // ✅ PERBAIKAN: Filter pengambilanList hanya untuk hari ini
+                          final today = DateTime.now();
+                          final todayStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+                          
+                          final todayPickupHistory = pengambilanList.where((item) {
+                            final pickupDate = item['date']?.toString() ?? '';
+                            // Cek apakah tanggal pickup sama dengan hari ini
+                            // Format date bisa: "YYYY-MM-DD" atau "Senin, 16 Desember 2025 10.00"
+                            if (pickupDate.contains(todayStr)) {
+                              return true;
+                            }
+                            // Cek format alternatif (tanggal dalam format readable)
+                            final dayStr = today.day.toString();
+                            if (pickupDate.contains(' $dayStr ') && 
+                                pickupDate.contains('${today.year}')) {
+                              return true;
+                            }
+                            return false;
+                          }).toList();
+                          
+                          if (todayPickupHistory.isEmpty) {
+                            return Center(
+                              child: Text(
+                                'Belum ada pengambilan sampah hari ini',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            );
+                          }
+                          
+                          return ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            itemCount: todayPickupHistory.length,
+                            itemBuilder: (context, index) {
+                              final item = todayPickupHistory[index];
+                              return _pickupCard(
+                                item["name"]?.toString() ?? "",
+                                item["address"]?.toString() ?? "",
+                                "Rp. ${(item["totalPrice"] as num?)?.toInt() ?? 0}",
+                                item["image"]?.toString() ??
+                                    "assets/images/dummy.jpg",
+                                primaryColor,
+                                item, // Pass the full item data
+                              );
+                            },
                           );
                         },
                       ),
@@ -1765,15 +1817,30 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
 
   /// ✅ METHOD: Build list pengambilan sampah (reguler + off-schedule)
   Widget _buildPengambilanList(Color primaryColor) {
+    // ✅ PERBAIKAN: Filter hanya untuk hari ini
+    final today = DateTime.now();
+    final todayStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    
     // ✅ Filter off-schedule pickups dari allOffSchedulePickups:
-    // - Yang sedang diproses (processing)
-    // - ATAU yang sudah selesai (punya photo_url) agar tetap tampil seperti card Yoga yang selesai
+    // - HANYA yang tanggal request-nya adalah HARI INI
+    // - Yang sedang diproses (processing) ATAU sudah selesai
     // - KECUALI yang cancelled atau rejected
     final activeOffSchedule = allOffSchedulePickups.where((pickup) {
       final status = pickup['status']?.toString() ?? '';
       final requestStatus = pickup['request_status']?.toString() ?? '';
       final photoUrl = pickup['photo_url']?.toString() ?? '';
       final hasPhoto = photoUrl.isNotEmpty && photoUrl != 'null';
+      
+      // ✅ PERBAIKAN: Filter berdasarkan tanggal - HANYA HARI INI
+      final pickupDate = pickup['requested_pickup_date']?.toString() ?? 
+                         pickup['requested_date']?.toString() ?? '';
+      final isToday = pickupDate == todayStr;
+      
+      // Skip jika bukan hari ini
+      if (!isToday) {
+        print('[PengambilanList] Skipping off-schedule #${pickup['id']} - date: $pickupDate (not today: $todayStr)');
+        return false;
+      }
       
       // Skip yang cancelled atau rejected
       if (status == 'cancelled' || requestStatus == 'rejected') {
@@ -1785,7 +1852,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
         return true;
       }
       
-      // ✅ Tampilkan yang sudah selesai (punya foto atau status completed)
+      // ✅ Tampilkan yang sudah selesai HARI INI (punya foto atau status completed)
       if (hasPhoto || requestStatus == 'completed' || requestStatus == 'paid') {
         return true;
       }
@@ -2192,9 +2259,28 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
 
   // Riwayat Pengambilan Content
   Widget _buildRiwayatPengambilanContent(Color primaryColor) {
+    // ✅ PERBAIKAN: Filter pengambilanList hanya untuk hari ini
+    final today = DateTime.now();
+    final todayStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    
+    final todayPickupHistory = pengambilanList.where((item) {
+      final pickupDate = item['date']?.toString() ?? '';
+      // Cek apakah tanggal pickup sama dengan hari ini
+      if (pickupDate.contains(todayStr)) {
+        return true;
+      }
+      // Cek format alternatif (tanggal dalam format readable)
+      final dayStr = today.day.toString();
+      if (pickupDate.contains(' $dayStr ') && 
+          pickupDate.contains('${today.year}')) {
+        return true;
+      }
+      return false;
+    }).toList();
+    
     return _isLoadingHistory
         ? const Center(child: CircularProgressIndicator())
-        : pengambilanList.isEmpty
+        : todayPickupHistory.isEmpty
         ? Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -2202,7 +2288,7 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
                 Icon(Icons.history, size: 80, color: Colors.grey[300]),
                 const SizedBox(height: 16),
                 Text(
-                  'Belum ada riwayat pengambilan',
+                  'Belum ada riwayat pengambilan hari ini',
                   style: GoogleFonts.poppins(
                     fontSize: 16,
                     color: Colors.grey[600],
@@ -2213,9 +2299,9 @@ class _HomeScreensKolektorState extends State<HomeScreensKolektor>
           )
         : ListView.builder(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: pengambilanList.length,
+            itemCount: todayPickupHistory.length,
             itemBuilder: (context, index) {
-              final item = pengambilanList[index];
+              final item = todayPickupHistory[index];
               return Container(
                 margin: const EdgeInsets.only(bottom: 12),
                 decoration: BoxDecoration(
