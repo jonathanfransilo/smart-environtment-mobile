@@ -4,10 +4,13 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:provider/provider.dart';
+import '../../providers/theme_provider.dart';
+import '../../providers/language_provider.dart';
 import '../../services/auth_service.dart';
 import '../../services/user_storage.dart';
-import 'edit_akun_screen.dart';
-import 'change_password_screen.dart';
+import 'akun_screen.dart';
+import 'pengaturan_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -178,7 +181,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.photo_library, color: Colors.green),
+              leading: const Icon(Icons.photo_library, color: Color.fromARGB(255, 21, 145, 137)),
               title: Text('Pilih dari Galeri', style: GoogleFonts.poppins()),
               onTap: () {
                 Navigator.pop(context);
@@ -249,6 +252,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     String subtitle, {
     VoidCallback? onTap,
   }) {
+    final isDark = Provider.of<ThemeProvider>(context, listen: false).isDarkMode;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
@@ -259,12 +263,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.green.shade50,
+                color: isDark ? const Color.fromARGB(255, 21, 145, 137).withOpacity(0.15) : const Color.fromARGB(255, 21, 145, 137).withOpacity(0.08),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
                 icon,
-                color: Colors.green,
+                color: const Color.fromARGB(255, 21, 145, 137),
                 size: 24,
               ),
             ),
@@ -278,7 +282,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     style: GoogleFonts.poppins(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: Colors.black87,
+                      color: isDark ? Colors.white : Colors.black87,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -286,7 +290,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     subtitle,
                     style: GoogleFonts.poppins(
                       fontSize: 12,
-                      color: Colors.grey.shade600,
+                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                     ),
                   ),
                 ],
@@ -295,7 +299,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Icon(
               Icons.arrow_forward_ios,
               size: 16,
-              color: Colors.grey.shade400,
+              color: isDark ? Colors.grey.shade500 : Colors.grey.shade400,
             ),
           ],
         ),
@@ -305,13 +309,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Provider.of<ThemeProvider>(context).isDarkMode;
+    final lang = Provider.of<LanguageProvider>(context);
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: isDark ? const Color(0xFF121212) : Colors.white,
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: Colors.green,
+        backgroundColor: isDark ? const Color(0xFF1E1E1E) : const Color.fromARGB(255, 21, 145, 137),
         title: Text(
-          "Profil Saya",
+          lang.t('my_profile'),
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.bold,
             color: Colors.white,
@@ -326,16 +333,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               // 🔹 Header dengan avatar & nama - Modern Design
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.only(top: 40, bottom: 30),
+                padding: const EdgeInsets.only(top: 10, bottom: 30),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.green,
-                      Colors.green.shade300,
-                    ],
-                  ),
+                  color: isDark ? const Color(0xFF1E1E1E) : const Color.fromARGB(255, 21, 145, 137),
                   borderRadius: const BorderRadius.only(
                     bottomLeft: Radius.circular(30),
                     bottomRight: Radius.circular(30),
@@ -353,7 +353,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             color: Colors.white,
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.2),
+                                color: Colors.black.withOpacity(0.1),
                                 blurRadius: 10,
                                 offset: const Offset(0, 4),
                               ),
@@ -385,12 +385,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 color: Colors.white,
                                 shape: BoxShape.circle,
                                 border: Border.all(
-                                  color: Colors.green,
+                                  color: const Color.fromARGB(255, 21, 145, 137),
                                   width: 3,
                                 ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.2),
+                                    color: Colors.black.withOpacity(0.1),
                                     blurRadius: 6,
                                     offset: const Offset(0, 2),
                                   ),
@@ -399,7 +399,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               child: const Icon(
                                 Icons.camera_alt,
                                 size: 20,
-                                color: Colors.green,
+                                color: Color.fromARGB(255, 21, 145, 137),
                               ),
                             ),
                           ),
@@ -422,7 +422,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withOpacity(0.2), 
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
@@ -446,31 +446,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     // Card untuk menu items
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.grey.withOpacity(0.1),
+                            color: isDark ? Colors.black.withOpacity(0.3) : Colors.grey.withOpacity(0.1),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           ),
                         ],
                         border: Border.all(
-                          color: Colors.grey.shade200,
+                          color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
                           width: 1,
                         ),
                       ),
                       child: Column(
                         children: [
                           _modernMenuItem(
-                            Icons.edit_outlined,
-                            "Edit Akun",
-                            "Ubah informasi profil Anda",
+                            Icons.manage_accounts_outlined,
+                            lang.t('account'),
+                            lang.t('account_subtitle'),
                             onTap: () async {
                               final result = await Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => const EditAkunScreen(),
+                                  builder: (context) => const AkunScreen(),
                                 ),
                               );
                               if (result == true) {
@@ -480,24 +480,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           Divider(
                             height: 1,
-                            color: Colors.grey.shade200,
+                            color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
                             indent: 60,
                           ),
                           _modernMenuItem(
-                            Icons.lock_outline,
-                            "Password",
-                            "Ubah kata sandi akun",
-                            onTap: () async {
-                              final result = await Navigator.push(
+                            Icons.settings_outlined,
+                            lang.t('settings'),
+                            lang.t('settings_subtitle'),
+                            onTap: () {
+                              Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) =>
-                                      const ChangePasswordScreen(),
+                                  builder: (context) => const PengaturanScreen(),
                                 ),
                               );
-                              if (result == true) {
-                                _loadProfile();
-                              }
                             },
                           ),
                         ],
@@ -541,7 +537,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         },
                         icon: const Icon(Icons.logout, color: Colors.white),
                         label: Text(
-                          "Keluar",
+                          lang.t('logout'),
                           style: GoogleFonts.poppins(
                             color: Colors.white,
                             fontSize: 16,

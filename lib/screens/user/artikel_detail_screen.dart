@@ -194,7 +194,10 @@ class _ArtikelDetailScreenState extends State<ArtikelDetailScreen> {
           if (_article!.author != null || _article!.publishedAt != null)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
+              child: Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 4,
+                runSpacing: 6,
                 children: [
                   if (_article!.author != null) ...[
                     Icon(
@@ -202,7 +205,6 @@ class _ArtikelDetailScreenState extends State<ArtikelDetailScreen> {
                       size: 16,
                       color: Colors.grey[600],
                     ),
-                    const SizedBox(width: 4),
                     Text(
                       _article!.author!,
                       style: GoogleFonts.poppins(
@@ -210,11 +212,10 @@ class _ArtikelDetailScreenState extends State<ArtikelDetailScreen> {
                         color: Colors.grey[600],
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 12),
                   ],
                   if (_article!.publishedAt != null) ...[
                     Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
-                    const SizedBox(width: 4),
                     Text(
                       _formatDate(_article!.publishedAt!),
                       style: GoogleFonts.poppins(

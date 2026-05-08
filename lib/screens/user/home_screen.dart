@@ -1,11 +1,13 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import '../../providers/theme_provider.dart';
+import '../../providers/language_provider.dart';
 import 'notification_service.dart';
 import 'notification_screen.dart';
 import 'tips_detail_screen.dart';
@@ -27,6 +29,8 @@ import '../../models/artikel_model.dart';
 import 'layanan_sampah_screen.dart';
 import 'riwayat_pengambilan_screen.dart';
 import 'tambah_akun_layanan_screen.dart';
+import 'profile_screen.dart';
+import 'aibot_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -49,9 +53,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // unread notification counter
   int _unreadNotifCount = 0;
-
-  // Profile image path
-  String _profileImagePath = '';
 
   // Debounce untuk notifikasi otomatis - cegah duplikasi
   DateTime? _lastNotificationCheck;
@@ -82,6 +83,9 @@ class _HomeScreenState extends State<HomeScreen> {
     viewportFraction: 0.85,
   );
   int _currentArtikelPage = 0;
+
+  // Bottom Navigation state
+  int _selectedNavIndex = 0;
 
   @override
   void initState() {
@@ -959,15 +963,10 @@ class _HomeScreenState extends State<HomeScreen> {
     // Gunakan UserStorage untuk mendapatkan nama user yang tersimpan saat login
     final savedName = await UserStorage.getUserName();
 
-    // Load profile image path dari SharedPreferences
-    final prefs = await SharedPreferences.getInstance();
-    final profilePath = prefs.getString('profile_image') ?? '';
-
     await Future.delayed(const Duration(milliseconds: 300));
     if (!mounted) return;
     setState(() {
       _username = savedName ?? "User";
-      _profileImagePath = profilePath;
       _isLoading = false;
     });
   }
@@ -977,14 +976,9 @@ class _HomeScreenState extends State<HomeScreen> {
     // Gunakan UserStorage untuk mendapatkan nama user terbaru
     final savedName = await UserStorage.getUserName();
 
-    // Refresh profile image
-    final prefs = await SharedPreferences.getInstance();
-    final profilePath = prefs.getString('profile_image') ?? '';
-
     if (!mounted) return;
     setState(() {
       _username = savedName ?? "User";
-      _profileImagePath = profilePath;
     });
   }
 
@@ -1351,8 +1345,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                     showDialog(
                                       context: context,
                                       barrierDismissible: false,
-                                      builder: (loadingContext) => WillPopScope(
-                                        onWillPop: () async => false,
+                                      builder: (loadingContext) => PopScope(
+                                        canPop: false,
                                         child: Center(
                                           child: Container(
                                             padding: const EdgeInsets.all(20),
@@ -1737,23 +1731,89 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     }
 
+    final isDark = Provider.of<ThemeProvider>(context).isDarkMode;
+    final lang = Provider.of<LanguageProvider>(context);
+
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
-      body: _isLoading ? _buildShimmer() : _buildHomeContent(),
+      backgroundColor: isDark ? const Color(0xFF121212) : Colors.grey.shade50,
+      extendBody: true,
+      body: _isLoading 
+          ? _buildShimmer() 
+          : _selectedNavIndex == 0
+              ? _buildHomeContent()
+              : _selectedNavIndex == 1
+                  ? AIBotScreen(
+                      userName: _selectedAkun?['nama'],
+                      serviceAccountId: _selectedAkun?['id']?.toString(),
+                    )
+                  : ProfileScreen(),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: _selectedNavIndex == 1 ? const Color(0xFF0D1B2A) : Colors.transparent,
+          boxShadow: _selectedNavIndex == 1 ? [] : [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: Container(
+            height: 70,
+            margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+            decoration: BoxDecoration(
+              color: _selectedNavIndex == 1 ? const Color(0xFF1B2838) : (isDark ? const Color(0xFF1E1E1E) : Colors.white),
+              borderRadius: BorderRadius.circular(35),
+              boxShadow: _selectedNavIndex == 1 ? [] : [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 30,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildNavItem(0, Icons.home_rounded, Icons.home_outlined, lang.t('home'), isDark),
+                // Special AI Bot Button - Floating & Eye-catching
+                _buildAIBotNavItem(),
+                _buildNavItem(
+                  2,
+                  Icons.person_rounded,
+                  Icons.person_outline,
+                  lang.t('profile'),
+                  isDark,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
   Widget _buildHomeContent() {
+    final isDark = Provider.of<ThemeProvider>(context).isDarkMode;
+    final lang = Provider.of<LanguageProvider>(context);
+
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            const Color(0xFFE0F7F4), // Mint light
-            const Color(0xFFF0F9F8), // Very light mint
-            Colors.grey.shade50,
-          ],
+          colors: isDark
+            ? [
+                const Color(0xFF1A2F2D),
+                const Color(0xFF151F1E),
+                const Color(0xFF121212),
+              ]
+            : [
+                const Color(0xFFE0F7F4),
+                const Color(0xFFF0F9F8),
+                Colors.grey.shade50,
+              ],
           stops: const [0.0, 0.3, 0.6],
         ),
       ),
@@ -1771,23 +1831,23 @@ class _HomeScreenState extends State<HomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        "Halo ${_isLoading ? 'User' : _username},",
+                        "${lang.t('hello')} ${_isLoading ? 'User' : _username},",
                         style: GoogleFonts.poppins(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: Colors.black,
+                          color: isDark ? Colors.white : Colors.black,
                         ),
                       ),
                       Text(
-                        "Selamat Datang",
+                        lang.t('welcome'),
                         style: GoogleFonts.poppins(
                           fontSize: 14,
-                          color: Colors.black54,
+                          color: isDark ? Colors.white60 : Colors.black54,
                         ),
                       ),
                     ],
                   ),
-                  // Icons (Notification & Profile)
+                  // Icons (Notification Only - Profile moved to navbar)
                   Row(
                     children: [
                       // 🔔 Notification Icon with Badge
@@ -1807,7 +1867,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             child: Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: Colors.white,
+                                color: isDark ? const Color(0xFF2D2D2D) : Colors.white,
                                 shape: BoxShape.circle,
                                 boxShadow: [
                                   BoxShadow(
@@ -1870,62 +1930,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         ],
                       ),
                       const SizedBox(width: 12),
-                      // 👤 Profile Photo
-                      GestureDetector(
-                        onTap: () async {
-                          await Navigator.pushNamed(context, '/profile');
-                          await _refreshUser();
-                          await _refreshAllData();
-                        },
-                        child: Container(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            // Border hijau dihilangkan
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: ClipOval(
-                            child: _profileImagePath.isNotEmpty
-                                ? (_profileImagePath.startsWith('http')
-                                      ? Image.network(
-                                          _profileImagePath,
-                                          fit: BoxFit.cover,
-                                          errorBuilder:
-                                              (context, error, stackTrace) {
-                                                return Icon(
-                                                  Icons.person,
-                                                  color: Colors.grey[400],
-                                                  size: 24,
-                                                );
-                                              },
-                                        )
-                                      : Image.file(
-                                          File(_profileImagePath),
-                                          fit: BoxFit.cover,
-                                          errorBuilder:
-                                              (context, error, stackTrace) {
-                                                return Icon(
-                                                  Icons.person,
-                                                  color: Colors.grey[400],
-                                                  size: 24,
-                                                );
-                                              },
-                                        ))
-                                : Icon(
-                                    Icons.person,
-                                    color: Colors.grey[400],
-                                    size: 24,
-                                  ),
-                          ),
-                        ),
-                      ),
                     ],
                   ),
                 ],
@@ -1964,10 +1968,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            "Daftar Layanan",
+                            lang.t('service_list'),
                             style: GoogleFonts.poppins(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white : Colors.black87,
                             ),
                           ),
                         ],
@@ -1985,7 +1990,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           // 1. Jadwal (icon dari assets/images/calender.png)
                           _menuItem(
                             "assets/images/calender.png",
-                            "Jadwal\n Pengambilan",
+                            lang.t('schedule'),
                             onTap: () {
                               // Gunakan service account yang dipilih
                               if (_akunList.isEmpty) {
@@ -2026,7 +2031,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           // 2. Request Pengambilan
                           _menuItem(
                             "assets/images/express.jpeg",
-                            "Request\nPengambilan",
+                            lang.t('request_pickup'),
                             onTap: () {
                               // Gunakan service account yang dipilih
                               if (_akunList.isEmpty) {
@@ -2057,7 +2062,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           // 3. Riwayat Pengambilan
                           _menuItem(
                             "assets/images/keranjang.png",
-                            "Riwayat\nPengambilan",
+                            lang.t('pickup_history'),
                             onTap: () async {
                               try {
                                 print(
@@ -2164,7 +2169,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           // 4. Riwayat Pembayaran
                           _menuItem(
                             "assets/images/rekening.png",
-                            "Riwayat\nPembayaran",
+                            lang.t('payment_history'),
                             onTap: () {
                               // Gunakan service account yang dipilih
                               if (_akunList.isEmpty) {
@@ -2195,7 +2200,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           // 5. Artikel
                           _menuItem(
                             "assets/images/artikel.png",
-                            "Artikel",
+                            lang.t('articles'),
                             onTap: () {
                               Navigator.pushNamed(context, '/artikel');
                             },
@@ -2203,7 +2208,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           // 6. Pelaporan
                           _menuItem(
                             "assets/images/pelanggaran.png",
-                            "Pelaporan",
+                            lang.t('reporting'),
                             onTap: () {
                               // Pass service account yang dipilih ke pelaporan
                               final currentAccount = _selectedAkun ?? (_akunList.isNotEmpty ? _akunList.first : null);
@@ -2226,10 +2231,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       // ===== Artikel Terbaru (TAPPABLE & BERWARNA) =====
                       // ===================================================
                       Text(
-                        "Artikel Terbaru",
+                        lang.isIndonesian ? "Artikel Terbaru" : "Latest Articles",
                         style: GoogleFonts.poppins(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black87,
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -2280,10 +2286,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       // ===== TIPS RAMAH LINGKUNGAN (TAPPABLE & BERWARNA) =====
                       // ===================================================
                       Text(
-                        "Tips Ramah Lingkungan",
+                        lang.isIndonesian ? "Tips Ramah Lingkungan" : "Eco-Friendly Tips",
                         style: GoogleFonts.poppins(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black87,
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -2423,7 +2430,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
 
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 100),
                     ],
                   ),
                 ),
@@ -2435,7 +2442,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Shimmer loading
   Widget _buildShimmer() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -2491,6 +2497,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // helper menu item dengan animasi
   Widget _menuItem(String asset, String title, {VoidCallback? onTap}) {
+    final isDark = Provider.of<ThemeProvider>(context, listen: false).isDarkMode;
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0.0, end: 1.0),
       duration: const Duration(milliseconds: 400),
@@ -2502,12 +2509,11 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               Container(
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: isDark ? const Color(0xFF2D2D2D) : Colors.white,
                   borderRadius: BorderRadius.circular(20),
-                  // Drop shadow: blur 7, offset Y=4, X=0
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: isDark ? Colors.black.withOpacity(0.3) : Colors.black.withOpacity(0.1),
                       blurRadius: 7,
                       spreadRadius: 0,
                       offset: const Offset(0, 4),
@@ -2551,6 +2557,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     fontWeight: FontWeight.w500,
                     height: 1.3,
                     letterSpacing: -0.2,
+                    color: isDark ? Colors.white70 : Colors.black87,
                   ),
                 ),
               ),
@@ -3467,7 +3474,7 @@ class _HomeScreenState extends State<HomeScreen> {
         margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [
+          boxShadow: [    
             BoxShadow(
               color: Colors.black.withOpacity(0.3),
               blurRadius: 10,
@@ -3636,6 +3643,157 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  // Custom Navigation Item Builder with Animation
+  Widget _buildNavItem(
+    int index,
+    IconData activeIcon,
+    IconData inactiveIcon,
+    String label,
+    bool isDark,
+  ) {
+    final isSelected = _selectedNavIndex == index;
+    final isAIBotActive = _selectedNavIndex == 1;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedNavIndex = index;
+        });
+      },
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.fastOutSlowIn,
+        padding: EdgeInsets.symmetric(horizontal: isSelected ? 16 : 8, vertical: 8),
+        decoration: BoxDecoration(
+          color:
+              isSelected
+                  ? const Color.fromARGB(255, 21, 145, 137).withOpacity(0.1)
+                  : Colors.transparent,
+          borderRadius: BorderRadius.circular(25),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isSelected ? activeIcon : inactiveIcon,
+              size: 24,
+              color:
+                  isSelected
+                      ? const Color.fromARGB(255, 21, 145, 137)
+                      : (isAIBotActive ? Colors.white54 : (isDark ? Colors.grey.shade500 : Colors.grey.shade400)),
+            ),
+            if (isSelected) ...[
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  label,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: const Color.fromARGB(255, 21, 145, 137),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Premium AI Bot Navigation Item - Floating & Eye-catching
+  Widget _buildAIBotNavItem() {
+    final isSelected = _selectedNavIndex == 1;
+    
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedNavIndex = 1;
+        });
+      },
+      child: Transform.translate(
+        offset: const Offset(0, -12), // Float the button up
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: isSelected
+                  ? [
+                      const Color(0xFF1BA89E), // Lighter teal
+                      const Color(0xFF159189), // Teal green
+                    ]
+                  : [
+                      const Color(0xFF1BA89E).withOpacity(0.8),
+                      const Color(0xFF159189).withOpacity(0.8),
+                    ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(25),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF1BA89E).withOpacity(isSelected ? 0.5 : 0.3),
+                blurRadius: isSelected ? 15 : 10,
+                offset: const Offset(0, 5),
+                spreadRadius: isSelected ? 2 : 0,
+              ),
+              BoxShadow(
+                color: const Color(0xFF159189).withOpacity(0.2),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // AI Bot Icon with glow effect
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.25),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.white.withOpacity(0.3),
+                      blurRadius: 8,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.smart_toy_rounded,
+                  size: 18,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 8),
+              // AI Bot Text with premium styling
+              Text(
+                'AI Bot',
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  letterSpacing: 0.5,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

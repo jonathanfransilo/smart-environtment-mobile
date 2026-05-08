@@ -2,6 +2,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:device_wrapper/device_wrapper.dart';
+import 'package:provider/provider.dart';
+import 'providers/theme_provider.dart';
+import 'providers/language_provider.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
@@ -23,7 +26,17 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 const bool _enableDeviceWrapper = true;
 
 void main() {
-  runApp(const SirkularApp());
+  runApp(
+    /// MultiProvider membungkus seluruh aplikasi agar semua widget
+    /// bisa mengakses ThemeProvider dan LanguageProvider
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => LanguageProvider()),
+      ],
+      child: const SirkularApp(),
+    ),
+  );
 }
 
 class SirkularApp extends StatelessWidget {
@@ -31,15 +44,18 @@ class SirkularApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Build MaterialApp
+    // Ambil provider untuk tema
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
+    // Build MaterialApp dengan tema dari provider
     final app = MaterialApp(
       title: 'Sirkular',
       debugShowCheckedModeBanner: false,
       navigatorKey: navigatorKey,
-      theme: ThemeData.light().copyWith(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
-        useMaterial3: true,
-      ),
+      // Tema terang dan gelap dari ThemeProvider
+      theme: themeProvider.lightTheme,
+      darkTheme: themeProvider.darkTheme,
+      themeMode: themeProvider.themeMode,
       scrollBehavior: const MaterialScrollBehavior().copyWith(
         dragDevices: {
           PointerDeviceKind.mouse,
@@ -106,3 +122,4 @@ class SirkularApp extends StatelessWidget {
     return app;
   }
 }
+

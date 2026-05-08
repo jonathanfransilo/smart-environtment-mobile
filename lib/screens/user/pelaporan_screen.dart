@@ -863,9 +863,12 @@ class _BuatLaporanScreenState extends State<BuatLaporanScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
+        elevation: 0,
         title: Text(
           "Pelaporan",
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: Colors.black87),
         ),
       ),
       body: SingleChildScrollView(
