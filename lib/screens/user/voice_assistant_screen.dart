@@ -22,9 +22,9 @@ class VoiceAssistantScreen extends StatefulWidget {
 }
 
 class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin { 
   final stt.SpeechToText _speech = stt.SpeechToText();
-  final ChatbotService _chatbotService = ChatbotService();
+  final ChatbotService _chatbotService = ChatbotService();   
   final FlutterTts _flutterTts = FlutterTts();
 
   bool _isAvailable = false;
