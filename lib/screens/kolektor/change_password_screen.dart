@@ -224,7 +224,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                     Navigator.pop(context, true); // Return to profile
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF009688),
+                    backgroundColor: const Color.fromARGB(255, 21, 145, 137),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -254,7 +254,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: const Color(0xFF009688),
+        backgroundColor: const Color.fromARGB(255, 21, 145, 137),
         title: Text(
           "Ubah Password",
           style: GoogleFonts.poppins(
@@ -280,19 +280,19 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             colors: [
-                              const Color(0xFF009688).withOpacity(0.1),
-                              const Color(0xFF009688).withOpacity(0.2),
+                              const Color.fromARGB(255, 21, 145, 137).withOpacity(0.1),
+                              const Color.fromARGB(255, 21, 145, 137).withOpacity(0.2),
                             ],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: const Color(0xFF009688).withOpacity(0.3),
+                            color: const Color.fromARGB(255, 21, 145, 137).withOpacity(0.3),
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF009688).withOpacity(0.1),
+                              color: const Color.fromARGB(255, 21, 145, 137).withOpacity(0.1),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             ),
@@ -308,7 +308,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                               ),
                               child: const Icon(
                                 Icons.security,
-                                color: Color(0xFF009688),
+                                color: Color.fromARGB(255, 21, 145, 137),
                                 size: 28,
                               ),
                             ),
@@ -322,7 +322,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                                     style: GoogleFonts.poppins(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w600,
-                                      color: const Color(0xFF009688),
+                                      color: const Color.fromARGB(255, 21, 145, 137),
                                     ),
                                   ),
                                   const SizedBox(height: 4),
@@ -330,7 +330,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                                     'Password minimal 8 karakter dengan kombinasi huruf dan angka',
                                     style: GoogleFonts.poppins(
                                       fontSize: 11,
-                                      color: const Color(0xFF009688),
+                                      color: const Color.fromARGB(255, 21, 145, 137),
                                       height: 1.4,
                                     ),
                                   ),
@@ -389,7 +389,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: const BorderSide(
-                              color: Color(0xFF009688),
+                              color: Color.fromARGB(255, 21, 145, 137),
                               width: 2,
                             ),
                           ),
@@ -531,7 +531,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: const BorderSide(
-                              color: Color(0xFF009688),
+                              color: Color.fromARGB(255, 21, 145, 137),
                               width: 2,
                             ),
                           ),
@@ -598,7 +598,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                         child: ElevatedButton(
                           onPressed: _isSaving ? null : _saveNewPassword,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF009688),
+                            backgroundColor: const Color.fromARGB(255, 21, 145, 137),
                             disabledBackgroundColor: Colors.grey.shade400,
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(

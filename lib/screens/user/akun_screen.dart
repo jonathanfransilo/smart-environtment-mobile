@@ -357,13 +357,13 @@ class _AkunScreenState extends State<AkunScreen>
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.green.shade50,
+                  color: const Color.fromARGB(255, 21, 145, 137).withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   Icons.check_circle,
                   size: 64,
-                  color: Colors.green.shade600,
+                  color: const Color.fromARGB(255, 21, 145, 137),
                 ),
               ),
               const SizedBox(height: 24),
@@ -433,7 +433,7 @@ class _AkunScreenState extends State<AkunScreen>
                     Navigator.pop(context); // Tutup dialog
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
+                    backgroundColor: const Color.fromARGB(255, 21, 145, 137),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -476,7 +476,7 @@ class _AkunScreenState extends State<AkunScreen>
         backgroundColor: isDark ? const Color(0xFF121212) : Colors.grey.shade50,
         appBar: AppBar(
           elevation: 0,
-          backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.green,
+          backgroundColor: isDark ? const Color(0xFF1E1E1E) : const Color.fromARGB(255, 21, 145, 137),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.white),
             onPressed: () {
@@ -656,7 +656,7 @@ class _AkunScreenState extends State<AkunScreen>
                 child: ElevatedButton(
                   onPressed: _isSavingProfile ? null : _saveProfileChanges,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
+                    backgroundColor: const Color.fromARGB(255, 21, 145, 137),
                     disabledBackgroundColor: Colors.grey.shade400,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
@@ -714,17 +714,17 @@ class _AkunScreenState extends State<AkunScreen>
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      Colors.green.shade50,
-                      Colors.green.shade100,
+                      const Color.fromARGB(255, 21, 145, 137).withOpacity(0.05),
+                      const Color.fromARGB(255, 21, 145, 137).withOpacity(0.15),
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.green.shade200),
+                  border: Border.all(color: const Color.fromARGB(255, 21, 145, 137).withOpacity(0.3)),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.green.withOpacity(0.1),
+                      color: const Color.fromARGB(255, 21, 145, 137).withOpacity(0.1),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -738,9 +738,9 @@ class _AkunScreenState extends State<AkunScreen>
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Icon(
+                      child: const Icon(
                         Icons.security,
-                        color: Colors.green.shade700,
+                        color: Color.fromARGB(255, 21, 145, 137),
                         size: 28,
                       ),
                     ),
@@ -754,7 +754,7 @@ class _AkunScreenState extends State<AkunScreen>
                             style: GoogleFonts.poppins(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: Colors.green.shade900,
+                              color: const Color.fromARGB(255, 21, 145, 137),
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -762,7 +762,7 @@ class _AkunScreenState extends State<AkunScreen>
                             'Password minimal 8 karakter dengan kombinasi huruf dan angka',
                             style: GoogleFonts.poppins(
                               fontSize: 11,
-                              color: Colors.green.shade700,
+                              color: const Color.fromARGB(255, 21, 145, 137),
                               height: 1.4,
                             ),
                           ),
@@ -904,7 +904,7 @@ class _AkunScreenState extends State<AkunScreen>
                 child: ElevatedButton(
                   onPressed: _isSavingPassword ? null : _saveNewPassword,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
+                    backgroundColor: const Color.fromARGB(255, 21, 145, 137),
                     disabledBackgroundColor: Colors.grey.shade400,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(

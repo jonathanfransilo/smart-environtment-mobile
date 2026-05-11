@@ -24,7 +24,7 @@ class PengaturanScreen extends StatelessWidget {
       backgroundColor: isDark ? const Color(0xFF121212) : Colors.grey.shade50,
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: Colors.green,
+        backgroundColor: isDark ? const Color(0xFF1E1E1E) : const Color.fromARGB(255, 21, 145, 137),
         title: Text(
           langProvider.t('settings'),
           style: GoogleFonts.poppins(
@@ -87,15 +87,15 @@ class PengaturanScreen extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: isDark
-              ? [const Color(0xFF1B5E20), const Color(0xFF2E7D32)]
-              : [Colors.green.shade400, Colors.green.shade600],
+              ? [const Color.fromARGB(255, 15, 110, 105), const Color.fromARGB(255, 18, 128, 122)]
+              : [const Color.fromARGB(255, 25, 160, 150), const Color.fromARGB(255, 21, 145, 137)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.green.withOpacity(0.3),
+            color: const Color.fromARGB(255, 21, 145, 137).withOpacity(0.3),
             blurRadius: 15,
             offset: const Offset(0, 8),
           ),
@@ -159,7 +159,7 @@ class PengaturanScreen extends StatelessWidget {
         Icon(
           icon,
           size: 20,
-          color: Colors.green,
+          color: const Color.fromARGB(255, 21, 145, 137),
         ),
         const SizedBox(width: 8),
         Text(
@@ -274,7 +274,7 @@ class PengaturanScreen extends StatelessWidget {
                           ),
                         ],
                       ),
-                      backgroundColor: Colors.green,
+                      backgroundColor: const Color.fromARGB(255, 21, 145, 137),
                       behavior: SnackBarBehavior.floating,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
@@ -283,8 +283,8 @@ class PengaturanScreen extends StatelessWidget {
                     ),
                   );
                 },
-                activeColor: Colors.green,
-                activeTrackColor: Colors.green.shade200,
+                activeColor: const Color.fromARGB(255, 21, 145, 137),
+                activeTrackColor: const Color.fromARGB(255, 21, 145, 137).withOpacity(0.5),
                 inactiveThumbColor: Colors.grey.shade400,
                 inactiveTrackColor: Colors.grey.shade300,
               ),
@@ -387,7 +387,7 @@ class PengaturanScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              backgroundColor: Colors.green,
+              backgroundColor: const Color.fromARGB(255, 21, 145, 137),
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
@@ -404,8 +404,8 @@ class PengaturanScreen extends StatelessWidget {
         decoration: BoxDecoration(
           color: isSelected
               ? (isDark
-                  ? Colors.green.withOpacity(0.1)
-                  : Colors.green.withOpacity(0.05))
+                  ? const Color.fromARGB(255, 21, 145, 137).withOpacity(0.1)
+                  : const Color.fromARGB(255, 21, 145, 137).withOpacity(0.05))
               : Colors.transparent,
           borderRadius: BorderRadius.circular(16),
         ),
@@ -419,7 +419,7 @@ class PengaturanScreen extends StatelessWidget {
                 color: isDark ? const Color(0xFF2D2D2D) : Colors.grey.shade100,
                 borderRadius: BorderRadius.circular(12),
                 border: isSelected
-                    ? Border.all(color: Colors.green, width: 2)
+                    ? Border.all(color: const Color.fromARGB(255, 21, 145, 137), width: 2)
                     : null,
               ),
               child: Center(
@@ -441,7 +441,7 @@ class PengaturanScreen extends StatelessWidget {
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                       color: isSelected
-                          ? Colors.green
+                          ? const Color.fromARGB(255, 21, 145, 137)
                           : (isDark ? Colors.white : Colors.black87),
                     ),
                   ),
@@ -463,10 +463,10 @@ class PengaturanScreen extends StatelessWidget {
               height: 28,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: isSelected ? Colors.green : Colors.transparent,
+                color: isSelected ? const Color.fromARGB(255, 21, 145, 137) : Colors.transparent,
                 border: Border.all(
                   color: isSelected
-                      ? Colors.green
+                      ? const Color.fromARGB(255, 21, 145, 137)
                       : (isDark ? Colors.grey.shade600 : Colors.grey.shade300),
                   width: 2,
                 ),

@@ -146,7 +146,7 @@ class _AIBotScreenState extends State<AIBotScreen>
     if (cleanText.isNotEmpty) {
       final isEnglish = _isEnglishResponse(text);
       await _flutterTts.setLanguage(isEnglish ? 'en-US' : 'id-ID');
-      await _flutterTts.setSpeechRate(isEnglish ? 0.85 : 0.9);
+      await _flutterTts.setSpeechRate(isEnglish ? 0.45 : 0.5);
       await _flutterTts.speak(cleanText);
     }
   }

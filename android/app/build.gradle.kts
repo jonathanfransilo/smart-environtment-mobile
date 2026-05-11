@@ -6,13 +6,13 @@ plugins {
 
 android {
     namespace = "com.example.sirkular_app"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = "28.2.13676358"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
-        // ✅ Kotlin DSL harus pakai ini, bukan coreLibraryDesugaringEnabled
+        // Kotlin DSL harus pakai ini, bukan coreLibraryDesugaringEnabled
         isCoreLibraryDesugaringEnabled = true
     }
 
@@ -21,8 +21,8 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.sirkular_app" // ✅ cocok sama userAgentPackageName di TileLayer
-        minSdk = flutter.minSdkVersion
+        applicationId = "com.example.sirkular_app" // cocok sama userAgentPackageName di TileLayer
+        minSdk = 24
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -37,7 +37,7 @@ android {
 }
 
 dependencies {
-    // ✅ ini wajib untuk desugaring (Java 8+ API support)
+    // ini wajib untuk desugaring (Java 8+ API support)
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.3")
 
     // Flutter dependencies auto-inject lewat plugin flutter-gradle
